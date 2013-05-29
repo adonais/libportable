@@ -1,0 +1,32 @@
+HOW TO BUILD portable_src
+=================
+
+System requirements
+------------------
+
+    - C compiler supporting the C99 standard
+	
+     mingw64, msys
+
+     MinGW project on:
+     http://sourceforge.net/projects/mingw-w64/
+
+     msys project on
+     https://sourceforge.net/projects/mingw/files/MSYS/
+
+     Microsoft Visual Studio 2010.
+
+ Build!
+------------------
+build x86:
+
+make clean
+/* Dynamic Linking of C Runtime Libraries with Vc11,If you are building the Firefox source code with Visual Studio 2012 */  
+make CRT_LINK=1700 
+/* else,Dynamic Linking of C Runtime Libraries with Vc10 */
+make
+
+build x64:
+
+make clean
+make BITS=64 CRT_LINK=1700
