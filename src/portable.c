@@ -281,17 +281,12 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 	#else
 		dwCaller = (UINT_PTR)_ReturnAddress();
 	#endif
-		if ( IsSpecialDll(dwCaller, L"shell32.dll") ||
-		     IsSpecialDll(dwCaller, L"*\\np*.dll") )
+		if ( ( CSIDL_LOCAL_APPDATA == folder && 
+		     IsSpecialDll(dwCaller, L"shell32.dll") ) ||
+			 IsSpecialDll(dwCaller, L"*\\np*.dll")
+			)
 		{
-			if( CSIDL_APPDATA == folder )
-			{
-				num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-			}
-			else
-			{
-				num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-			}
+			num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
 			pszPath[num] = L'\0';
 			return S_OK;
 		}
