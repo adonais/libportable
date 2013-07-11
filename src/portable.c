@@ -40,7 +40,10 @@ typedef HRESULT (WINAPI *_NtSHGetFolderPath)(HWND hwndOwner,
 typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
 									    int nFolder,
 									    LPITEMIDLIST *ppidl);
-
+typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
+									    LPWSTR lpszPath,
+									    int csidl,
+									    BOOL fCreate);
 typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathA)(HWND hwndOwner,
 									    LPSTR lpszPath,
 									    int csidl,
@@ -49,7 +52,7 @@ typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathA)(HWND hwndOwner,
 static _NtSHGetFolderPath				TrueSHGetFolderPathW				= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
 static _NtSHGetSpecialFolderPathA       TrueSHGetSpecialFolderPathA			= NULL;
-
+static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
 #ifdef _DEBUG
 void __cdecl logmsg(const char * format, ...)
@@ -294,6 +297,29 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 	return TrueSHGetFolderPathW(hwndOwner, nFolder, hToken,dwFlags,pszPath);
 }
 
+BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
+{
+	if (fCreate)
+    {
+            if( CSIDL_APPDATA == csidl          ||
+                CSIDL_COMMON_APPDATA == csidl   ||
+                CSIDL_LOCAL_APPDATA == csidl    ||
+                (CSIDL_LOCAL_APPDATA|CSIDL_FLAG_CREATE)  == csidl ||
+                (CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl
+               )
+            {
+                    int num = 0;
+                    if( (CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl )
+                            num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
+                    else
+                            num = _snwprintf(lpszPath,MAX_PATH,L"%ls",localdata_path);
+                    lpszPath[num] = L'\0';
+                    return TRUE;
+            }
+    }
+    return TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
+}
+
 unsigned WINAPI SetPluginPath(void * pParam)
 {
 	typedef		 errno_t (__cdecl *_pwrite_env)(LPCWSTR name,LPCWSTR value);
@@ -467,6 +493,8 @@ unsigned WINAPI init_portable(void * pParam)
 	{
 		TrueSHGetFolderPathW = (_NtSHGetFolderPath)GetProcAddress(hShell32,
 								"SHGetFolderPathW");
+		TrueSHGetSpecialFolderPathW = (_NtSHGetSpecialFolderPathW)GetProcAddress(hShell32,
+                                       "SHGetSpecialFolderPathW");
 		TrueSHGetSpecialFolderLocation = (_NtSHGetSpecialFolderLocation)GetProcAddress(hShell32,
 										 "SHGetSpecialFolderLocation");
 	}
@@ -479,6 +507,10 @@ unsigned WINAPI init_portable(void * pParam)
 	{
 		Mhook_SetHook((PVOID*)&TrueSHGetFolderPathW, (PVOID)HookSHGetFolderPathW);
 	}
+    if (TrueSHGetSpecialFolderPathW)
+    {
+            Mhook_SetHook((PVOID*)&TrueSHGetSpecialFolderPathW, (PVOID)HookSHGetSpecialFolderPathW);
+    }
 	return (1);
 }
 
@@ -489,6 +521,10 @@ void WINAPI hook_end(void)
 	{
 		Mhook_Unhook((PVOID*)&TrueSHGetFolderPathW);
 	}
+    if (TrueSHGetSpecialFolderPathW)
+    {
+            Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
+    }
 	if (TrueSHGetSpecialFolderLocation)
 	{
 		Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderLocation);
