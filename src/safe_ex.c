@@ -240,21 +240,6 @@ NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
 									NumberOfBytesWritten);
 }
 
-NTSTATUS NTAPI HookNtReadVirtualMemory (IN HANDLE ProcessHandle,
-										IN PVOID BaseAddress,
-										OUT PVOID Buffer,
-										IN ULONG NumberOfBytesToRead,
-										OUT PULONG NumberOfBytesRead)
-{
-	ULONG_PTR        dwCurrentPid	= GetCurrentProcessId();
-	ULONG_PTR        dwParent		= GetParentProcess(ProcessHandle);
-	if ( (dwCurrentPid>4 && dwParent == dwCurrentPid) )
-	{
-		return TrueNtReadVirtualMemory(ProcessHandle,BaseAddress,Buffer,
-				NumberOfBytesToRead,NumberOfBytesRead);
-	}
-	return STATUS_ERROR;
-}
 
 NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
 								  ACCESS_MASK ProcessDesiredAccess,ACCESS_MASK ThreadDesiredAccess,
@@ -565,10 +550,6 @@ unsigned WINAPI init_safed(void * pParam)
 	{
 		Mhook_SetHook((PVOID*)&TrueLoadLibraryExW, (PVOID)HookLoadLibraryExW);
 	}
-	if (TrueNtReadVirtualMemory)
-	{
-		Mhook_SetHook((PVOID*)&TrueNtReadVirtualMemory, (PVOID)HookNtReadVirtualMemory);
-	}
 	if (TrueNtWriteVirtualMemory)
 	{
 		Mhook_SetHook((PVOID*)&TrueNtWriteVirtualMemory, (PVOID)HookNtWriteVirtualMemory);
@@ -589,10 +570,6 @@ void safe_end(void)
 	if (TrueNtCreateUserProcess)
 	{
 		Mhook_Unhook((PVOID*)&TrueNtCreateUserProcess);
-	}
-	if (TrueNtReadVirtualMemory)
-	{
-		Mhook_Unhook((PVOID*)&TrueNtReadVirtualMemory);
 	}
 	if (TrueNtWriteVirtualMemory)
 	{
