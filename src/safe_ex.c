@@ -465,7 +465,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {  
     UINT_PTR	dwCaller;
 	/* 是否信任的dll */
-	if ( iSAuthorized(lpFileName) )
+	if ( iSAuthorized(lpFileName) || in_whitelist(lpFileName) )
 	{
 		return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
 	}
