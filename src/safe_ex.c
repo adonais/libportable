@@ -279,12 +279,14 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 			ProcessParameters = &mY_ProcessParameters;
 		}
 	}
-	else if ( !IsGUI((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+	else if ( in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
 	{
-	#ifdef _DEBUG
-		logmsg("CUI process,disabled-runes\n");
-	#endif
-		ProcessParameters = &mY_ProcessParameters;
+		;
+	}
+	else
+	{
+		if ( !IsGUI((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+			ProcessParameters = &mY_ProcessParameters;
 	}
 	status = TrueNtCreateUserProcess(ProcessHandle, ThreadHandle,
 								  ProcessDesiredAccess, ThreadDesiredAccess,
@@ -354,15 +356,20 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 			return ret;
 		}
 	}
-	/* 如果不启用白名单,则自动阻止命令行程序启动 */
-	else if ( ProcessIsCUI(lpfile) )
+	else if ( in_whitelist((LPCWSTR)lpfile) )
 	{
+		;
+	}
+	/* 如果不存在于白名单,则自动阻止命令行程序启动 */
+	else
+	{
+		if ( ProcessIsCUI(lpfile) )
 		{
-		#ifdef _DEBUG
-			logmsg("CUI process, disabled-runes\n");
-		#endif
-			SetLastError( TrueRtlNtStatusToDosError(STATUS_ERROR) );
-			return ret;
+			#ifdef _DEBUG
+				logmsg("%ls process, disabled-runes\n",lpfile);
+			#endif
+				SetLastError( TrueRtlNtStatusToDosError(STATUS_ERROR) );
+				return ret;
 		}
 	}
 	ret =  TrueCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
@@ -465,7 +472,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {  
     UINT_PTR	dwCaller;
 	/* 是否信任的dll */
-	if ( iSAuthorized(lpFileName) || in_whitelist(lpFileName) )
+	if ( iSAuthorized(lpFileName) )
 	{
 		return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
 	}
@@ -477,7 +484,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     /* 判断是否是从User32.dll调用 */
 	if ( IsSpecialDll(dwCaller,L"user32.dll") )
 	{
-		if (PathMatchSpecW(lpFileName, L"*.exe"))
+		if ( PathMatchSpecW(lpFileName, L"*.exe") || in_whitelist(lpFileName) )
 		{
 			/* javascript api 获取应用程序图标时 */
 			return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);  
