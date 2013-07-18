@@ -149,7 +149,15 @@ BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 			{
 				continue;
 			}
-			if (white_list[i][1] != L':')
+			if ( StrChrW(white_list[i],L'*') || StrChrW(white_list[i],L'?') )
+			{
+				if ( PathMatchSpecW(pname,white_list[i]) )
+				{
+					ret = TRUE;
+					break;
+				}
+			}
+			else if (white_list[i][1] != L':')
 			{
 				PathToCombineW(white_list[i],VALUE_LEN);
 			}
