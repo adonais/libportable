@@ -353,6 +353,15 @@ unsigned WINAPI SetPluginPath(void * pParam)
 		PathToCombineW(lpfile, VALUE_LEN);
 		Truewrite_env(L"MOZ_PLUGIN_PATH", lpfile);
 	}
+	/* add a  MOZILLA_DISABLE_PLUGINS environment variable to Iceweasel
+	   see Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch */
+	if ( (value = read_appint(L"Env",L"MOZILLA_DISABLE_PLUGINS"))>=0 ) 
+	{
+		if ( True_itow_s(value,wstr,2,10) == 0 )
+		{
+			Truewrite_env(L"MOZILLA_DISABLE_PLUGINS", wstr);
+		}
+	}
 	if ( (value = read_appint(L"Env",L"MOZ_NO_REMOTE"))>=0 ) 
 	{
 		if ( True_itow_s(value,wstr,2,10) == 0 )
