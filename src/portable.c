@@ -91,9 +91,9 @@ void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
 }
 
 TETE_EXT_CLASS
-unsigned SetPluginPathW(void * pParam)
+intptr_t GetAppDirHash_tt( void )
 {
-	return (1);
+	return 0;
 }
 
 void find_fonts_tolist(LPCWSTR parent)
