@@ -69,14 +69,15 @@ int read_appint(LPCWSTR cat,LPCWSTR name)
 
 BOOL for_eachSection(LPCWSTR cat,						/* ini 区段 */
 					 wchar_t (*lpdata)[VALUE_LEN+1],	/* 二维数组首地址,保存多个段值 */
-					 int m								/* 二维数组行数 */
+					 int line							/* 二维数组行数 */
 					 )
 {
-	DWORD  res = 0;
-	LPWSTR lpstring;
-	LPWSTR strKey;
-	int  i = 0;
-	const wchar_t delim[] = L"=";
+	DWORD	res = 0;
+	LPWSTR	lpstring;
+	LPWSTR	strKey;
+	int		i = 0;
+	const	wchar_t delim[] = L"=";
+	DWORD	num = VALUE_LEN*sizeof(wchar_t)*line;
 	if ( profile_path[1] != L':' )
 	{
 		if (!ini_ready(profile_path,MAX_PATH))
@@ -84,32 +85,29 @@ BOOL for_eachSection(LPCWSTR cat,						/* ini 区段 */
 			return res;
 		}
 	}
-	DWORD num = VALUE_LEN*sizeof(wchar_t)*m;
-	lpstring = (LPWSTR)SYS_MALLOC(num);
-	res = GetPrivateProfileSectionW(cat, lpstring, num, profile_path);
-	if (res == 0 && GetLastError() != 0x0)
+	if ( (lpstring = (LPWSTR)SYS_MALLOC(num)) != NULL )
 	{
-		SYS_FREE(lpstring);
-		printf("this ini config file not found\n");
-		return FALSE;
-	}
-	ZeroMemory(*lpdata,num);
-	strKey = lpstring;
-	while(*strKey != L'\0'&& i < m) 
-	{
-		LPWSTR strtmp;
-		wchar_t t_str[VALUE_LEN] = {0};
-		wcsncpy(t_str,strKey,VALUE_LEN-1);
-		strtmp = StrStrW(t_str, delim);
-		if (strtmp)
+		if ( (res = GetPrivateProfileSectionW(cat, lpstring, num, profile_path)) > 0 )
 		{
-			wcsncpy(lpdata[i],&strtmp[1],VALUE_LEN-1);
+			ZeroMemory(*lpdata,num);
+			strKey = lpstring;
+			while(*strKey != L'\0'&& i < line) 
+			{
+				LPWSTR strtmp;
+				wchar_t t_str[VALUE_LEN] = {0};
+				wcsncpy(t_str,strKey,VALUE_LEN-1);
+				strtmp = StrStrW(t_str, delim);
+				if (strtmp)
+				{
+					wcsncpy(lpdata[i],&strtmp[1],VALUE_LEN-1);
+				}
+				strKey += wcslen(strKey)+1;
+				++i;
+			}
 		}
-		strKey += wcslen(strKey)+1;
-		++i;
+		SYS_FREE(lpstring);
 	}
-	SYS_FREE(lpstring);
-	return TRUE;
+	return (BOOL)res;
 }
 
 LPWSTR stristrW(LPCWSTR Str, LPCWSTR Pat)

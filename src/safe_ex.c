@@ -125,24 +125,31 @@ unsigned WINAPI InjectDll(void *mpara)
 
 BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 {
-	wchar_t white_list[EXCLUDE_NUM][VALUE_LEN+1];
+	static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
 	int		i;
-	BOOL    ret = FALSE;
 	LPCWSTR pname = lpfile;
-	/* iceweasel,plugin-container,plugin-hang-ui进程的路径 */
-	GetModuleFileNameW(NULL,white_list[0],VALUE_LEN);
-	GetModuleFileNameW(dll_module,white_list[1],VALUE_LEN);
-	PathRemoveFileSpecW(white_list[1]);
-	PathAppendW(white_list[1],L"plugin-container.exe");
-	GetModuleFileNameW(dll_module,white_list[2],VALUE_LEN);
-	PathRemoveFileSpecW(white_list[2]);
-	PathAppendW(white_list[2],L"plugin-hang-ui.exe");
+	BOOL    ret = FALSE;
 	if (lpfile[0] == L'"')
 	{
 		pname = &lpfile[1];
 	}
-	if ( for_eachSection(L"whitelist", &white_list[3], EXCLUDE_NUM-3) )
+	/* 遍历白名单一次,只需遍历一次 */
+	ret = stristrW(white_list[1],L"plugin-container.exe") != NULL;
+	if ( !ret )
 	{
+		/* iceweasel,plugin-container,plugin-hang-ui进程的路径 */
+		GetModuleFileNameW(NULL,white_list[0],VALUE_LEN);
+		GetModuleFileNameW(dll_module,white_list[1],VALUE_LEN);
+		PathRemoveFileSpecW(white_list[1]);
+		PathAppendW(white_list[1],L"plugin-container.exe");
+		GetModuleFileNameW(dll_module,white_list[2],VALUE_LEN);
+		PathRemoveFileSpecW(white_list[2]);
+		PathAppendW(white_list[2],L"plugin-hang-ui.exe");
+		ret = for_eachSection(L"whitelist", &white_list[3], EXCLUDE_NUM-3);
+	}
+	if ( (ret = !ret) == FALSE )
+	{
+		/* 核对白名单 */
 		for ( i=0; i<EXCLUDE_NUM ; i++ )
 		{
 			if (wcslen(white_list[i]) == 0)
@@ -495,6 +502,9 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 		if ( PathMatchSpecW(lpFileName, L"*.exe") || in_whitelist(lpFileName) )
 		{
 			/* javascript api 获取应用程序图标时 */
+		#ifdef _DEBUG
+			logmsg("%ls in whitelist\n",lpFileName);
+		#endif
 			return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);  
 		}
 		else
