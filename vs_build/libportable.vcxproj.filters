@@ -33,8 +33,14 @@
     <ClInclude Include="..\src\ttf_list.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\bosskey.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\bosskey.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\ice_error.c">
       <Filter>Source Files</Filter>
     </ClCompile>

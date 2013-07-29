@@ -20,7 +20,7 @@ else
 DLL_MAIN_STDCALL_NAME = _DllMain@12
 endif
 
-LDFLAGS  = -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lkernel32 -Wl,-s
+LDFLAGS  = -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lkernel32 -luser32 -Wl,-s
 CFLAGS   += -DCRT_LINK=$(CRT_LINK) -Wall -Wno-unused -Wno-format -msse2 \
 	    -fomit-frame-pointer -finline-functions -fno-stack-protector
 LDLIBS   = -lshlwapi -lshell32 -lgdi32 -lgcc $(MSCRT)
@@ -32,7 +32,7 @@ DEP      = .dep
 X86FLAG  = -m32
 X64FLAG  = -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o \
-	   $(DEP)/safe_ex.o $(DEP)/resource.o
+	   $(DEP)/safe_ex.o $(DEP)/bosskey.o $(DEP)/resource.o
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libmhook$(BITS).a
 OUT2     = $(DISTDIR)/portable$(BITS).dll
@@ -70,6 +70,8 @@ $(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h
 $(DEP)/safe_ex.o      : $(SRC)/safe_ex.c $(SRC)/safe_ex.h $(SRC)/header.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/bosskey.o    : $(SRC)/bosskey.c $(SRC)/bosskey.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

@@ -33,6 +33,7 @@ INI_EXTERN BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
 				 );
 INI_EXTERN int read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL for_eachSection(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
+INI_EXTERN BOOL is_nplugins(void);
 INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
 INI_EXTERN unsigned WINAPI GdiSetLimit_tt(void * pParam);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);

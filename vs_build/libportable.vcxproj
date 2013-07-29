@@ -162,12 +162,14 @@
     <ClInclude Include="..\src\portable.h" />
     <ClInclude Include="..\src\safe_ex.h" />
     <ClInclude Include="..\src\ttf_list.h" />
+    <ClInclude Include="..\src\bosskey.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\ice_error.c" />
     <ClCompile Include="..\src\inipara.c" />
     <ClCompile Include="..\src\portable.c" />
     <ClCompile Include="..\src\safe_ex.c" />
+    <ClCompile Include="..\src\bosskey.c" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\resource.rc" />

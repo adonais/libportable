@@ -267,6 +267,13 @@ BOOL WINAPI IsGUI(LPCWSTR lpFileName)
 	return ret;
 } 
 
+BOOL is_nplugins(void)
+{
+	WCHAR	process_name[VALUE_LEN+1] = {0};
+	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
+	return ( (BOOL)stristrW(process_name, L"plugin-container.exe") );
+}
+
 DWORD WINAPI GetOsVersion(void)
 {
 	OSVERSIONINFOEXA	osvi;

@@ -4,6 +4,7 @@
 #include "ttf_list.h"
 #include "safe_ex.h"
 #include "ice_error.h"
+#include "bosskey.h"
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <process.h>
@@ -238,10 +239,7 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 											  LPITEMIDLIST *ppidl)								
 {  
 	int folder = nFolder & 0xff;
-	if( CSIDL_APPDATA == folder			|| 
-		CSIDL_COMMON_APPDATA == folder	|| 
-		CSIDL_LOCAL_APPDATA == folder
-	  )
+	if (CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder)
 	{  
 		LPITEMIDLIST pidlnew = NULL;
 		HRESULT result = 0L;
@@ -249,9 +247,7 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 		{
 			return TrueSHGetSpecialFolderLocation(hwndOwner, nFolder, ppidl);
 		}
-		if (CSIDL_LOCAL_APPDATA == folder	|| 
-			CSIDL_COMMON_APPDATA == folder
-			)
+		if (CSIDL_LOCAL_APPDATA == folder)
 		{
 			result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
 		}
@@ -272,8 +268,7 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 									DWORD dwFlags,LPWSTR pszPath)								
 {  
 	int folder = nFolder & 0xff;
-	if( CSIDL_APPDATA == folder			|| 
-		CSIDL_COMMON_APPDATA == folder	|| 
+	if( CSIDL_APPDATA == folder			||
 		CSIDL_LOCAL_APPDATA == folder
 	  )
 	{  
@@ -284,9 +279,8 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 	#else
 		dwCaller = (UINT_PTR)_ReturnAddress();
 	#endif
-		if ( ( CSIDL_LOCAL_APPDATA == folder && 
-		     IsSpecialDll(dwCaller, L"shell32.dll") ) ||
-			 IsSpecialDll(dwCaller, L"*\\np*.dll")
+		if ( ( CSIDL_LOCAL_APPDATA == folder && !is_nplugins() ) ||
+			 ( IsSpecialDll(dwCaller, L"*\\np*.dll") )
 			)
 		{
 			num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
@@ -299,23 +293,27 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 
 BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
 {
-	BOOL ret =  TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
-    if( CSIDL_APPDATA == csidl          ||
-        (CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl
-       )
+	if ( !is_nplugins() )
 	{
-	#ifdef _DEBUG
-		logmsg("SHGetSpecialFolderPath hook off.\n");
-	#endif
-		int num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
-		lpszPath[num] = L'\0';
-		if (TrueSHGetSpecialFolderPathW && ret)
+		BOOL ret =  TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
+		if( CSIDL_APPDATA == csidl          ||
+			(CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl
+		   )
 		{
-				Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
-				TrueSHGetSpecialFolderPathW = NULL;
+		#ifdef _DEBUG
+			logmsg("SHGetSpecialFolderPath hook off.\n");
+		#endif
+			int num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
+			lpszPath[num] = L'\0';
+			if (TrueSHGetSpecialFolderPathW && ret)
+			{
+					Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
+					TrueSHGetSpecialFolderPathW = NULL;
+			}
 		}
+		return ret;
 	}
-	return ret;
+	return TrueSHGetSpecialFolderPathW(hwndOwner, lpszPath, csidl,fCreate);
 }
 
 unsigned WINAPI SetPluginPath(void * pParam)
@@ -552,6 +550,7 @@ extern "C" {
 
 BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 {
+	static WNDINFO ff_info;
     switch(dwReason) 
 	{
 		case DLL_PROCESS_ATTACH:
@@ -607,9 +606,18 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			{
 				CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
 			}
+			if ( read_appint(L"General", L"Bosskey") > 0 )
+			{
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+			}
 		}
 			break;
 		case DLL_PROCESS_DETACH:
+			if (ff_info.atom_str)
+			{
+				UnregisterHotKey(NULL, ff_info.atom_str);
+				GlobalDeleteAtom(ff_info.atom_str);
+			}
 			hook_end();
 			break;
 		case DLL_THREAD_ATTACH:
