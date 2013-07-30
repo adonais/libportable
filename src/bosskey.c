@@ -54,8 +54,11 @@ BOOL CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
 		if ( is_mozclass(hwnd) )
 		{
 			SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, 3);
-			ShowWindow(hwnd,SW_RESTORE);
 			ShowWindow(hwnd,SW_SHOW);
+			if ( IsIconic(hwnd) )
+			{
+				ShowWindow(hwnd,SW_RESTORE);
+			}
 		}
 	}
 	return TRUE;
