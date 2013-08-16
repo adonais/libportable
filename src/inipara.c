@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 extern HMODULE dll_module;
-static wchar_t profile_path[MAX_PATH+1] = {0};              /* only init once */
 
 BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
 {
@@ -271,7 +270,7 @@ BOOL is_nplugins(void)
 {
 	WCHAR	process_name[VALUE_LEN+1] = {0};
 	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
-	return ( (BOOL)stristrW(process_name, L"plugin-container.exe") );
+	return ( !!stristrW(process_name, L"plugin-container.exe") );
 }
 
 DWORD WINAPI GetOsVersion(void)

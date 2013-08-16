@@ -318,177 +318,74 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 
 unsigned WINAPI SetPluginPath(void * pParam)
 {
-	typedef		 errno_t (__cdecl *_pwrite_env)(LPCWSTR name,LPCWSTR value);
-	typedef		 errno_t (__cdecl *_pfn_itow_s)(int value,wchar_t *buffer,size_t size,int radix);
-	wchar_t		 lpfile[VALUE_LEN+1];
-	wchar_t		 wstr[16];
-	int          value;
-	HMODULE		 hCrt;
-	_pwrite_env  Truewrite_env = NULL;
-	_pfn_itow_s  True_itow_s = NULL;
-#if (_MSC_VER == 1600) || (CRT_LINK == 1600)
+	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
+	int				 ret = 0;
+	HMODULE	 hCrt;
+	_pwrite_env   Truewrite_env = NULL;
+	LPWSTR		 lpstring;
+#if (_MSC_VER == 1400) || (CRT_LINK == 1400)
+	hCrt = GetModuleHandleW(L"msvcr80.dll");
+#elif (_MSC_VER == 1500) || (CRT_LINK == 1500)
+	hCrt = GetModuleHandleW(L"msvcr90.dll");
+#elif (_MSC_VER == 1600) || (CRT_LINK == 1600)
 	hCrt = GetModuleHandleW(L"msvcr100.dll");
 #elif (_MSC_VER == 1700) || (CRT_LINK == 1700)
 	hCrt = GetModuleHandleW(L"msvcr110.dll");
+#elif (_MSC_VER == 1800) || (CRT_LINK == 1800)
+	hCrt = GetModuleHandleW(L"msvcr120.dll");
 #else
-	#error MSCRT version is too low,not exist _wputenv_s function.
+	#error MSCRT version is too low,not exist _wputenv function.
 	hCrt = NULL;
 #endif
-	if (!hCrt)
+	if ( hCrt )
 	{
-		return (0);
+		Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
 	}
-	Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv_s");
-	True_itow_s = (_pfn_itow_s)GetProcAddress(hCrt,"_itow_s");
-	if ( !Truewrite_env || !True_itow_s )
+	if ( Truewrite_env )
 	{
-		return (0);
-	}
-	if ( read_appkey(L"Env",L"NpluginPath",lpfile,sizeof(lpfile)) ||
-		 read_appkey(L"Env",L"MOZ_PLUGIN_PATH",lpfile,sizeof(lpfile))
-	    )
-	{
-		PathToCombineW(lpfile, VALUE_LEN);
-		Truewrite_env(L"MOZ_PLUGIN_PATH", lpfile);
-	}
-	/* add a  MOZILLA_DISABLE_PLUGINS environment variable to Iceweasel
-	   see Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch */
-	if ( (value = read_appint(L"Env",L"MOZILLA_DISABLE_PLUGINS"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
+		if ( profile_path[1] != L':' )
 		{
-			Truewrite_env(L"MOZILLA_DISABLE_PLUGINS", wstr);
+			if (!ini_ready(profile_path,MAX_PATH))
+			{
+				return ((unsigned)ret);
+			}
+		}
+		if ( (lpstring = (LPWSTR)SYS_MALLOC(32767)) != NULL )
+		{
+			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, 32767, profile_path)) > 0 )
+			{
+				LPWSTR	strKey = lpstring;
+				while(*strKey != L'\0') 
+				{
+					if ( stristrW(strKey, L"NpluginPath") )
+					{
+						WCHAR lpfile[VALUE_LEN+1];
+						if ( read_appkey(L"Env",L"NpluginPath",lpfile,sizeof(lpfile)) )
+						{
+							WCHAR env_string[VALUE_LEN+1] = {0};
+							PathToCombineW(lpfile, VALUE_LEN);
+							if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",lpfile) > 0)
+							{
+								ret = Truewrite_env( (LPCWSTR)env_string );
+							}
+						}
+					}
+					else if	(stristrW(strKey, L"TmpDataPath") ||
+							 stristrW(strKey, L"DiyFontPath") )
+					{
+						;
+					}
+					else
+					{
+						ret = Truewrite_env( (LPCWSTR)strKey );
+					}
+					strKey += wcslen(strKey)+1;
+				}
+			}
+			SYS_FREE(lpstring);
 		}
 	}
-	if ( (value = read_appint(L"Env",L"MOZ_NO_REMOTE"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_NO_REMOTE", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_SAFE_MODE_RESTART"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_SAFE_MODE_RESTART", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_PURGE_CACHES"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_PURGE_CACHES", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_DISABLE_OOP_TABS"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_DISABLE_OOP_TABS", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_DISABLE_OOP_PLUGINS"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_DISABLE_OOP_PLUGINS", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_GFX_SPOOF_VENDOR_ID"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,10,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_GFX_SPOOF_VENDOR_ID", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_GFX_SPOOF_DEVICE_ID"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,10,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_GFX_SPOOF_DEVICE_ID", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_GFX_SPOOF_WINDOWS_VERSION"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,10,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_GFX_SPOOF_WINDOWS_VERSION", wstr);
-		}
-	}
-	if ( read_appkey(L"Env",L"MOZ_GFX_SPOOF_DRIVER_VERSION",lpfile,sizeof(lpfile)) )
-	{
-		Truewrite_env(L"MOZ_GFX_SPOOF_DRIVER_VERSION", lpfile);
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_WEBGL_PREFER_EGL"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_WEBGL_PREFER_EGL", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"MOZ_WEBGL_FORCE_OPENGL"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"MOZ_WEBGL_FORCE_OPENGL", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"JSIMD_FORCEMMX"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"JSIMD_FORCEMMX", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"JSIMD_FORCE3DNOW"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"JSIMD_FORCE3DNOW", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"JSIMD_FORCESSE"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"JSIMD_FORCESSE", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"JSIMD_FORCESSE2"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"JSIMD_FORCESSE2", wstr);
-		}
-	}
-	if ( (value = read_appint(L"Env",L"XRE_START_OFFLINE"))>=0 ) 
-	{
-		if ( True_itow_s(value,wstr,2,10) == 0 )
-		{
-			Truewrite_env(L"XRE_START_OFFLINE", wstr);
-		}
-	}
-	if ( read_appkey(L"Env",L"XRE_PROFILE_NAME",lpfile,sizeof(lpfile)) )
-	{
-		Truewrite_env(L"XRE_PROFILE_NAME", lpfile);
-	}
-	if ( read_appkey(L"Env",L"XRE_PROFILE_PATH",lpfile,sizeof(lpfile)) )
-	{
-		PathToCombineW(lpfile, VALUE_LEN);
-		Truewrite_env(L"XRE_PROFILE_PATH", lpfile);
-	}
-	if ( read_appkey(L"Env",L"XRE_PROFILE_LOCAL_PATH",lpfile,sizeof(lpfile)) )
-	{
-		PathToCombineW(lpfile, VALUE_LEN);
-		Truewrite_env(L"XRE_PROFILE_LOCAL_PATH", lpfile);
-	}
-	if ( read_appkey(L"Env",L"XUL_APP_FILE",lpfile,sizeof(lpfile)) )
-	{
-		PathToCombineW(lpfile, VALUE_LEN);
-		Truewrite_env(L"XUL_APP_FILE", lpfile);
-	}
-	return (1);
+	return ( (unsigned)ret );
 }
 
 unsigned WINAPI init_portable(void * pParam)

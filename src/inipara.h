@@ -17,6 +17,8 @@
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
 #define   BUFSIZE   MAX_PATH
 
+INI_EXTERN wchar_t profile_path[MAX_PATH+1];             /* only init once */
+
 #ifdef __cplusplus
 extern "C" {
 #endif 

@@ -6,10 +6,16 @@ CRT_LINK := 1600
 MSCRT    =
 DLL_MAIN_STDCALL_NAME =
 
-ifeq ($(CRT_LINK),1600)
+ifeq ($(CRT_LINK),1400)
+    MSCRT = -lmsvcr80
+else ifeq ($(CRT_LINK),1500)
+    MSCRT = -lmsvcr90
+else ifeq ($(CRT_LINK),1600)
     MSCRT = -lmsvcr100
 else ifeq ($(CRT_LINK),1700)
     MSCRT = -lmsvcr110
+else ifeq ($(CRT_LINK),1800)
+    MSCRT = -lmsvcr120
 else
     MSCRT = -lmsvcrt
 endif
