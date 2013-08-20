@@ -194,8 +194,35 @@ void WINAPI uninstall_fonts(List *PtrLi)
 	}
 }
 
+BOOL WINAPI WaitWriteFile(LPCWSTR ap_path)
+{
+	BOOL ret = FALSE;
+	WCHAR profile_path[MAX_PATH] = {0};
+	_snwprintf(profile_path,MAX_PATH-1,L"%ls%ls",ap_path,L"\\Mozilla\\Firefox\\profiles.ini");
+	if ( PathFileExistsW(profile_path) )
+	{
+		ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../../",profile_path);
+	}
+	else
+	{
+		LPWSTR szDir;
+		if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(profile_path) ) ) != NULL )
+		{
+			wcsncpy (szDir, profile_path, MAX_PATH-1);
+			PathRemoveFileSpecW( szDir );
+			SHCreateDirectoryExW(NULL,szDir,NULL);
+			SYS_FREE(szDir);
+			WritePrivateProfileSectionW(L"General",L"StartWithLastProfile=1\r\n\0",profile_path);
+			ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0" \
+														,profile_path);
+		}
+	}
+	return ret;
+}
+
 unsigned WINAPI init_global_env(void * pParam)
 {
+	BOOL diff = (char *)pParam?TRUE:FALSE;
 	if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path)) )
 	{
 		return (0);
@@ -229,8 +256,12 @@ unsigned WINAPI init_global_env(void * pParam)
 	SHCreateDirectoryExW(NULL,appdata_path,NULL);
 	/* 为localdata建立目录 */
 	charTochar(localdata_path);
-	wcsncat(localdata_path,L"\\LocalAppData",VALUE_LEN);
+	wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
 	SHCreateDirectoryExW(NULL,localdata_path,NULL);
+	if ( diff )
+	{
+		WaitWriteFile(appdata_path);
+	}
 	return (1);
 }
 
@@ -474,7 +505,8 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			}
 			if ( read_appint(L"General", L"Portable") > 0 )
 			{
-				HANDLE h_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,NULL,0,NULL);
+				BOOL		diff = read_appint(L"General", L"Nocompatete") > 0;
+				HANDLE	h_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,diff?&diff:NULL,0,NULL);
 				if (h_thread)
 				{
 					SetThreadPriority(h_thread,THREAD_PRIORITY_HIGHEST);
