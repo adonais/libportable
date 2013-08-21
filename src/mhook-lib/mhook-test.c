@@ -23,12 +23,60 @@
 #endif
 
 #include <windows.h>
+#ifndef _MSC_VER
 #include <winternl.h>
 #include <ntstatus.h>
+#endif
 #include <tchar.h>
 #include <stdio.h>
+#ifndef _MSC_VER
 #include <inttypes.h>
+#endif
 #include "mhook.h"
+
+#if defined(_MSC_VER)
+#define __C89_NAMELESS
+#define STATUS_OPEN_FAILED 2
+
+#ifndef _NTSTATUS_PSDK
+#define _NTSTATUS_PSDK
+  typedef LONG NTSTATUS;
+#endif
+
+#ifndef __UNICODE_STRING_DEFINED
+#define __UNICODE_STRING_DEFINED
+  typedef struct _UNICODE_STRING {
+    USHORT Length;
+    USHORT MaximumLength;
+    PWSTR Buffer;
+  } UNICODE_STRING;
+  typedef UNICODE_STRING *PUNICODE_STRING;
+#endif
+
+#ifndef __OBJECT_ATTRIBUTES_DEFINED
+#define __OBJECT_ATTRIBUTES_DEFINED
+  typedef struct _OBJECT_ATTRIBUTES {
+    ULONG Length;
+#ifdef _WIN64
+    ULONG pad1;
+#endif
+    HANDLE RootDirectory;
+    PUNICODE_STRING ObjectName;
+    ULONG Attributes;
+#ifdef _WIN64
+    ULONG pad2;
+#endif
+    PVOID SecurityDescriptor;
+    PVOID SecurityQualityOfService;
+  } OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+#endif
+
+typedef struct _CLIENT_ID {
+  HANDLE UniqueProcess;
+  HANDLE UniqueThread;
+} CLIENT_ID, *PCLIENT_ID;
+
+#endif
 
 //=========================================================================
 // Define _NtOpenProcess so we can dynamically bind to the function

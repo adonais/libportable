@@ -166,7 +166,11 @@ BOOL PathToCombineW(IN LPWSTR lpfile, IN size_t str_len)
 	return TRUE;
 }
 
-static inline int GetNumberOfWorkers(void) 
+static
+#ifdef _GNU_C
+inline
+#endif
+int GetNumberOfWorkers(void) 
 {
     SYSTEM_INFO si;
     GetSystemInfo(&si);

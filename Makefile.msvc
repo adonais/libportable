@@ -1,0 +1,71 @@
+# nmake -f makefile.msvc
+
+CC       = cl.exe
+CPP	 = cl.exe
+CFLAGS   = /EHs-c- /nologo /W3 /WX- /wd4819 /O2 /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+                  /D "_CRT_SECURE_NO_WARNINGS" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
+LD       = link.exe /DLL
+MAKE	 = nmake
+
+!if "$(PLATFORM)"=="X64"
+PLATFORM = X64
+BITS	 = 64
+CFLAGS = $(CFLAGS) /D "WIN64" /D "_WIN64"
+!else
+PLATFORM = X86
+BITS	 = 32
+CFLAGS = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
+!endif
+
+LDFLAGS   =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM)
+LIBFLAGS   =  /LTCG /NOLOGO /OUT:"$(DISTDIR)\$(OUT)" 
+
+CPPFLAGS = $(CFLAGS) /TP
+
+MD      = @mkdir
+CP	    = copy
+RM	    = @del /q
+RMDIR = @rmdir /s /q
+SRC      = src
+SUB_DIR  = $(SRC)\mhook-lib
+SUBMK    =\
+	@echo coming to mhook subdir...  && \
+	@cd $(SUB_DIR) && $(MAKE) -f Makefile.msvc
+
+DEP      = .dep
+RC       = rc.exe
+RCFLAGS  = /D "_UNICODE" /D "UNICODE"
+
+OBJDLL  = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj  $(DEP)\safe_ex.obj $(DEP)\bosskey.obj $(DEP)\resource.res
+
+DISTDIR	= Release
+OUT1	= $(DISTDIR)\mhook$(BITS).lib
+OUT2	= $(DISTDIR)\portable$(BITS).dll
+EXEC		= \
+	@echo coming to src subdir...  && \
+	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
+	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
+
+all				: $(OUT1) $(OUT2)
+$(OUT1)			: $(SUB_DIR)/Makefile.msvc
+	$(SUBMK)
+$(OUT2)			: $(OBJDLL)
+	$(LD) /OUT:"$@" $(OBJDLL) $(LDFLAGS) $(OUT1) 
+$(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h $(SRC)\ttf_list.h
+	$(EXEC)
+	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
+$(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
+	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
+$(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\header.h
+	$(CC) $(CFLAGS) /c $(SRC)\safe_ex.c /Fo$@
+$(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
+	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
+$(DEP)\bosskey.obj    : $(SRC)\bosskey.c $(SRC)\bosskey.h
+	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
+$(DEP)\resource.res     : $(SRC)\resource.rc
+	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
+
+.PHONY		       : clean
+clean                  : 
+	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL
+

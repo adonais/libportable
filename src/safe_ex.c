@@ -3,11 +3,7 @@
 #include "safe_ex.h"
 #include "inipara.h"
 #include "header.h"
-#ifdef _MSC_VER
-#include "mhook-vs/include/mhook.h"
-#else
 #include "mhook-lib/mhook.h"
-#endif
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -24,17 +20,17 @@ HANDLE NtCreateRemoteThread(HANDLE hProcess,
 						   )
 {
 	 NT_PROC_THREAD_ATTRIBUTE_LIST Buffer; 
+	 _NtCreateThreadEx Win7CreateThread;
+	 HANDLE  hRemoteThread = NULL; 
+	 HRESULT hRes = 0; 
 	 ZeroMemory(&Buffer, sizeof(NT_PROC_THREAD_ATTRIBUTE_LIST));
 	 Buffer.Length = sizeof (NT_PROC_THREAD_ATTRIBUTE_LIST); 
 
-	 _NtCreateThreadEx Win7CreateThread = (_NtCreateThreadEx)GetProcAddress
+	 Win7CreateThread = (_NtCreateThreadEx)GetProcAddress
 						   (GetModuleHandleW(L"ntdll.dll"), "NtCreateThreadEx"); 
 
 	 if(Win7CreateThread == NULL) 
 		return NULL;
-
-	 HANDLE  hRemoteThread = NULL; 
-	 HRESULT hRes = 0; 
 
 	 if(!NT_SUCCESS(Win7CreateThread( 
 				  &hRemoteThread, 

@@ -11,7 +11,13 @@
 #include <windows.h>
 
 #ifdef _MSC_VER
-extern "C" void* _ReturnAddress(void);
+#if defined(__cplusplus)
+extern "C" {
+#endif
+void* _ReturnAddress(void);
+#if defined(__cplusplus)
+}
+#endif 
 #pragma intrinsic(_ReturnAddress)
 #endif
 

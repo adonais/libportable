@@ -3,11 +3,7 @@
 #include "ice_error.h"
 #include <shlwapi.h>
 #include <dbghelp.h>
-#ifdef _MSC_VER
-#include "mhook-vs/include/mhook.h"
-#else
 #include "mhook-lib/mhook.h"
-#endif
 
 typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *_NtSetUnhandledExceptionFilter)
 					(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter);

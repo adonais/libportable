@@ -1,0 +1,64 @@
+# nmake -f makefile.msvc
+CC       = cl.exe
+CPP     = cl.exe
+CFLAGS   = /EHs-c- /nologo /W3 /WX- /O2 /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE"
+LD       = link.exe
+!if "$(PLATFORM)"=="X64"
+PLATFORM = X64
+BITS	 = 64
+CFLAGS = $(CFLAGS) /D "WIN64" /D "_WIN64"
+!else
+PLATFORM = X86
+BITS	 = 32
+CFLAGS = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
+!endif
+
+LDFLAGS   =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM)
+LIBFLAGS   =  /LTCG /NOLOGO /OUT:"$(DISTDIR)\$(OUT)" 
+
+CPPFLAGS = $(CFLAGS) /TP
+
+LDLIBS = $(DISTDIR)\$(OUT)
+MD      = @mkdir
+CP	    = copy
+RM	    = @del /q
+RMDIR = @rmdir /s /q
+SRC      = src
+DEP      = ..\..\.dep
+
+OBJECTS  = $(DEP)\cpu.obj $(DEP)\disasm.obj $(DEP)\disasm_x86.obj \
+	   $(DEP)\mhook.obj $(DEP)\misc.obj
+TESTFILE = mhook-test.exe
+TESTOBJ  = $(DEP)\mhook-test.obj 
+DISTDIR  = ..\..\Release
+OUT      = mhook$(BITS).lib
+EXEC     = \
+	@echo coming to mhook subdir...  &&\
+	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL &&\
+	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL
+
+$(DISTDIR)\$(OUT)    : $(OBJECTS) 
+	lib.exe $(OBJECTS) $(LIBFLAGS) 
+$(DEP)\cpu.obj         : cpu.c cpu.h
+	$(EXEC)
+	$(CC)  $(CFLAGS) /c cpu.c /Fo$@
+$(DEP)\disasm.obj      : disasm.c disasm.h
+	$(CC) $(CFLAGS) /c disasm.c /Fo$@
+$(DEP)\disasm_x86.obj  : disasm_x86.c disasm_x86.h
+	$(CC) $(CFLAGS) /c disasm_x86.c /Fo$@
+$(DEP)\mhook.obj       : mhook.c mhook.h
+	$(CC) $(CPPFLAGS) /c mhook.c  /Fo$@
+$(DEP)\misc.obj        : misc.c misc.h
+	$(CC) $(CFLAGS) /c misc.c /Fo$@
+
+test                   : $(DISTDIR)/$(TESTFILE)
+$(DISTDIR)/$(TESTFILE) : $(TESTOBJ) $(DISTDIR)\$(OUT)
+	$(LD) /OUT:"$@" $(TESTOBJ) $(LDFLAGS) $(LDLIBS) 
+$(TESTOBJ)	       : mhook-test.c mhook.h
+	@if not exist $(DEP) $(MD) $(DEP)
+	$(CC) /c mhook-test.c $(CPPFLAGS) /Fo$@
+
+.PHONY		       : clean
+clean                  : 
+	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL
+
