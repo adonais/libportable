@@ -167,7 +167,7 @@ BOOL PathToCombineW(IN LPWSTR lpfile, IN size_t str_len)
 }
 
 static
-#ifdef _GNU_C
+#if defined(__GNUC__)||defined(__cplusplus)
 inline
 #endif
 int GetNumberOfWorkers(void) 
