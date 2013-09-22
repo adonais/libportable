@@ -11,7 +11,8 @@ BOOL is_browser(void)
 	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
 	return ( stristrW(process_name, L"Iceweasel.exe")||
 		     stristrW(process_name, L"firefox.exe")	||
-		     stristrW(process_name, L"lawlietfox.exe") );
+		     stristrW(process_name, L"lawlietfox.exe") ||
+			 stristrW(process_name, L"thunderbird.exe") );
 }
 
 BOOL init_bosskey(LPWNDINFO pInfo)

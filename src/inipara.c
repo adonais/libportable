@@ -277,6 +277,13 @@ BOOL is_nplugins(void)
 	return ( !!stristrW(process_name, L"plugin-container.exe") );
 }
 
+BOOL is_thunderbird(void)
+{
+	WCHAR	process_name[VALUE_LEN+1] = {0};
+	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
+	return ( !!stristrW(process_name, L"thunderbird.exe") );
+}
+
 DWORD WINAPI GetOsVersion(void)
 {
 	OSVERSIONINFOEXA	osvi;
