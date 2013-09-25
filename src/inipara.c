@@ -146,7 +146,7 @@ void WINAPI charTochar(LPWSTR path)
 	return;
 }
 
-BOOL PathToCombineW(IN LPWSTR lpfile, IN size_t str_len)
+BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 {
 	if ( dll_module && lpfile[1] != L':' )
 	{
@@ -270,18 +270,47 @@ BOOL WINAPI IsGUI(LPCWSTR lpFileName)
 	return ret;
 } 
 
+BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
+{
+	int i=0;
+	WCHAR lpFullPath[MAX_PATH+1]={0};
+	if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
+	{
+		for( i=wcslen(lpFullPath); i>0; i-- )
+		{
+			if (lpFullPath[i] == L'\\')
+				break;
+		}
+		if ( i > 0 )
+		{
+			i = _snwprintf(lpstrName,wlen-1,L"%ls",lpFullPath+i+1);
+			lpstrName[i] = L'\0';
+		}
+	}
+	return !!i;
+}
+
 BOOL is_nplugins(void)
 {
-	WCHAR	process_name[VALUE_LEN+1] = {0};
-	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
-	return ( !!stristrW(process_name, L"plugin-container.exe") );
+	WCHAR	process_name[VALUE_LEN+1] ;
+	GetCurrentProcessName(process_name,VALUE_LEN);
+	return ( _wcsicmp(process_name, L"plugin-container.exe") == 0 );
 }
 
 BOOL is_thunderbird(void)
 {
-	WCHAR	process_name[VALUE_LEN+1] = {0};
-	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
-	return ( !!stristrW(process_name, L"thunderbird.exe") );
+	WCHAR	process_name[VALUE_LEN+1];
+	GetCurrentProcessName(process_name,VALUE_LEN);
+	return ( _wcsicmp(process_name, L"thunderbird.exe") == 0 );
+}
+
+BOOL is_browser(void)
+{
+	WCHAR	process_name[VALUE_LEN+1];
+	GetCurrentProcessName(process_name,VALUE_LEN);
+	return ( !(_wcsicmp(process_name, L"Iceweasel.exe") &&
+				_wcsicmp(process_name, L"firefox.exe")	&&
+				_wcsicmp(process_name, L"lawlietfox.exe") ) );
 }
 
 DWORD WINAPI GetOsVersion(void)

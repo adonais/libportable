@@ -35,9 +35,9 @@ BOOL WINAPI MiniDumpWriteDump_func( HANDLE hProcess,DWORD ProcessId,HANDLE hFile
 
 LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
 {
-     //异常信息结构体
+     /* 异常信息结构体 */
     MINIDUMP_EXCEPTION_INFORMATION  ExInfo;
-    //dump生成目录
+    /* dump生成目录 */
     wchar_t appdir[MAX_PATH] = {0};
 	HANDLE hFile = NULL;
     if ( !(GetEnvironmentVariableW(L"APPDATA",appdir,sizeof(appdir)) > 0) )
@@ -45,7 +45,7 @@ LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
     PathAppendW(appdir,L"Iceweasel.dmp");
-    //创建文件句柄
+    /* 创建文件句柄 */
     hFile = CreateFileW(appdir,
         GENERIC_WRITE,
         FILE_SHARE_WRITE,
@@ -69,7 +69,7 @@ LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
     ExInfo.ExceptionPointers = pExceptionInfo;
     ExInfo.ClientPointers = TRUE;
 
-    //MiniDumpWriteDump输出dump
+    /* MiniDumpWriteDump输出dump */
     MiniDumpWriteDump_func(GetCurrentProcess(), 
         GetCurrentProcessId(),
         hFile,

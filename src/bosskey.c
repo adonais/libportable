@@ -5,37 +5,53 @@
 #include <string.h>
 #include <shlwapi.h>
 
-BOOL is_browser(void)
-{
-	WCHAR	process_name[VALUE_LEN+1];
-	GetModuleFileNameW(NULL,process_name,VALUE_LEN);
-	return ( stristrW(process_name, L"Iceweasel.exe")||
-		     stristrW(process_name, L"firefox.exe")	||
-		     stristrW(process_name, L"lawlietfox.exe") ||
-			 stristrW(process_name, L"thunderbird.exe") );
-}
-
 BOOL init_bosskey(LPWNDINFO pInfo)
 {
-	while ( !pInfo->hFF )
+	WCHAR	win_titiles[BUFSIZE+1];
+	while ( !pInfo->hFF )                 /* 等待主窗口并获取句柄 */
 	{
-		pInfo->hFF = FindWindowW(L"MozillaWindowClass", NULL);
+		HWND hwnd_pre = FindWindowExW( NULL, NULL, L"MozillaWindowClass", NULL );
+		while (NULL != hwnd_pre)
+		{
+			int n = GetWindowTextW(hwnd_pre, win_titiles, BUFSIZE);
+			if ( n>0 && n < BUFSIZE)
+			{
+				win_titiles[n] = L'\0';
+				if (  stristrW(win_titiles, L"- Mozilla Thunderbird") )
+				{
+					/* 获取thunderbird窗体句柄 */
+					pInfo->hFF = is_thunderbird()?hwnd_pre:NULL;
+				}
+				else
+				{
+					/* 获取firefox窗体句柄 */
+					pInfo->hFF = is_browser()?hwnd_pre:NULL;
+				}
+			}
+			if (pInfo->hFF)
+			{
+				break;
+			}
+			hwnd_pre = FindWindowExW(NULL, hwnd_pre, L"MozillaWindowClass", NULL);
+		}
 		Sleep(800);
 	}
 	if ( pInfo->hFF )
 	{
+		WCHAR atom_str[VALUE_LEN+1] = {0};
+		GetModuleFileNameW(NULL,atom_str,VALUE_LEN);
 		GetWindowThreadProcessId(pInfo->hFF, &pInfo->pFF);
-		pInfo->atom_str = GlobalAddAtomW(L"iceweasel_atom_str")-0xC000;
+		pInfo->atom_str = GlobalAddAtomW(atom_str)-0xC000;
 	}
 	return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
 }
 
 BOOL is_mozclass(HWND hwnd)
 {
-	WCHAR m_temp[VALUE_LEN] = {0};
-	GetClassNameW(hwnd,m_temp,VALUE_LEN-1);
-	return ( _wcsnicmp(m_temp,L"MozillaWindowClass",VALUE_LEN-1) ==0 ||
-			 _wcsnicmp(m_temp,L"MozillaDialogClass",VALUE_LEN-1) ==0 ) ;
+	WCHAR m_temp[VALUE_LEN+1] = {0};
+	GetClassNameW(hwnd,m_temp,VALUE_LEN);
+	return ( _wcsnicmp(m_temp,L"MozillaWindowClass",VALUE_LEN) ==0 ||
+			 _wcsnicmp(m_temp,L"MozillaDialogClass",VALUE_LEN) ==0 ) ;
 }
 
 BOOL CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
@@ -123,17 +139,16 @@ unsigned WINAPI bosskey_thread(void * lparam)
 	MSG msg;
 	LPWNDINFO lpInfo = (LPWNDINFO)lparam;
 	set_hotkey(lpInfo);
-	if ( !is_browser() )
+	if ( is_browser()  || is_thunderbird() )
 	{
-		return (0);
-	}
-	if ( init_bosskey(lpInfo) )
-	{
-		while( GetMessageW(&msg, NULL, 0, 0) > 0 )
+		if ( init_bosskey(lpInfo) )
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			EnumWindows(find_chwnd, (LPARAM)lpInfo);
+			while( GetMessageW(&msg, NULL, 0, 0) > 0 )
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+				EnumWindows(find_chwnd, (LPARAM)lpInfo);
+			}
 		}
 	}
 	return (1);

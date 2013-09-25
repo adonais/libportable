@@ -12,7 +12,7 @@
 
 typedef struct tagWNDINFO
 {
-	int		 atom_str;
+	int	  atom_str;
 	int      key_mod;
 	int      key_vk;
 	DWORD    pFF;
@@ -24,7 +24,6 @@ typedef WNDINFO *LPWNDINFO;
 #ifdef __cplusplus
 extern "C" {
 #endif
-BOSS_EXTERN BOOL is_browser(void);
 BOSS_EXTERN unsigned WINAPI bosskey_thread(void * lparam);
 #ifdef __cplusplus
 }

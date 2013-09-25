@@ -15,7 +15,7 @@
 
 #define	  EXCLUDE_NUM 16					/* 白名单个数(数组最大行数) */
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
-#define   BUFSIZE   MAX_PATH
+#define   BUFSIZE   (MAX_PATH*2)
 
 INI_EXTERN wchar_t profile_path[MAX_PATH+1];             /* only init once */
 
@@ -37,6 +37,7 @@ INI_EXTERN int read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL for_eachSection(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
 INI_EXTERN BOOL is_nplugins(void);
 INI_EXTERN BOOL is_thunderbird(void);
+INI_EXTERN BOOL is_browser(void);
 INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
 INI_EXTERN unsigned WINAPI GdiSetLimit_tt(void * pParam);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);
