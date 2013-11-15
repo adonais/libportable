@@ -370,7 +370,8 @@ DWORD rva_fileoffset(PIMAGE_SECTION_HEADER sectionhead,const int num,DWORD destr
 	return 0;
 }
 
-BOOL mscrt_caller(char *crt_name,int len)
+/* 双保险,当无法确认CRT版本时,从输入表查找 */
+BOOL find_msvcrt(char *crt_name,int len)
 {
 	BOOL			ret = FALSE;
 	FILE*				File= NULL;
@@ -444,6 +445,25 @@ BOOL mscrt_caller(char *crt_name,int len)
 	return ret;
 }
 
+HMODULE load_msvcrt(void)
+{
+	HMODULE	hCrt =NULL;
+	WCHAR		full_path[MAX_PATH+1];
+	WCHAR		*crt_name[] = {L"msvcr120.dll", L"msvcr110.dll", L"msvcr100.dll",L"msvcr90.dll",L"msvcr80.dll"};
+	int                num = sizeof(crt_name)/sizeof(crt_name[0]);
+	int                i = 0;
+	if ( GetModuleFileNameW(dll_module,full_path,MAX_PATH) > 0)
+	{
+		for (i=0;i<num&&!hCrt;i++)
+		{
+			PathRemoveFileSpecW(full_path);
+			PathAppendW(full_path, crt_name[i]);
+			hCrt = PathFileExistsW(full_path)?GetModuleHandleW(crt_name[i]):NULL;
+		}
+	}
+	return hCrt;
+}
+
 unsigned WINAPI SetPluginPath(void * pParam)
 {
 	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
@@ -452,28 +472,21 @@ unsigned WINAPI SetPluginPath(void * pParam)
 	_pwrite_env   Truewrite_env = NULL;
 	LPWSTR		 lpstring;
 	char              msvc_crt[101] = {0};
-	char				full_path[MAX_PATH+1];
-	if (!mscrt_caller(msvc_crt,100) )
+	hCrt = load_msvcrt();
+	if (!hCrt )
 	{
 	#ifdef _LOGDEBUG
-		logmsg("mscrt_caller falsed %s \n",msvc_crt);
+		logmsg("search import tables,to find  crt name \n");
 	#endif
-		return (0);
-	}
-	if ( !GetModuleFileNameA(dll_module,full_path,MAX_PATH) )
-	{
-	#ifdef _LOGDEBUG
-		logmsg("GetModuleFileNameA falsed %s \n",full_path);
-	#endif
-		return (0);
-	}
-	PathRemoveFileSpecA(full_path);
-	PathAppendA(full_path,msvc_crt);
-	while ( !hCrt && count)
-	{
-		hCrt = PathFileExistsA(full_path)?GetModuleHandleA(full_path):GetModuleHandleA(msvc_crt);
-		Sleep(600);
-		count--;
+		if (!find_msvcrt(msvc_crt,100) )
+		{
+			return (0);
+		}
+		while ( !GetModuleHandleA(msvc_crt) && count)
+		{
+			Sleep(500);
+			count--;
+		}
 	}
 	Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
 	if ( Truewrite_env )
