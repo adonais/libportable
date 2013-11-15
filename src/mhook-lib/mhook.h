@@ -24,12 +24,12 @@
 #define _M_IX86_X64
 #endif
 
-#if defined(__cplusplus)&&!defined(_MSVC_VER)
+#if defined(__cplusplus)
 extern "C" {
 #endif 
 BOOL Mhook_SetHook(PVOID *ppSystemFunction, PVOID pHookFunction);
 BOOL Mhook_Unhook(PVOID *ppHookedFunction);
-#if defined(__cplusplus)&&!defined(_MSVC_VER)
+#if defined(__cplusplus)
 }
 #endif 
 

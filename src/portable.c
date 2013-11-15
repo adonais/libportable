@@ -9,13 +9,8 @@
 #include <shlwapi.h>
 #include <process.h>
 #include "mhook-lib/mhook.h"
-
 #ifdef _MSC_VER
-#  pragma comment(lib, "kernel32.lib")
-#  pragma comment(lib, "user32.lib")
-#  pragma comment(lib, "shell32.lib")
-#  pragma comment(lib, "shlwapi.lib")
-#  pragma comment(lib, "gdi32.lib")
+  #include <stdarg.h>
 #endif
 
 HMODULE	dll_module				= NULL;             /* dll module entry point */
@@ -23,12 +18,7 @@ List    ttf_list 				= NULL;             /* fonts list */
 static  WCHAR  appdata_path[VALUE_LEN+1];			/* 自定义的appdata变量路径  */
 static  WCHAR  localdata_path[VALUE_LEN+1];
 
-#ifdef _DEBUG
-static char  logfile_buf[VALUE_LEN+1];
-const  char *logname = "run_hook.log";
-#endif
-
-typedef HRESULT (WINAPI *_NtSHGetFolderPath)(HWND hwndOwner,
+typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
 									    int nFolder,
 									    HANDLE hToken,
 									    DWORD dwFlags,
@@ -41,27 +31,27 @@ typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
 									    LPWSTR lpszPath,
 									    int csidl,
 									    BOOL fCreate);
-typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathA)(HWND hwndOwner,
-									    LPSTR lpszPath,
-									    int csidl,
-									    BOOL fCreate);
 
-static _NtSHGetFolderPath				TrueSHGetFolderPathW				= NULL;
+static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
-static _NtSHGetSpecialFolderPathA       TrueSHGetSpecialFolderPathA			= NULL;
 static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
-#ifdef _DEBUG
+#ifdef _LOGDEBUG
+static char  logfile_buf[VALUE_LEN+1];
+LPCSTR logname = "run_hook.log";
+
 void __cdecl logmsg(const char * format, ...)
 {
 	va_list args;
+	int		len	 ;
+	char	  buffer[VALUE_LEN+3];
 	va_start (args, format);
-	int len	 =	_vscprintf(format, args);
-	if (len > 0 && strlen(logfile_buf) > 0)
+	len	 =	_vscprintf(format, args);
+	if (len > 0 && len < VALUE_LEN && strlen(logfile_buf) > 0)
 	{
-		char	buffer[len+3];
 		FILE	*pFile = NULL;
 		len = _vsnprintf(buffer,len,format, args);
+		buffer[len++] = '\n';
 		buffer[len] = '\0';
 		if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
 		{
@@ -143,7 +133,7 @@ void add_fonts_toapp(List *Li_header)
 		DWORD	 numFonts = 0;
 		if ( AddFontResourceExW(ttf_element->Element,FR_PRIVATE,&numFonts) )
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("AddFontResourceW ok\n");
 		#endif
 		}
@@ -345,15 +335,16 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 {
 	if ( !is_nplugins() )
 	{
+		int num ;
 		BOOL ret =  TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
 		if( CSIDL_APPDATA == csidl          ||
 			(CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl
 		   )
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("SHGetSpecialFolderPath hook off.\n");
 		#endif
-			int num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
+			num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
 			lpszPath[num] = L'\0';
 			if (TrueSHGetSpecialFolderPathW && ret)
 			{
@@ -366,31 +357,125 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 	return TrueSHGetSpecialFolderPathW(hwndOwner, lpszPath, csidl,fCreate);
 }
 
+DWORD rva_fileoffset(PIMAGE_SECTION_HEADER sectionhead,const int num,DWORD destrva)
+{
+	int i;
+	for(i=1;i<=num;i++)
+	{
+		if((destrva>=sectionhead->VirtualAddress)&&(destrva<=sectionhead->VirtualAddress+sectionhead->SizeOfRawData))
+		{
+			return destrva-sectionhead->VirtualAddress+sectionhead->PointerToRawData;
+		}
+	}
+	return 0;
+}
+
+BOOL mscrt_caller(char *crt_name,int len)
+{
+	BOOL			ret = FALSE;
+	FILE*				File= NULL;
+	WCHAR		lpstrName[MAX_PATH+1];
+	IMAGE_DOS_HEADER      Dos;
+	IMAGE_NT_HEADERS      NT;
+	IMAGE_SECTION_HEADER      Section;
+	IMAGE_IMPORT_DESCRIPTOR    Import ;
+	char name[100];
+	if ( !GetCurrentProcessName(lpstrName, MAX_PATH) )
+	{
+		return ret;
+	}
+	if ( (File=_wfopen(lpstrName,L"rb")) == NULL )
+	{
+		return ret;
+	}
+	do
+	{
+		int num,i = 0;
+		size_t result;
+		DWORD size,offset;
+		result = fread(&Dos,sizeof(IMAGE_DOS_HEADER),1,File);
+		if (!result) break;
+		fseek(File,Dos.e_lfanew,SEEK_SET);
+		result = fread(&NT,sizeof(IMAGE_NT_HEADERS),1,File);
+		if (!result) break;
+		fseek(File,Dos.e_lfanew+sizeof(IMAGE_NT_HEADERS)+sizeof(IMAGE_SECTION_HEADER),SEEK_SET);
+		result = fread(&Section,sizeof(IMAGE_SECTION_HEADER),1,File);
+		if (!result) break;
+		num = NT.FileHeader.NumberOfSections;
+		size=NT.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
+		offset= rva_fileoffset(&Section,num,NT.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+		if (offset>0)
+		{
+			while( TRUE )
+			{
+				DWORD   frva;
+				PIMAGE_THUNK_DATA pThunk, pThunkIAT;
+				fseek(File,offset+i*sizeof(IMAGE_IMPORT_DESCRIPTOR),SEEK_SET);
+				fread(&Import,sizeof(IMAGE_IMPORT_DESCRIPTOR),1,File);
+				if (!result) break;
+				pThunk  = (PIMAGE_THUNK_DATA)(Import.Characteristics);
+				pThunkIAT = (PIMAGE_THUNK_DATA)(Import.FirstThunk);
+				if(pThunk == 0 && pThunkIAT == 0) break;
+				ZeroMemory(name,sizeof(name));
+				frva = rva_fileoffset(&Section,num,Import.Name);
+				fseek(File,frva,SEEK_SET);
+				result = fread(name,100,1,File);
+				if (!result) break;
+			#ifdef _LOGDEBUG
+				logmsg("Import.Name fileoffset: 0x%lx"" dllname:  %s\n",frva,(const char *)name);
+			#endif
+				if ( PathMatchSpecA(name,"MSVCR??*.dll") )
+				{
+					ret = TRUE;
+					break;
+				}
+				i++;
+			}
+		}
+	} while (0);
+	if (ret)
+	{
+		strncpy(crt_name,CharLowerA(name),len);
+	}
+	if (File)
+	{
+		fclose(File);
+	}
+	return ret;
+}
+
 unsigned WINAPI SetPluginPath(void * pParam)
 {
 	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
-	int				 ret = 0;
-	HMODULE	 hCrt;
+	int				 count = 10,ret = 0;
+	HMODULE	 hCrt =NULL;
 	_pwrite_env   Truewrite_env = NULL;
 	LPWSTR		 lpstring;
-#if (_MSC_VER == 1400) || (CRT_LINK == 1400)
-	hCrt = GetModuleHandleW(L"msvcr80.dll");
-#elif (_MSC_VER == 1500) || (CRT_LINK == 1500)
-	hCrt = GetModuleHandleW(L"msvcr90.dll");
-#elif (_MSC_VER == 1600) || (CRT_LINK == 1600)
-	hCrt = GetModuleHandleW(L"msvcr100.dll");
-#elif (_MSC_VER == 1700) || (CRT_LINK == 1700)
-	hCrt = GetModuleHandleW(L"msvcr110.dll");
-#elif (_MSC_VER == 1800) || (CRT_LINK == 1800)
-	hCrt = GetModuleHandleW(L"msvcr120.dll");
-#else
-	#error MSCRT version is too low,not exist _wputenv function.
-	hCrt = NULL;
-#endif
-	if ( hCrt )
+	char              msvc_crt[101] = {0};
+	char				full_path[MAX_PATH+1];
+	if (!mscrt_caller(msvc_crt,100) )
 	{
-		Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
+	#ifdef _LOGDEBUG
+		logmsg("mscrt_caller falsed %s \n",msvc_crt);
+	#endif
+		return (0);
 	}
+	if ( !GetModuleFileNameA(dll_module,full_path,MAX_PATH) )
+	{
+	#ifdef _LOGDEBUG
+		logmsg("GetModuleFileNameA falsed %s \n",full_path);
+	#endif
+		return (0);
+	}
+	PathRemoveFileSpecA(full_path);
+	PathAppendA(full_path,msvc_crt);
+	while ( !hCrt && count)
+	{
+		hCrt = PathFileExistsA(full_path)?GetModuleHandleA(full_path):GetModuleHandleA(msvc_crt);
+		Sleep(600);
+		count--;
+	}
+	Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
 	if ( Truewrite_env )
 	{
 		if ( profile_path[1] != L':' )
@@ -443,7 +528,7 @@ unsigned WINAPI init_portable(void * pParam)
 	HMODULE hShell32 = GetModuleHandleW(L"shell32.dll");
 	if (hShell32 != NULL)
 	{
-		TrueSHGetFolderPathW = (_NtSHGetFolderPath)GetProcAddress(hShell32,
+		TrueSHGetFolderPathW = (_NtSHGetFolderPathW)GetProcAddress(hShell32,
 								"SHGetFolderPathW");
 		TrueSHGetSpecialFolderPathW = (_NtSHGetSpecialFolderPathW)GetProcAddress(hShell32,
                                        "SHGetSpecialFolderPathW");
@@ -495,7 +580,11 @@ void WINAPI hook_end(void)
 extern "C" {
 #endif 
 
+#if defined(LIBPORTABLE_EXPORTS) && defined(_MSC_VER)
+int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
+#else
 BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
+#endif
 {
 	static WNDINFO ff_info;
     switch(dwReason) 
@@ -505,19 +594,13 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			HANDLE		 hc = NULL;
 			dll_module = (HMODULE)hModule;
 			DisableThreadLibraryCalls(hModule);
-		#ifdef _DEBUG
-			TrueSHGetSpecialFolderPathA = (_NtSHGetSpecialFolderPathA)GetProcAddress
-										  (GetModuleHandleW(L"shell32.dll"),"SHGetSpecialFolderPathA");
-			if ( TrueSHGetSpecialFolderPathA && *logfile_buf == '\0' )
+		#ifdef _LOGDEBUG
+			if ( SHGetSpecialFolderPathA(NULL,logfile_buf,CSIDL_APPDATA,FALSE) )
 			{
-				if ( TrueSHGetSpecialFolderPathA(NULL,logfile_buf,CSIDL_APPDATA,FALSE) )
-				{
-					strncat(logfile_buf,"\\",1);
-					strncat(logfile_buf,logname,strlen(logname));
-				}
+				strncat(logfile_buf,"\\",1);
+				strncat(logfile_buf,logname,strlen(logname));
 			}
 		#endif
-			SetPluginPath(NULL);
 			if ( read_appint(L"General",L"SafeEx") > 0 )
 			{
 				init_safed(NULL);
@@ -558,6 +641,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			{
 				CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
 			}
+			CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
 		}
 			break;
 		case DLL_PROCESS_DETACH:

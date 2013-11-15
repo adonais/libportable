@@ -41,6 +41,7 @@ INI_EXTERN BOOL is_browser(void);
 INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
 INI_EXTERN unsigned WINAPI GdiSetLimit_tt(void * pParam);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);
+INI_EXTERN BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen);
 
 #ifdef __cplusplus
 }

@@ -38,9 +38,9 @@ LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
      /* 异常信息结构体 */
     MINIDUMP_EXCEPTION_INFORMATION  ExInfo;
     /* dump生成目录 */
-    wchar_t appdir[MAX_PATH] = {0};
+    wchar_t appdir[MAX_PATH+1] = {0};
 	HANDLE hFile = NULL;
-    if ( !(GetEnvironmentVariableW(L"APPDATA",appdir,sizeof(appdir)) > 0) )
+    if ( !(GetEnvironmentVariableW(L"APPDATA",appdir,MAX_PATH) > 0) )
 	{
 		return EXCEPTION_CONTINUE_SEARCH;
 	}

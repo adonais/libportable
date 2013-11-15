@@ -1,24 +1,10 @@
 CC       = gcc -c 
-CFLAGS   = -O3
+CFLAGS   = -O2
 LD       = gcc -o
 BITS	 := 32
-CRT_LINK := 1600
-MSCRT    =
+DFLAGS :=
+MSCRT    := -lmsvcrt
 DLL_MAIN_STDCALL_NAME =
-
-ifeq ($(CRT_LINK),1400)
-    MSCRT = -lmsvcr80
-else ifeq ($(CRT_LINK),1500)
-    MSCRT = -lmsvcr90
-else ifeq ($(CRT_LINK),1600)
-    MSCRT = -lmsvcr100
-else ifeq ($(CRT_LINK),1700)
-    MSCRT = -lmsvcr110
-else ifeq ($(CRT_LINK),1800)
-    MSCRT = -lmsvcr120
-else
-    MSCRT = -lmsvcrt
-endif
 
 ifeq ($(BITS),64)
 DLL_MAIN_STDCALL_NAME = DllMain
@@ -27,7 +13,7 @@ DLL_MAIN_STDCALL_NAME = _DllMain@12
 endif
 
 LDFLAGS  = -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lkernel32 -luser32 -Wl,-s
-CFLAGS   += -DCRT_LINK=$(CRT_LINK) -Wall -Wno-unused -Wno-format -msse2 \
+CFLAGS   += $(DFLAGS)  -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast -msse2 \
 	    -fomit-frame-pointer -finline-functions -fno-stack-protector
 LDLIBS   = -lshlwapi -lshell32 -lgdi32 -lgcc $(MSCRT)
 MD       = mkdir -p
@@ -45,7 +31,7 @@ OUT2     = $(DISTDIR)/portable$(BITS).dll
 RC       = windres
 RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff
 DLLFLAGS += -shared -Wl,--out-implib,$(DISTDIR)/portable$(BITS).lib --entry=$(DLL_MAIN_STDCALL_NAME)
-MKDLL	 += $(LD) $(DLLFLAGS) -shared -L$(DISTDIR) -lmhook
+MKDLL	 += $(LD) $(DLLFLAGS) -shared -L$(DISTDIR) -lmhook(BITS)
 
 EXEC     = \
     @echo Starting Compile... \

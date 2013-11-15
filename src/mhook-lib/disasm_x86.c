@@ -3,6 +3,12 @@
 #include "disasm.h"
 #include "cpu.h"
 
+#if defined(LIBPORTABLE_EXPORTS) && defined(_MSC_VER)
+#undef stdout
+extern FILE _iob[];
+#define stdout (&_iob[1])
+#endif
+
 // Since addresses are internally represented as 64-bit, we need to specially handle
 // cases where IP + Displacement wraps around for 16-bit/32-bit operand size
 // Otherwise, ignorethe possibility of wraparounds

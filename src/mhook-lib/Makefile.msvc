@@ -1,7 +1,8 @@
 # nmake -f makefile.msvc
 CC       = cl.exe
 CPP     = cl.exe
-CFLAGS   = /EHs-c- /nologo /W3 /WX- /O2 /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE"
+DFLAGS   =
+CFLAGS   = $(DFLAGS) /nologo /W3 /WX- /O2 /GS- /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "LIBPORTABLE_EXPORTS"
 LD       = link.exe
 !if "$(PLATFORM)"=="X64"
 PLATFORM = X64
@@ -47,7 +48,7 @@ $(DEP)\disasm.obj      : disasm.c disasm.h
 $(DEP)\disasm_x86.obj  : disasm_x86.c disasm_x86.h
 	$(CC) $(CFLAGS) /c disasm_x86.c /Fo$@
 $(DEP)\mhook.obj       : mhook.c mhook.h
-	$(CC) $(CPPFLAGS) /c mhook.c  /Fo$@
+	$(CC) $(CFLAGS) /c mhook.c  /Fo$@
 $(DEP)\misc.obj        : misc.c misc.h
 	$(CC) $(CFLAGS) /c misc.c /Fo$@
 

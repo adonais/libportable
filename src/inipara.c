@@ -272,7 +272,7 @@ BOOL WINAPI IsGUI(LPCWSTR lpFileName)
 
 BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 {
-	int i=0;
+	size_t i = 0;
 	WCHAR lpFullPath[MAX_PATH+1]={0};
 	if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
 	{

@@ -1,11 +1,12 @@
 CC       = gcc
-CFLAGS   = -O3
+CFLAGS   = -O2
 BITS	 := 32
+DFLAGS :=
 LD       = gcc
 LDFLAGS  = -Wl,-s
-CFLAGS   += -Wall -Wno-unused -Wno-format -DNDEBUG -msse2 -finline-functions -fomit-frame-pointer
+CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG -msse2 -finline-functions -fomit-frame-pointer
 CFLAGSEX =
-LDLIBS   = -lmhook -municode
+LDLIBS   = -lmhook$(BITS) -municode
 MD       = mkdir -p
 SRC      = src
 DEP      = ../../.dep
