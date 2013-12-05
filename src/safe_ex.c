@@ -10,7 +10,7 @@
 
 extern	HMODULE  dll_module;
 
-#ifdef _DEBUG
+#ifdef _LOGDEBUG
 extern void __cdecl logmsg(const char * format, ...);
 #endif
 
@@ -95,7 +95,7 @@ unsigned WINAPI InjectDll(void *mpara)
 				CloseHandle( hRemote );
 			}
 		}
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 		else
 		{
 			logmsg("NtWriteProcessMemory() false,error code = %lu\n",status);
@@ -105,12 +105,12 @@ unsigned WINAPI InjectDll(void *mpara)
 		TrueNtFreeVirtualMemory(pi.hProcess,&dll_buff,&size,MEM_RELEASE);
 		if ( !NT_SUCCESS(TrueNtResumeThread(pi.hThread,NULL)) )
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("TrueNtResumeThread() false\n");
 		#endif
 		}
 	}
-	#ifdef _DEBUG
+	#ifdef _LOGDEBUG
 	else
 	{
 		logmsg("NtVirtualAllocEx() false,error code = %lu\n",status);
@@ -278,13 +278,13 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 		if ( ProcessParameters->ImagePathName.Length > 0 && 
 			in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
 		#endif
 		}
 		else
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("the process %ls disabled-runes\n",ProcessParameters->ImagePathName.Buffer);
 		#endif
 			ProcessParameters = &mY_ProcessParameters;
@@ -313,7 +313,7 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 		if ( NT_SUCCESS(TrueNtSuspendThread(ProcessInformation.hThread,&Suspend)) )
 		{
 			InjectDll(&ProcessInformation);
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("ready to  dll hook .\n");
 		#endif
 		}
@@ -360,7 +360,7 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 	{
 		if ( !in_whitelist((LPCWSTR)lpfile) )
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("the process %ls disabled-runes\n",lpfile);
 		#endif
 			SetLastError( TrueRtlNtStatusToDosError(STATUS_ERROR) );
@@ -376,7 +376,7 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 	{
 		if ( ProcessIsCUI(lpfile) )
 		{
-			#ifdef _DEBUG
+			#ifdef _LOGDEBUG
 				logmsg("%ls process, disabled-runes\n",lpfile);
 			#endif
 				SetLastError( TrueRtlNtStatusToDosError(STATUS_ERROR) );
@@ -390,7 +390,7 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 	if ( ret && tohook )
 	{
 		InjectDll(lpProcessInformation);
-	#ifdef _DEBUG
+	#ifdef _LOGDEBUG
 		logmsg("ready to  dll hook .\n");
 	#endif
 	}
@@ -498,14 +498,14 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 		if ( PathMatchSpecW(lpFileName, L"*.exe") || in_whitelist(lpFileName) )
 		{
 			/* javascript api 获取应用程序图标时 */
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("%ls in whitelist\n",lpFileName);
 		#endif
 			return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);  
 		}
 		else
 		{
-		#ifdef _DEBUG
+		#ifdef _LOGDEBUG
 			logmsg("the  %ls disable load\n",lpFileName);
 		#endif
 			return NULL;  
@@ -522,7 +522,7 @@ unsigned WINAPI init_safed(void * pParam)
 	TrueLoadLibraryExW = (_NtLoadLibraryExW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"LoadLibraryExW");
 	if (!TrueLoadLibraryExW)
 	{
-	#ifdef _DEBUG
+	#ifdef _LOGDEBUG
 		logmsg("TrueLoadLibraryExW is null %lu\n",GetLastError());
 	#endif
 	}
