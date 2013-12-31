@@ -328,6 +328,22 @@ typedef struct _PROCESS_BASIC_INFORMATION {
   ULONG_PTR InheritedFromUniqueProcessId;
 } PROCESS_BASIC_INFORMATION, *PPROCESS_BASIC_INFORMATION;
 
+typedef struct _LDR_DATA_TABLE_ENTRY {
+    PVOID Reserved1[2];
+    LIST_ENTRY InMemoryOrderLinks;
+    PVOID Reserved2[2];
+    PVOID DllBase;
+    PVOID EntryPoint;
+    PVOID Reserved3;
+    UNICODE_STRING FullDllName;
+    BYTE Reserved4[8];
+    PVOID Reserved5[3];
+    union {
+        ULONG CheckSum;
+        PVOID Reserved6;
+    };
+    ULONG TimeDateStamp;
+} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
 
 typedef NTSTATUS (NTAPI *_NtQueryObject)(HANDLE ObjectHandle,
 										ULONG  ObjectInformationClass,
@@ -453,29 +469,20 @@ typedef NTSTATUS (NTAPI *_NtResumeThread)(IN HANDLE ThreadHandle,
 typedef HMODULE (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,
 									    HANDLE hFile, 
 									    DWORD dwFlags);
-
-static _NtCLOSE							TrueNtclose							= NULL;
-static _NtQueryInformationFile			TrueNtQueryInformationFile			= NULL;
-static _NtQuerySection					TrueNtQuerySection					= NULL;
-static _NtTerminateProcess				TrueNtTerminateProcess				= NULL;
-static _NtCreateSection					TrueNtCreateSection					= NULL;
-static _NtMapViewOfSection              TrueNtMapViewOfSection				= NULL;
-static _NtCreateUserProcess             TrueNtCreateUserProcess				= NULL;
-static _NtUnmapViewOfSection			TrueNtUnmapViewOfSection			= NULL;
-static _NtWriteVirtualMemory            TrueNtWriteVirtualMemory			= NULL;
-static _NtAllocateVirtualMemory         TrueNtAllocateVirtualMemory			= NULL;
-static _NtFreeVirtualMemory				TrueNtFreeVirtualMemory				= NULL;
-static _NtProtectVirtualMemory          TrueNtProtectVirtualMemory			= NULL;
-static _NtCreateProcessEx				TrueNtCreateProcessEx				= NULL;
-static _NtQueryInformationProcess		TrueNtQueryInformationProcess		= NULL;
-static _NtRemoteLoadW					RemoteLoadW							= NULL;
-static _NtOpenProcess					TrueNtOpenProcess					= NULL;
-static _NtOpenThread					TrueNtOpenThread					= NULL;
-static _RtlNtStatusToDosError			TrueRtlNtStatusToDosError			= NULL;
-static _CreateProcessInternalW 			TrueCreateProcessInternalW			= NULL;
-static _NtReadVirtualMemory				TrueNtReadVirtualMemory				= NULL;
-static _NtSuspendThread					TrueNtSuspendThread					= NULL;
-static _NtResumeThread					TrueNtResumeThread					= NULL;
-static _NtLoadLibraryExW				TrueLoadLibraryExW					= NULL;
+typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
+									    int nFolder,
+									    HANDLE hToken,
+									    DWORD dwFlags,
+									    LPWSTR pszPath);
+typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
+									    int nFolder,
+									    LPITEMIDLIST *ppidl);
+typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
+									    LPWSTR lpszPath,
+									    int csidl,
+									    BOOL fCreate);
+typedef NTSTATUS (NTAPI *_NtLdrpProcessImportDirectory)(PLDR_DATA_TABLE_ENTRY Module,
+										PLDR_DATA_TABLE_ENTRY ImportedModule,
+										PCHAR ImportedName);
 
 #endif  // _HEAD_ER_H_

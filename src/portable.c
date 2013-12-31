@@ -1,6 +1,7 @@
 #define TETE_BUILD
 
 #include "portable.h"
+#include "header.h"
 #include "ttf_list.h"
 #include "safe_ex.h"
 #include "ice_error.h"
@@ -13,26 +14,19 @@
   #include <stdarg.h>
 #endif
 
-HMODULE	dll_module				= NULL;             /* dll module entry point */
-List    ttf_list 				= NULL;             /* fonts list */
-static  WCHAR  appdata_path[VALUE_LEN+1];			/* 自定义的appdata变量路径  */
+#define SIZE_OF_NT_SIGNATURE		sizeof (DWORD)
+#define CRT_LEN								100
+#define MAX_ENV_SIZE					32767
+
+HMODULE	dll_module				= NULL;
+
+/* fonts list */
+List    ttf_list 									= NULL;
+
+static  WCHAR  appdata_path[VALUE_LEN+1];	
 static  WCHAR  localdata_path[VALUE_LEN+1];
 
-typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
-									    int nFolder,
-									    HANDLE hToken,
-									    DWORD dwFlags,
-									    LPWSTR pszPath);
-
-typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
-									    int nFolder,
-									    LPITEMIDLIST *ppidl);
-typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
-									    LPWSTR lpszPath,
-									    int csidl,
-									    BOOL fCreate);
-
-static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
+static _NtSHGetFolderPathW				TrueSHGetFolderPathW					= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
 static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
@@ -357,139 +351,80 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 	return TrueSHGetSpecialFolderPathW(hwndOwner, lpszPath, csidl,fCreate);
 }
 
-DWORD rva_fileoffset(PIMAGE_SECTION_HEADER sectionhead,const int num,DWORD destrva)
-{
-	int i;
-	for(i=1;i<=num;i++)
-	{
-		if((destrva>=sectionhead->VirtualAddress)&&(destrva<=sectionhead->VirtualAddress+sectionhead->SizeOfRawData))
-		{
-			return destrva-sectionhead->VirtualAddress+sectionhead->PointerToRawData;
-		}
-	}
-	return 0;
-}
-
-/* 双保险,当无法确认CRT版本时,从输入表查找 */
+/* 从输入表查找CRT版本 */
 BOOL find_msvcrt(char *crt_name,int len)
 {
 	BOOL			ret = FALSE;
-	FILE*				File= NULL;
-	WCHAR		lpstrName[MAX_PATH+1];
-	IMAGE_DOS_HEADER      Dos;
-	IMAGE_NT_HEADERS      NT;
-	IMAGE_SECTION_HEADER      Section;
-	IMAGE_IMPORT_DESCRIPTOR    Import ;
-	char name[100];
-	if ( !GetCurrentProcessName(lpstrName, MAX_PATH) )
+	IMAGE_DOS_HEADER      *pDos;
+	IMAGE_OPTIONAL_HEADER *pOptHeader;
+	IMAGE_IMPORT_DESCRIPTOR    *pImport ;
+	HMODULE hMod=GetModuleHandleW(NULL);
+	if (!hMod)
 	{
+	#ifdef _LOGDEBUG
+		logmsg("GetModuleHandleW false,hMod = 0\n");
+	#endif
 		return ret;
 	}
-	if ( (File=_wfopen(lpstrName,L"rb")) == NULL )
+	pDos = (IMAGE_DOS_HEADER *)hMod;
+	pOptHeader = (IMAGE_OPTIONAL_HEADER *)( 
+										(BYTE *)hMod 
+                                       + pDos->e_lfanew
+                                       + SIZE_OF_NT_SIGNATURE
+									   + sizeof(IMAGE_FILE_HEADER)
+                             );
+	pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
+                                             (BYTE *)hMod
+                                             + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
+                      ) ;
+	while( TRUE )
 	{
-		return ret;
-	}
-	do
-	{
-		int num,i = 0;
-		size_t result;
-		DWORD size,offset;
-		result = fread(&Dos,sizeof(IMAGE_DOS_HEADER),1,File);
-		if (!result) break;
-		fseek(File,Dos.e_lfanew,SEEK_SET);
-		result = fread(&NT,sizeof(IMAGE_NT_HEADERS),1,File);
-		if (!result) break;
-		fseek(File,Dos.e_lfanew+sizeof(IMAGE_NT_HEADERS)+sizeof(IMAGE_SECTION_HEADER),SEEK_SET);
-		result = fread(&Section,sizeof(IMAGE_SECTION_HEADER),1,File);
-		if (!result) break;
-		num = NT.FileHeader.NumberOfSections;
-		size=NT.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
-		offset= rva_fileoffset(&Section,num,NT.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
-		if (offset>0)
+		char*	pszDllName = NULL;
+		char		name[CRT_LEN+1] = {0};
+		IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
+		IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
+		if(pThunk == 0 && pThunkIAT == 0) break;
+		pszDllName = (char*)((BYTE*)hMod+pImport->Name);
+	#ifdef _LOGDEBUG
+		logmsg("dllname:  [%s]\n",(const char *)pszDllName);
+	#endif
+		if ( PathMatchSpecA(pszDllName,"MSVCR??*.dll") )
 		{
-			while( TRUE )
-			{
-				DWORD   frva;
-				PIMAGE_THUNK_DATA pThunk, pThunkIAT;
-				fseek(File,offset+i*sizeof(IMAGE_IMPORT_DESCRIPTOR),SEEK_SET);
-				fread(&Import,sizeof(IMAGE_IMPORT_DESCRIPTOR),1,File);
-				if (!result) break;
-				pThunk  = (PIMAGE_THUNK_DATA)(Import.Characteristics);
-				pThunkIAT = (PIMAGE_THUNK_DATA)(Import.FirstThunk);
-				if(pThunk == 0 && pThunkIAT == 0) break;
-				ZeroMemory(name,sizeof(name));
-				frva = rva_fileoffset(&Section,num,Import.Name);
-				fseek(File,frva,SEEK_SET);
-				result = fread(name,100,1,File);
-				if (!result) break;
-			#ifdef _LOGDEBUG
-				logmsg("Import.Name fileoffset: 0x%lx"" dllname:  %s\n",frva,(const char *)name);
-			#endif
-				if ( PathMatchSpecA(name,"MSVCR??*.dll") )
-				{
-					ret = TRUE;
-					break;
-				}
-				i++;
-			}
+			strncpy(name,pszDllName,CRT_LEN);
+			strncpy(crt_name,CharLowerA(name),len);
+			ret = TRUE;
+			break;
 		}
-	} while (0);
-	if (ret)
-	{
-		strncpy(crt_name,CharLowerA(name),len);
-	}
-	if (File)
-	{
-		fclose(File);
+		pImport++;
 	}
 	return ret;
 }
 
-HMODULE load_msvcrt(void)
-{
-	HMODULE	hCrt =NULL;
-	WCHAR		full_path[MAX_PATH+1];
-	WCHAR		*crt_name[] = {L"msvcr120.dll", L"msvcr110.dll", L"msvcr100.dll",L"msvcr90.dll",L"msvcr80.dll"};
-	int                num = sizeof(crt_name)/sizeof(crt_name[0]);
-	int                i = 0;
-	if ( GetModuleFileNameW(dll_module,full_path,MAX_PATH) > 0)
-	{
-		for (i=0;i<num&&!hCrt;i++)
-		{
-			PathRemoveFileSpecW(full_path);
-			PathAppendW(full_path, crt_name[i]);
-			hCrt = PathFileExistsW(full_path)?GetModuleHandleW(crt_name[i]):NULL;
-		}
-	}
-	return hCrt;
-}
 
 unsigned WINAPI SetPluginPath(void * pParam)
 {
 	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
-	int				 count = 10,ret = 0;
+	int				 ret = 0;
 	HMODULE	 hCrt =NULL;
-	_pwrite_env   Truewrite_env = NULL;
+	_pwrite_env   write_env = NULL;
 	LPWSTR		 lpstring;
-	char              msvc_crt[101] = {0};
-	hCrt = load_msvcrt();
-	if (!hCrt )
+	char              msvc_crt[CRT_LEN+1] = {0};
+	if (!find_msvcrt(msvc_crt,CRT_LEN) )
 	{
 	#ifdef _LOGDEBUG
-		logmsg("search import tables,to find  crt name \n");
+		logmsg("Not found the msvc library\n");
 	#endif
-		if (!find_msvcrt(msvc_crt,100) )
-		{
-			return (0);
-		}
-		while ( !GetModuleHandleA(msvc_crt) && count)
-		{
-			Sleep(500);
-			count--;
-		}
+		return (0);
 	}
-	Truewrite_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
-	if ( Truewrite_env )
+	if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
+	{
+	#ifdef _LOGDEBUG
+		logmsg("GetModuleHandleA false,error code [%lu] \n",GetLastError());
+	#endif
+		return (0);
+	}
+	write_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
+	if ( write_env )
 	{
 		if ( profile_path[1] != L':' )
 		{
@@ -498,9 +433,9 @@ unsigned WINAPI SetPluginPath(void * pParam)
 				return ((unsigned)ret);
 			}
 		}
-		if ( (lpstring = (LPWSTR)SYS_MALLOC(32767)) != NULL )
+		if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) != NULL )
 		{
-			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, 32767, profile_path)) > 0 )
+			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path)) > 0 )
 			{
 				LPWSTR	strKey = lpstring;
 				while(*strKey != L'\0') 
@@ -514,18 +449,18 @@ unsigned WINAPI SetPluginPath(void * pParam)
 							PathToCombineW(lpfile, VALUE_LEN);
 							if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",lpfile) > 0)
 							{
-								ret = Truewrite_env( (LPCWSTR)env_string );
+								ret = write_env( (LPCWSTR)env_string );
 							}
 						}
 					}
 					else if	(stristrW(strKey, L"TmpDataPath") ||
-							 stristrW(strKey, L"DiyFontPath") )
+								 stristrW(strKey, L"DiyFontPath") )
 					{
 						;
 					}
 					else
 					{
-						ret = Truewrite_env( (LPCWSTR)strKey );
+						ret = write_env( (LPCWSTR)strKey );
 					}
 					strKey += wcslen(strKey)+1;
 				}

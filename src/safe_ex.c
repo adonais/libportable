@@ -14,6 +14,20 @@ extern	HMODULE  dll_module;
 extern void __cdecl logmsg(const char * format, ...);
 #endif
 
+static _NtCreateUserProcess             TrueNtCreateUserProcess				= NULL;
+static _NtWriteVirtualMemory           TrueNtWriteVirtualMemory				= NULL;
+static _NtAllocateVirtualMemory       TrueNtAllocateVirtualMemory			= NULL;
+static _NtFreeVirtualMemory			 TrueNtFreeVirtualMemory				= NULL;
+static _NtProtectVirtualMemory        TrueNtProtectVirtualMemory			= NULL;
+static _NtCreateProcessEx				 TrueNtCreateProcessEx					= NULL;
+static _NtQueryInformationProcess	 TrueNtQueryInformationProcess		= NULL;
+static _NtRemoteLoadW					 RemoteLoadW									= NULL;
+static _RtlNtStatusToDosError			 TrueRtlNtStatusToDosError				= NULL;
+static _CreateProcessInternalW 		 TrueCreateProcessInternalW			= NULL;
+static _NtSuspendThread					 TrueNtSuspendThread						= NULL;
+static _NtResumeThread					 TrueNtResumeThread						= NULL;
+static _NtLoadLibraryExW					 TrueLoadLibraryExW						= NULL;
+
 HANDLE NtCreateRemoteThread(HANDLE hProcess, 
 							LPTHREAD_START_ROUTINE lpRemoteThreadStart, 
 							LPVOID lpRemoteCallback
@@ -95,12 +109,6 @@ unsigned WINAPI InjectDll(void *mpara)
 				CloseHandle( hRemote );
 			}
 		}
-		#ifdef _LOGDEBUG
-		else
-		{
-			logmsg("NtWriteProcessMemory() false,error code = %lu\n",status);
-		}
-		#endif
 		size = 0;
 		TrueNtFreeVirtualMemory(pi.hProcess,&dll_buff,&size,MEM_RELEASE);
 		if ( !NT_SUCCESS(TrueNtResumeThread(pi.hThread,NULL)) )
@@ -110,12 +118,6 @@ unsigned WINAPI InjectDll(void *mpara)
 		#endif
 		}
 	}
-	#ifdef _LOGDEBUG
-	else
-	{
-		logmsg("NtVirtualAllocEx() false,error code = %lu\n",status);
-	}
-	#endif
 	return (bRet);
 }
 
@@ -312,10 +314,10 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 		ProcessInformation.hThread = *ThreadHandle;
 		if ( NT_SUCCESS(TrueNtSuspendThread(ProcessInformation.hThread,&Suspend)) )
 		{
-			InjectDll(&ProcessInformation);
 		#ifdef _LOGDEBUG
-			logmsg("ready to  dll hook .\n");
+			logmsg("InjectDll() run .\n");
 		#endif
+			InjectDll(&ProcessInformation);
 		}
 	}
 	return status;
@@ -389,10 +391,10 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 	/* 远程注入进程 */
 	if ( ret && tohook )
 	{
-		InjectDll(lpProcessInformation);
 	#ifdef _LOGDEBUG
-		logmsg("ready to  dll hook .\n");
+		logmsg("InjectDll run .\n");
 	#endif
+		InjectDll(lpProcessInformation);
 	}
 	return ret;
 }	
@@ -467,6 +469,9 @@ BOOL WINAPI IsSpecialDll(UINT_PTR callerAddress,LPCWSTR dll_file)
 			{
 				if ( PathMatchSpecW(szModuleName, dll_file) )
 				{
+				#ifdef _LOGDEBUG
+					logmsg("dll_file [%ls] match\n",szModuleName);
+				#endif
 					ret = TRUE;
 				}
 			}
@@ -529,14 +534,10 @@ unsigned WINAPI init_safed(void * pParam)
 	hNtdll = GetModuleHandleW(L"ntdll.dll");
 	if (hNtdll)
 	{
-		TrueNtclose						= (_NtCLOSE)GetProcAddress
-										  (hNtdll, "NtClose");
 		TrueNtSuspendThread				= (_NtSuspendThread)GetProcAddress
 										  (hNtdll, "NtSuspendThread");
 		TrueNtResumeThread				= (_NtResumeThread)GetProcAddress
 										  (hNtdll, "NtResumeThread");
-		TrueNtTerminateProcess			= (_NtTerminateProcess)GetProcAddress
-										  (hNtdll, "NtTerminateProcess");
 		TrueNtQueryInformationProcess	= (_NtQueryInformationProcess)GetProcAddress(hNtdll,
 										  "NtQueryInformationProcess");
 		TrueNtWriteVirtualMemory		= (_NtWriteVirtualMemory)GetProcAddress(hNtdll,
@@ -545,8 +546,6 @@ unsigned WINAPI init_safed(void * pParam)
 										  "NtFreeVirtualMemory");
 		TrueNtAllocateVirtualMemory		= (_NtAllocateVirtualMemory)GetProcAddress(hNtdll,
 										  "NtAllocateVirtualMemory");
-		TrueNtReadVirtualMemory			= (_NtReadVirtualMemory)GetProcAddress(hNtdll,
-										  "NtReadVirtualMemory");
 		TrueRtlNtStatusToDosError		= (_RtlNtStatusToDosError)GetProcAddress(hNtdll,
 										  "RtlNtStatusToDosError");
 		if (ver>601)  /* win8 */
