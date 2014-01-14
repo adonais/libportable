@@ -388,7 +388,7 @@ BOOL find_msvcrt(char *crt_name,int len)
 	#ifdef _LOGDEBUG
 		logmsg("dllname:  [%s]\n",(const char *)pszDllName);
 	#endif
-		if ( PathMatchSpecA(pszDllName,"MSVCR??*.dll") )
+		if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
 		{
 			strncpy(name,pszDllName,CRT_LEN);
 			strncpy(crt_name,CharLowerA(name),len);
@@ -400,22 +400,14 @@ BOOL find_msvcrt(char *crt_name,int len)
 	return ret;
 }
 
-
 unsigned WINAPI SetPluginPath(void * pParam)
 {
 	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
 	int				 ret = 0;
 	HMODULE	 hCrt =NULL;
 	_pwrite_env   write_env = NULL;
+	char              *msvc_crt = (char *)pParam;
 	LPWSTR		 lpstring;
-	char              msvc_crt[CRT_LEN+1] = {0};
-	if (!find_msvcrt(msvc_crt,CRT_LEN) )
-	{
-	#ifdef _LOGDEBUG
-		logmsg("Not found the msvc library\n");
-	#endif
-		return (0);
-	}
 	if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
 	{
 	#ifdef _LOGDEBUG
@@ -537,6 +529,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 	static WNDINFO ff_info;
     switch(dwReason) 
 	{
+		static char msvc_crt[CRT_LEN+1];
 		case DLL_PROCESS_ATTACH:
 		{
 			HANDLE		 hc = NULL;
@@ -589,7 +582,10 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			{
 				CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
 			}
-			CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
+			if ( find_msvcrt(msvc_crt,CRT_LEN) )
+			{
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,(void *)msvc_crt,0,NULL));
+			}
 		}
 			break;
 		case DLL_PROCESS_DETACH:

@@ -66,7 +66,7 @@ int read_appint(LPCWSTR cat,LPCWSTR name)
 	return res;
 }
 
-BOOL for_eachSection(LPCWSTR cat,						/* ini 区段 */
+BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
 					 wchar_t (*lpdata)[VALUE_LEN+1],	/* 二维数组首地址,保存多个段值 */
 					 int line							/* 二维数组行数 */
 					 )

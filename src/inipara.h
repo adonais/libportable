@@ -34,7 +34,7 @@ INI_EXTERN BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
 				 DWORD   bufsize							/* 缓冲区大小 */
 				 );
 INI_EXTERN int read_appint(LPCWSTR cat, LPCWSTR name);
-INI_EXTERN BOOL for_eachSection(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
+INI_EXTERN BOOL foreach_section(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
 INI_EXTERN BOOL is_nplugins(void);
 INI_EXTERN BOOL is_thunderbird(void);
 INI_EXTERN BOOL is_browser(void);

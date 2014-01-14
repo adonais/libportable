@@ -17,6 +17,7 @@ CFLAGS   += $(DFLAGS)  -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast -m
 	    -fomit-frame-pointer -finline-functions -fno-stack-protector
 LDLIBS   = -lshlwapi -lshell32 -lgdi32 -lgcc $(MSCRT)
 MD       = mkdir -p
+CP        = cp
 SRC      = src
 SUB_DIR  = $(SRC)/mhook-lib
 SUBMK    = $(MAKE) -C $(SUB_DIR)
@@ -30,7 +31,7 @@ OUT1     = $(DISTDIR)/libmhook$(BITS).a
 OUT2     = $(DISTDIR)/portable$(BITS).dll
 RC       = windres
 RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff
-DLLFLAGS += -shared -Wl,--out-implib,$(DISTDIR)/portable$(BITS).lib --entry=$(DLL_MAIN_STDCALL_NAME)
+DLLFLAGS += -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
 MKDLL	 += $(LD) $(DLLFLAGS) -shared -L$(DISTDIR) -lmhook(BITS)
 
 EXEC     = \
@@ -54,6 +55,7 @@ $(OUT1)		      : $(SUB_DIR)/Makefile
 	$(call SUBMK)
 $(OUT2)		      : $(OBJECTS)
 	$(LD) $@ $(OBJECTS) $(DLLFLAGS) $(OUT1) $(LDFLAGS) $(LDLIBS)
+	-$(CP) $(DISTDIR)/libportable$(BITS).dll.a $(DISTDIR)/portable$(BITS).lib 2>/dev/null
 $(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/ttf_list.h
 	$(call EXEC)
 	$(CC) $< $(CFLAGS) -o $@

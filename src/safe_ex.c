@@ -48,7 +48,7 @@ HANDLE NtCreateRemoteThread(HANDLE hProcess,
 
 	 if(!NT_SUCCESS(Win7CreateThread( 
 				  &hRemoteThread, 
-				  0x001FFFFF, // all access 
+				  0x001FFFFF, /* all access  */
 				  NULL, 
 				  hProcess, 
 				  (LPTHREAD_START_ROUTINE)lpRemoteThreadStart, 
@@ -88,14 +88,14 @@ unsigned WINAPI InjectDll(void *mpara)
 		status = TrueNtWriteVirtualMemory(pi.hProcess,dll_buff,dll_name,(ULONG)size,(PULONG)&size);
 		if ( NT_SUCCESS(status) )
 		{
-			HANDLE hRemote;
-			if (!RemoteLoadW)
+			HANDLE hRemote = NULL;
+			RemoteLoadW  = (_NtRemoteLoadW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
+								"LoadLibraryW");
+			if (RemoteLoadW)
 			{
-				RemoteLoadW  = (_NtRemoteLoadW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
-								"LoadLibraryW");	
+				hRemote = CreateRemoteThread(pi.hProcess,NULL,0,
+						 (LPTHREAD_START_ROUTINE)RemoteLoadW,(LPVOID)dll_buff,0,NULL);
 			}
-			hRemote = CreateRemoteThread(pi.hProcess,NULL,0,
-					 (LPTHREAD_START_ROUTINE)RemoteLoadW,(LPVOID)dll_buff,0,NULL);
 			if ( NULL == hRemote && 0x5 == GetLastError())
 			{
 				/* NtCreateThreadEx (Vista or Win7 and above is supported) */
@@ -143,7 +143,7 @@ BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 		GetModuleFileNameW(dll_module,white_list[2],VALUE_LEN);
 		PathRemoveFileSpecW(white_list[2]);
 		PathAppendW(white_list[2],L"plugin-hang-ui.exe");
-		ret = for_eachSection(L"whitelist", &white_list[3], EXCLUDE_NUM-3);
+		ret = foreach_section(L"whitelist", &white_list[3], EXCLUDE_NUM-3);
 	}
 	if ( (ret = !ret) == FALSE )
 	{
