@@ -1,6 +1,6 @@
-CC       = gcc -c 
+CC       = $(CROSS_COMPILING)gcc -c 
 CFLAGS   = -O2
-LD       = gcc -o
+LD       = $(CROSS_COMPILING)gcc -o
 BITS	 := 32
 DFLAGS :=
 MSCRT    := -lmsvcrt
@@ -12,10 +12,10 @@ else
 DLL_MAIN_STDCALL_NAME = _DllMain@12
 endif
 
-LDFLAGS  = -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lkernel32 -luser32 -Wl,-s
+LDFLAGS  = -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
 CFLAGS   += $(DFLAGS)  -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast -msse2 \
 	    -fomit-frame-pointer -finline-functions -fno-stack-protector
-LDLIBS   = -lshlwapi -lshell32 -lgdi32 -lgcc $(MSCRT)
+LDLIBS   = -lshlwapi -lshell32 -lgdi32 $(MSCRT)
 MD       = mkdir -p
 CP        = cp
 SRC      = src
@@ -29,7 +29,7 @@ OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o \
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libmhook$(BITS).a
 OUT2     = $(DISTDIR)/portable$(BITS).dll
-RC       = windres
+RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff
 DLLFLAGS += -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
 MKDLL	 += $(LD) $(DLLFLAGS) -shared -L$(DISTDIR) -lmhook(BITS)
