@@ -273,7 +273,9 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 											  LPITEMIDLIST *ppidl)								
 {  
 	int folder = nFolder & 0xff;
-	if (CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder)
+	if ( CSIDL_APPDATA == folder || 
+		 CSIDL_LOCAL_APPDATA == folder
+	    )
 	{  
 		LPITEMIDLIST pidlnew = NULL;
 		HRESULT result = 0L;
@@ -308,6 +310,7 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 	{  
 		UINT_PTR	dwCaller;
 		int			num = 0;
+		static        BOOL        startup = TRUE;
 	#ifdef __GNUC__
 		dwCaller = (UINT_PTR)__builtin_return_address(0);
 	#else
@@ -321,34 +324,25 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 			pszPath[num] = L'\0';
 			return S_OK;
 		}
+		else if (startup && CSIDL_APPDATA == folder)  /* Redirecting APPDATA  on startup */
+		{
+			num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
+			pszPath[num] = L'\0';
+			startup = !startup;
+			return S_OK;
+		}
 	}
 	return TrueSHGetFolderPathW(hwndOwner, nFolder, hToken,dwFlags,pszPath);
 }
 
 BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
 {
-	if ( !is_nplugins() )
-	{
-		int num ;
-		BOOL ret =  TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
-		if( CSIDL_APPDATA == csidl          ||
-			(CSIDL_APPDATA|CSIDL_FLAG_CREATE)  == csidl
-		   )
-		{
-		#ifdef _LOGDEBUG
-			logmsg("SHGetSpecialFolderPath hook off.\n");
-		#endif
-			num = _snwprintf(lpszPath,MAX_PATH,L"%ls",appdata_path);
-			lpszPath[num] = L'\0';
-			if (TrueSHGetSpecialFolderPathW && ret)
-			{
-					Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
-					TrueSHGetSpecialFolderPathW = NULL;
-			}
-		}
-		return ret;
-	}
-	return TrueSHGetSpecialFolderPathW(hwndOwner, lpszPath, csidl,fCreate);
+    return (HookSHGetFolderPathW(
+        hwndOwner,
+        csidl + (fCreate ? CSIDL_FLAG_CREATE : 0),
+        NULL,
+        0,
+        lpszPath)) == S_OK ? TRUE : FALSE;
 }
 
 /* 从输入表查找CRT版本 */
