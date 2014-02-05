@@ -13,7 +13,7 @@
 #define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
 #define   SYS_FREE(x)		 HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
 
-#define	  EXCLUDE_NUM 16					/* 白名单个数(数组最大行数) */
+#define	  EXCLUDE_NUM 20					/* 白名单个数(数组最大行数) */
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
 #define   BUFSIZE   (MAX_PATH*2)
 

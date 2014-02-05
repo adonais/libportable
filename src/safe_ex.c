@@ -1,5 +1,6 @@
 #define SAFE_EXTERN
 
+#include <stdio.h>
 #include "safe_ex.h"
 #include "inipara.h"
 #include "header.h"
@@ -123,8 +124,11 @@ unsigned WINAPI InjectDll(void *mpara)
 
 BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 {
-	static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
-	int		i;
+	WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
+												 L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe"
+												};
+	static   WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
+	int		i = sizeof(moz_processes)/sizeof(moz_processes[0]);
 	LPCWSTR pname = lpfile;
 	BOOL    ret = FALSE;
 	if (lpfile[0] == L'"')
@@ -135,15 +139,17 @@ BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 	ret = stristrW(white_list[1],L"plugin-container.exe") != NULL;
 	if ( !ret )
 	{
-		/* iceweasel,plugin-container,plugin-hang-ui进程的路径 */
-		GetModuleFileNameW(NULL,white_list[0],VALUE_LEN);
-		GetModuleFileNameW(dll_module,white_list[1],VALUE_LEN);
-		PathRemoveFileSpecW(white_list[1]);
-		PathAppendW(white_list[1],L"plugin-container.exe");
-		GetModuleFileNameW(dll_module,white_list[2],VALUE_LEN);
-		PathRemoveFileSpecW(white_list[2]);
-		PathAppendW(white_list[2],L"plugin-hang-ui.exe");
-		ret = foreach_section(L"whitelist", &white_list[3], EXCLUDE_NUM-3);
+		/* firefox目录下进程的路径 */
+		int num;
+		WCHAR temp[VALUE_LEN+1];
+		GetModuleFileNameW(NULL,temp,VALUE_LEN);
+		wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
+		PathRemoveFileSpecW(temp);
+		for(num=1; num<i; ++num)
+		{
+			_snwprintf(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
+		}
+		ret = foreach_section(L"whitelist", &white_list[num], EXCLUDE_NUM-num);
 	}
 	if ( (ret = !ret) == FALSE )
 	{
@@ -203,7 +209,7 @@ BOOL WINAPI ProcessIsCUI(LPCWSTR lpfile)
 	{
 		sZfile = &lpfile[1];
 	}
-	if (GetModuleFileNameW(NULL,lpname,VALUE_LEN))
+	if (GetModuleFileNameW(NULL,lpname,VALUE_LEN)>0)
 	{
 		if ( _wcsnicmp(lpname,sZfile,wcslen(lpname)) == 0 )
 			return FALSE;

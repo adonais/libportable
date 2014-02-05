@@ -400,25 +400,26 @@ unsigned WINAPI SetPluginPath(void * pParam)
 	int				 ret = 0;
 	HMODULE	 hCrt =NULL;
 	_pwrite_env   write_env = NULL;
-	char              *msvc_crt = (char *)pParam;
+	char				 msvc_crt[CRT_LEN+1] = {0};
 	LPWSTR		 lpstring;
+	if ( !find_msvcrt(msvc_crt,CRT_LEN) )
+	{
+		return ((unsigned)ret);
+	}
 	if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
 	{
-	#ifdef _LOGDEBUG
-		logmsg("GetModuleHandleA false,error code [%lu] \n",GetLastError());
-	#endif
-		return (0);
+		return ((unsigned)ret);
+	}
+	if ( profile_path[1] != L':' )
+	{
+		if (!ini_ready(profile_path,MAX_PATH))
+		{
+			return ((unsigned)ret);
+		}
 	}
 	write_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
 	if ( write_env )
 	{
-		if ( profile_path[1] != L':' )
-		{
-			if (!ini_ready(profile_path,MAX_PATH))
-			{
-				return ((unsigned)ret);
-			}
-		}
 		if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) != NULL )
 		{
 			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path)) > 0 )
@@ -523,7 +524,6 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 	static WNDINFO ff_info;
     switch(dwReason) 
 	{
-		static char msvc_crt[CRT_LEN+1];
 		case DLL_PROCESS_ATTACH:
 		{
 			HANDLE		 hc = NULL;
@@ -576,10 +576,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			{
 				CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
 			}
-			if ( find_msvcrt(msvc_crt,CRT_LEN) )
-			{
-				CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,(void *)msvc_crt,0,NULL));
-			}
+			CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
 		}
 			break;
 		case DLL_PROCESS_DETACH:
