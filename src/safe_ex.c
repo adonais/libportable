@@ -1,133 +1,33 @@
 #define SAFE_EXTERN
 
-#include <stdio.h>
 #include "safe_ex.h"
 #include "inipara.h"
 #include "header.h"
+#include "inject.h"
 #include "mhook-lib/mhook.h"
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
-
-extern	HMODULE  dll_module;
-
-#ifdef _LOGDEBUG
-extern void __cdecl logmsg(const char * format, ...);
-#endif
+#include <stdio.h>
 
 static _NtCreateUserProcess             TrueNtCreateUserProcess				= NULL;
-static _NtWriteVirtualMemory           TrueNtWriteVirtualMemory				= NULL;
-static _NtAllocateVirtualMemory       TrueNtAllocateVirtualMemory			= NULL;
-static _NtFreeVirtualMemory			 TrueNtFreeVirtualMemory				= NULL;
-static _NtProtectVirtualMemory        TrueNtProtectVirtualMemory			= NULL;
-static _NtCreateProcessEx				 TrueNtCreateProcessEx					= NULL;
-static _NtQueryInformationProcess	 TrueNtQueryInformationProcess		= NULL;
-static _NtRemoteLoadW					 RemoteLoadW									= NULL;
-static _RtlNtStatusToDosError			 TrueRtlNtStatusToDosError				= NULL;
-static _CreateProcessInternalW 		 TrueCreateProcessInternalW			= NULL;
-static _NtSuspendThread					 TrueNtSuspendThread						= NULL;
-static _NtResumeThread					 TrueNtResumeThread						= NULL;
-static _NtLoadLibraryExW					 TrueLoadLibraryExW						= NULL;
-
-HANDLE NtCreateRemoteThread(HANDLE hProcess, 
-							LPTHREAD_START_ROUTINE lpRemoteThreadStart, 
-							LPVOID lpRemoteCallback
-						   )
-{
-	 NT_PROC_THREAD_ATTRIBUTE_LIST Buffer; 
-	 _NtCreateThreadEx Win7CreateThread;
-	 HANDLE  hRemoteThread = NULL; 
-	 HRESULT hRes = 0; 
-	 ZeroMemory(&Buffer, sizeof(NT_PROC_THREAD_ATTRIBUTE_LIST));
-	 Buffer.Length = sizeof (NT_PROC_THREAD_ATTRIBUTE_LIST); 
-
-	 Win7CreateThread = (_NtCreateThreadEx)GetProcAddress
-						   (GetModuleHandleW(L"ntdll.dll"), "NtCreateThreadEx"); 
-
-	 if(Win7CreateThread == NULL) 
-		return NULL;
-
-	 if(!NT_SUCCESS(Win7CreateThread( 
-				  &hRemoteThread, 
-				  0x001FFFFF, /* all access  */
-				  NULL, 
-				  hProcess, 
-				  (LPTHREAD_START_ROUTINE)lpRemoteThreadStart, 
-				  lpRemoteCallback, 
-				  0, 
-				  0, 
-				  0, 
-				  0, 
-				  &Buffer 
-				  )))
-	 { 
-		return NULL; 
-	 } 
-	 return hRemoteThread; 
-}
-
-unsigned WINAPI InjectDll(void *mpara)
-{
-	BOOL		bRet		= FALSE;
-	SIZE_T		size		= 0;
-	PVOID		dll_buff	= NULL;
-	NTSTATUS	status;
-	wchar_t		dll_name[VALUE_LEN+1];
-	PROCESS_INFORMATION pi = *(LPPROCESS_INFORMATION)mpara;
-	if ( GetModuleFileNameW(dll_module,dll_name,VALUE_LEN) >0 )
-	{
-		size = (1 + wcslen(dll_name)) * sizeof(wchar_t);
-	}
-	if (!size)
-	{
-		return bRet;
-	}
-	status = TrueNtAllocateVirtualMemory(pi.hProcess,&dll_buff,0,&size,MEM_COMMIT | MEM_TOP_DOWN,
-										PAGE_EXECUTE_READWRITE);
-	if ( NT_SUCCESS(status) )
-	{
-		status = TrueNtWriteVirtualMemory(pi.hProcess,dll_buff,dll_name,(ULONG)size,(PULONG)&size);
-		if ( NT_SUCCESS(status) )
-		{
-			HANDLE hRemote = NULL;
-			RemoteLoadW  = (_NtRemoteLoadW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
-								"LoadLibraryW");
-			if (RemoteLoadW)
-			{
-				hRemote = CreateRemoteThread(pi.hProcess,NULL,0,
-						 (LPTHREAD_START_ROUTINE)RemoteLoadW,(LPVOID)dll_buff,0,NULL);
-			}
-			if ( NULL == hRemote && 0x5 == GetLastError())
-			{
-				/* NtCreateThreadEx (Vista or Win7 and above is supported) */
-				hRemote = NtCreateRemoteThread(pi.hProcess, (LPTHREAD_START_ROUTINE)RemoteLoadW, 
-						 (LPVOID)dll_buff);
-			}
-			if (hRemote)
-			{
-				bRet = TRUE;
-				WaitForSingleObject(hRemote,INFINITE);
-				CloseHandle( hRemote );
-			}
-		}
-		size = 0;
-		TrueNtFreeVirtualMemory(pi.hProcess,&dll_buff,&size,MEM_RELEASE);
-		if ( !NT_SUCCESS(TrueNtResumeThread(pi.hThread,NULL)) )
-		{
-		#ifdef _LOGDEBUG
-			logmsg("TrueNtResumeThread() false\n");
-		#endif
-		}
-	}
-	return (bRet);
-}
+static _NtWriteVirtualMemory			TrueNtWriteVirtualMemory			= NULL;
+static _NtProtectVirtualMemory			TrueNtProtectVirtualMemory			= NULL;
+static _NtQueryInformationProcess		TrueNtQueryInformationProcess		= NULL;
+static _RtlNtStatusToDosError			TrueRtlNtStatusToDosError			= NULL;
+static _CreateProcessInternalW 			TrueCreateProcessInternalW			= NULL;
+static _NtSuspendThread					TrueNtSuspendThread					= NULL;
+static _NtResumeThread					TrueNtResumeThread					= NULL;
+static _NtLoadLibraryExW				TrueLoadLibraryExW					= NULL;
 
 BOOL WINAPI in_whitelist(LPCWSTR lpfile)
 {
 	WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
-												 L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe"
-												};
-	static   WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
+							  L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe",
+							  L"crashreporter.exe",L"CommandExecuteHandler.exe",L"maintenanceservice.exe",
+							  L"maintenanceservice_installer.exe",L"updater.exe"
+							 };
+	static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
 	int		i = sizeof(moz_processes)/sizeof(moz_processes[0]);
 	LPCWSTR pname = lpfile;
 	BOOL    ret = FALSE;
@@ -194,7 +94,7 @@ ULONG_PTR WINAPI GetParentProcess(HANDLE hProcess)
 											NULL );
 
 	if ( NT_SUCCESS(status) )
-		dwParentPID = pbi.InheritedFromUniqueProcessId;
+		dwParentPID = (ULONG_PTR)pbi.Reserved3;
 	else
 		dwParentPID = 0;
 	return dwParentPID;
@@ -202,29 +102,12 @@ ULONG_PTR WINAPI GetParentProcess(HANDLE hProcess)
 
 BOOL WINAPI ProcessIsCUI(LPCWSTR lpfile)
 {
-	wchar_t lpname[VALUE_LEN+1];
+	WCHAR lpname[VALUE_LEN+1] = {0};
 	LPCWSTR sZfile = lpfile;
 	int     n;
-	if (lpfile[0] == L'"')
-	{
-		sZfile = &lpfile[1];
-	}
-	if (GetModuleFileNameW(NULL,lpname,VALUE_LEN)>0)
-	{
-		if ( _wcsnicmp(lpname,sZfile,wcslen(lpname)) == 0 )
-			return FALSE;
-		PathRemoveFileSpecW(lpname);
-		PathAppendW(lpname,L"plugin-container.exe");
-		if ( _wcsnicmp(lpname,sZfile,wcslen(lpname)) == 0 )
-			return FALSE;
-		PathRemoveFileSpecW(lpname);
-		PathAppendW(lpname,L"plugin-hang-ui.exe");
-		if ( _wcsnicmp(lpname,sZfile,wcslen(lpname)) == 0 )
-			return FALSE;
-	}
-	ZeroMemory(lpname,sizeof(lpname));
 	if ( lpfile[0] == L'"' )
 	{
+		sZfile = &lpfile[1];
 		for ( n = 0; *sZfile != L'"'; ++n )
 		{
 			lpname[n] = *sZfile;
@@ -245,11 +128,14 @@ BOOL WINAPI ProcessIsCUI(LPCWSTR lpfile)
 NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
 										IN PVOID BaseAddress,
 										IN PVOID Buffer, 
-										IN ULONG NumberOfBytesToWrite,
-										OUT PULONG NumberOfBytesWritten)
+										IN SIZE_T NumberOfBytesToWrite,
+										OUT PSIZE_T NumberOfBytesWritten)
 {
 	if ( GetCurrentProcessId() == GetProcessId(ProcessHandle) )
 	{
+	#ifdef _LOGDEBUG
+		logmsg("HookNtWriteVirtualMemory() blocked\n");
+	#endif
 		return STATUS_ERROR;
 	}
 	return TrueNtWriteVirtualMemory(ProcessHandle,
@@ -274,7 +160,7 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 	PROCESS_INFORMATION ProcessInformation;
 	NTSTATUS	status;
 	BOOL		tohook	= FALSE;
-	ZeroMemory(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
+	fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
 	if ( stristrW(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") || 
 		 stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe") ||
 		 stristrW(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
@@ -315,16 +201,19 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 	if ( NT_SUCCESS(status)&&tohook)
 	{
 		ULONG Suspend;
-		ZeroMemory(&ProcessInformation,sizeof(PROCESS_INFORMATION));
+		fzero(&ProcessInformation,sizeof(PROCESS_INFORMATION));
 		ProcessInformation.hProcess = *ProcessHandle;
 		ProcessInformation.hThread = *ThreadHandle;
+	/* when tcmalloc enabled or MinGW compile time,InjectDll crash on win8/8.1 */
+	#if !defined(ENABLE_TCMALLOC) && !defined(__GNUC__) 
 		if ( NT_SUCCESS(TrueNtSuspendThread(ProcessInformation.hThread,&Suspend)) )
 		{
 		#ifdef _LOGDEBUG
-			logmsg("InjectDll() run .\n");
+			logmsg("NtInjectDll() run .\n");
 		#endif
 			InjectDll(&ProcessInformation);
 		}
+	#endif
 	}
 	return status;
 }
@@ -408,39 +297,31 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 BOOL WINAPI iSAuthorized(LPCWSTR lpFileName)
 {
 	BOOL	ret = FALSE;
+	BOOL    wow64 = FALSE;
 	LPWSTR	filename = NULL;
 	wchar_t *szAuthorizedList[] = {L"comctl32.dll", L"uxtheme.dll", L"indicdll.dll",
 								   L"msctf.dll",L"shell32.dll", L"imageres.dll",
 								   L"winmm.dll",L"ole32.dll", L"oleacc.dll", 
 								   L"oleaut32.dll",L"secur32.dll",L"shlwapi.dll",
-								   L"ImSCTip.DLL",L"gdi32.dll"
+								   L"ImSCTip.DLL",L"gdi32.dll",L"dwmapi.dll"
 								  };
 	WORD line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
+	IsWow64Process(NtCurrentProcess(),&wow64);
 	if (lpFileName[1] == L':')
 	{
-		wchar_t sysdir[MAX_PATH];
-	#ifdef _M_IX86
-		if ( SHGetSpecialFolderPathW(NULL, sysdir, 0x0029, FALSE) )
-	#elif defined _M_X64
-		if ( SHGetSpecialFolderPathW(NULL, sysdir, 0x0025, FALSE) )
-	#endif
+		wchar_t sysdir[VALUE_LEN+1] = {0};
+		GetEnvironmentVariableW(L"SystemRoot",sysdir,VALUE_LEN);
+		if (wow64)
 		{
-			if ( _wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0 )
-			{
-				filename = PathFindFileNameW(lpFileName);
-			}
-			else if (GetOsVersion()>502)
-			{
-			#ifdef _M_IX86
-				if ( SHGetSpecialFolderPathW(NULL, sysdir, 0x0025, FALSE) )
-				{
-					if ( _wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0 )
-					{
-						filename = PathFindFileNameW(lpFileName);
-					}
-				}
-			#endif
-			}
+			PathAppendW(sysdir,L"SysWOW64");
+		}
+		else
+		{
+			PathAppendW(sysdir,L"system32");
+		}
+		if ( _wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0 )
+		{
+			filename = PathFindFileNameW(lpFileName);
 		}
 	}
 	else
@@ -462,34 +343,6 @@ BOOL WINAPI iSAuthorized(LPCWSTR lpFileName)
 	return ret;
 }
 
-BOOL WINAPI IsSpecialDll(UINT_PTR callerAddress,LPCWSTR dll_file)
-{
-	BOOL	ret = FALSE;
-	HMODULE hCallerModule = NULL;
-	if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)callerAddress, &hCallerModule))
-	{
-		WCHAR szModuleName[VALUE_LEN+1] = {0};
-		if ( GetModuleFileNameW(hCallerModule, szModuleName, VALUE_LEN) )
-		{
-			if ( StrChrW(dll_file,L'*') || StrChrW(dll_file,L'?') )
-			{
-				if ( PathMatchSpecW(szModuleName, dll_file) )
-				{
-				#ifdef _LOGDEBUG
-					logmsg("dll_file [%ls] match\n",szModuleName);
-				#endif
-					ret = TRUE;
-				}
-			}
-			else if ( stristrW(szModuleName, dll_file) )
-			{
-				ret = TRUE;
-			}
-		}
-	}
-	return ret;
-}
-
 HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)  
 {  
     UINT_PTR	dwCaller;
@@ -504,7 +357,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 	dwCaller = (UINT_PTR)_ReturnAddress();
 #endif
     /* 判断是否是从User32.dll调用 */
-	if ( IsSpecialDll(dwCaller,L"user32.dll") )
+	if ( is_specialdll(dwCaller,L"user32.dll") )
 	{
 		if ( PathMatchSpecW(lpFileName, L"*.exe") || in_whitelist(lpFileName) )
 		{
@@ -548,24 +401,19 @@ unsigned WINAPI init_safed(void * pParam)
 										  "NtQueryInformationProcess");
 		TrueNtWriteVirtualMemory		= (_NtWriteVirtualMemory)GetProcAddress(hNtdll,
 										  "NtWriteVirtualMemory");
-		TrueNtFreeVirtualMemory			= (_NtFreeVirtualMemory)GetProcAddress(hNtdll,
-										  "NtFreeVirtualMemory");
-		TrueNtAllocateVirtualMemory		= (_NtAllocateVirtualMemory)GetProcAddress(hNtdll,
-										  "NtAllocateVirtualMemory");
 		TrueRtlNtStatusToDosError		= (_RtlNtStatusToDosError)GetProcAddress(hNtdll,
 										  "RtlNtStatusToDosError");
 		if (ver>601)  /* win8 */
 		{
-			TrueNtCreateUserProcess      = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
+			TrueNtCreateUserProcess     = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
 			if (TrueNtCreateUserProcess)
 			{
-				Mhook_SetHook((PVOID*)&TrueNtCreateUserProcess, (PVOID)HookNtCreateUserProcess);
+				Mhook_SetHook((PVOID*)&TrueNtCreateUserProcess, (PVOID)HookNtCreateUserProcess); 
 			}
 		}
 		else
 		{
-			TrueCreateProcessInternalW		= (_CreateProcessInternalW)GetProcAddress(
-											  GetModuleHandleW(L"kernel32.dll"), "CreateProcessInternalW");
+			TrueCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateProcessInternalW");
 			if (TrueCreateProcessInternalW)
 			{
 				Mhook_SetHook((PVOID*)&TrueCreateProcessInternalW, (PVOID)HookCreateProcessInternalW);

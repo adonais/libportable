@@ -1,50 +1,55 @@
-# nmake -f makefile.msvc
+# nmake -f Makefile.msvc
 
 CC       = cl.exe
 CPP	 = cl.exe
 DFLAGS   =
 CFLAGS   = $(DFLAGS) /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GS- /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
-                  /D "_CRT_SECURE_NO_WARNINGS" /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
+           /D "_CRT_SECURE_NO_WARNINGS" /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
 LD       = link.exe /DLL
 MAKE	 = nmake
+YASM     = msrt\yasm.exe
 
-!if "$(PLATFORM)"=="X64"
+!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
 PLATFORM = X64
 BITS	 = 64
-CFLAGS = $(CFLAGS) /D "WIN64" /D "_WIN64"
+CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
 DEPLIBS  = /LIBPATH:msrt msvcrt-light-x64.lib
+ASMFLAGS = -fwin64 -DWINDOWS -Worphan-labels
 !else
 PLATFORM = X86
 BITS	 = 32
-CFLAGS = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
+CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
 DEPLIBS  = /LIBPATH:msrt msvcrt-light-x86.lib
+ASMFLAGS = -fwin32 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
 !endif
 
-LDFLAGS   =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES
-DEPLIBS   = $(OUT1) kernel32.lib shell32.lib shlwapi.lib gdi32.lib user32.lib $(DEPLIBS)
-LIBFLAGS   =  /LTCG /NOLOGO /OUT:"$(DISTDIR)\$(OUT)" 
+LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES
+DEPLIBS  = $(OUT1) kernel32.lib shell32.lib shlwapi.lib gdi32.lib user32.lib $(DEPLIBS)
+LIBFLAGS =  /LTCG /NOLOGO /OUT:"$(DISTDIR)\$(OUT)" 
 
 CPPFLAGS = $(CFLAGS) /TP
 
-MD      = @mkdir
-CP	    = copy
-RM	    = @del /q
-RMDIR = @rmdir /s /q
+MD       = @mkdir
+CP	 = copy
+RM	 = @del /q
+RMDIR    = @rmdir /s /q
 SRC      = src
 SUB_DIR  = $(SRC)\mhook-lib
 SUBMK    =\
-	@echo coming to mhook subdir...  && \
 	@cd $(SUB_DIR) && $(MAKE) -f Makefile.msvc
 
 DEP      = .dep
 RC       = rc.exe
 RCFLAGS  = /D "_UNICODE" /D "UNICODE"
 
-OBJDLL  = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj  $(DEP)\safe_ex.obj $(DEP)\bosskey.obj $(DEP)\resource.res
+OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ttf_list.obj $(DEP)\ice_error.obj  $(DEP)\safe_ex.obj \
+           $(DEP)\inject.obj $(DEP)\bosskey.obj  $(DEP)\cachesize$(BITS).obj $(DEP)\instrset$(BITS).obj \
+	   $(DEP)\unalignedisfaster$(BITS).obj $(DEP)\memset$(BITS).obj $(DEP)\cputype$(BITS).obj \
+	   $(DEP)\inject$(BITS).obj $(DEP)\resource.res
 
-DISTDIR	= Release
-OUT1	= $(DISTDIR)\mhook$(BITS).lib
-OUT2	= $(DISTDIR)\portable$(BITS).dll
+DISTDIR	 = Release
+OUT1	 = $(DISTDIR)\mhook$(BITS).lib
+OUT2	 = $(DISTDIR)\portable$(BITS).dll
 EXEC		= \
 	@echo coming to src subdir...  && \
 	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
@@ -52,24 +57,42 @@ EXEC		= \
 
 all				: $(OUT1) $(OUT2)
 $(OUT1)			: $(SUB_DIR)/Makefile.msvc
+	@if not exist $(YASM) (@echo Error: yasm not exist & exit 1)
 	$(SUBMK)
 $(OUT2)			: $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJDLL) $(LDFLAGS) $(DEPLIBS)
-$(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h $(SRC)\ttf_list.h
+	-copy /y $(DISTDIR)\portable$(BITS).dll $(DISTDIR)\tmemutil.dll 2>&1>NUL
+$(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h $(SRC)\header.h
 	$(EXEC)
 	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
 $(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
+$(DEP)\ttf_list.obj     : $(SRC)\ttf_list.c $(SRC)\ttf_list.h
+	$(CC) $(CFLAGS) /c $(SRC)\ttf_list.c /Fo$@
+$(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\header.h
+	$(CC) $(CFLAGS) /c $(SRC)\inject.c /Fo$@
 $(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\header.h
 	$(CC) $(CFLAGS) /c $(SRC)\safe_ex.c /Fo$@
 $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
 	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
-$(DEP)\bosskey.obj    : $(SRC)\bosskey.c $(SRC)\bosskey.h
+$(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
-$(DEP)\resource.res     : $(SRC)\resource.rc
+$(DEP)\cachesize$(BITS).obj	    : $(SRC)\asm\cachesize$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\cachesize$(BITS).asm
+$(DEP)\instrset$(BITS).obj	    : $(SRC)\asm\instrset$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\instrset$(BITS).asm
+$(DEP)\memset$(BITS).obj	    : $(SRC)\asm\memset$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\memset$(BITS).asm
+$(DEP)\cputype$(BITS).obj	    : $(SRC)\asm\cputype$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\cputype$(BITS).asm
+$(DEP)\unalignedisfaster$(BITS).obj : $(SRC)\asm\unalignedisfaster$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\unalignedisfaster$(BITS).asm
+$(DEP)\inject$(BITS).obj	    : $(SRC)\asm\inject$(BITS).asm
+	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\inject$(BITS).asm
+$(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 
-.PHONY		       : clean
-clean                  : 
+.PHONY		        : clean
+clean                   : 
 	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL
 

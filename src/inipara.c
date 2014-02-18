@@ -2,9 +2,13 @@
 
 #include "inipara.h"
 #include <shlwapi.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
+#ifdef _MSC_VER
+#  include <stdarg.h>
+#endif
 
-extern HMODULE dll_module;
 
 BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
 {
@@ -88,7 +92,7 @@ BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
 	{
 		if ( (res = GetPrivateProfileSectionW(cat, lpstring, num, profile_path)) > 0 )
 		{
-			ZeroMemory(*lpdata,num);
+			fzero(*lpdata,num);
 			strKey = lpstring;
 			while(*strKey != L'\0'&& i < line) 
 			{
@@ -108,6 +112,31 @@ BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
 	}
 	return (BOOL)res;
 }
+
+#ifdef _LOGDEBUG
+void __cdecl logmsg(const char * format, ...)
+{
+	va_list args;
+	int		len	 ;
+	char	buffer[VALUE_LEN+3];
+	va_start (args, format);
+	len	 =	_vscprintf(format, args);
+	if (len > 0 && len < VALUE_LEN && strlen(logfile_buf) > 0)
+	{
+		FILE	*pFile = NULL;
+		len = _vsnprintf(buffer,len,format, args);
+		buffer[len++] = '\n';
+		buffer[len] = '\0';
+		if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
+		{
+			fprintf(pFile,buffer);
+			fclose(pFile);
+		}
+		va_end(args);
+	}
+	return;
+}
+#endif
 
 LPWSTR stristrW(LPCWSTR Str, LPCWSTR Pat)
 {
@@ -166,11 +195,7 @@ BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 	return TRUE;
 }
 
-static
-#if defined(__GNUC__)||defined(__cplusplus)
-inline
-#endif
-int GetNumberOfWorkers(void) 
+static int GetNumberOfWorkers(void) 
 {
     SYSTEM_INFO si;
     GetSystemInfo(&si);
@@ -309,8 +334,34 @@ BOOL is_browser(void)
 	WCHAR	process_name[VALUE_LEN+1];
 	GetCurrentProcessName(process_name,VALUE_LEN);
 	return ( !(_wcsicmp(process_name, L"Iceweasel.exe") &&
-				_wcsicmp(process_name, L"firefox.exe")	&&
-				_wcsicmp(process_name, L"lawlietfox.exe") ) );
+			   _wcsicmp(process_name, L"firefox.exe")	&&
+			   _wcsicmp(process_name, L"lawlietfox.exe") ) 
+		   );
+}
+
+BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
+{
+	BOOL	ret = FALSE;
+	HMODULE hCallerModule = NULL;
+	if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)callerAddress, &hCallerModule))
+	{
+		WCHAR szModuleName[VALUE_LEN+1] = {0};
+		if ( GetModuleFileNameW(hCallerModule, szModuleName, VALUE_LEN) )
+		{
+			if ( StrChrW(dll_file,L'*') || StrChrW(dll_file,L'?') )
+			{
+				if ( PathMatchSpecW(szModuleName, dll_file) )
+				{
+					ret = TRUE;
+				}
+			}
+			else if ( stristrW(szModuleName, dll_file) )
+			{
+				ret = TRUE;
+			}
+		}
+	}
+	return ret;
 }
 
 DWORD WINAPI GetOsVersion(void)
@@ -318,7 +369,7 @@ DWORD WINAPI GetOsVersion(void)
 	OSVERSIONINFOEXA	osvi;
 	BOOL				bOs = FALSE;
 	DWORD				ver = 0L;
-	ZeroMemory(&osvi, sizeof(OSVERSIONINFOEXA));
+	fzero(&osvi, sizeof(OSVERSIONINFOEXA));
 	
 	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXA);
 	if( GetVersionExA((OSVERSIONINFOA*)&osvi) ) 

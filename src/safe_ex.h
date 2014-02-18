@@ -11,22 +11,19 @@
 #include <windows.h>
 
 #ifdef _MSC_VER
+extern
 #if defined(__cplusplus)
-extern "C" {
+"C"
 #endif
 void* _ReturnAddress(void);
-#if defined(__cplusplus)
-}
-#endif 
 #pragma intrinsic(_ReturnAddress)
-#endif
+#endif /* _MSC_VER */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 SAFE_EXTERN unsigned WINAPI init_safed(void * pParam);
 SAFE_EXTERN void safe_end(void);
-SAFE_EXTERN BOOL WINAPI IsSpecialDll(UINT_PTR callerAddress,LPCWSTR dll_file);
 #ifdef __cplusplus
 }
 #endif 

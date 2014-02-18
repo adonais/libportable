@@ -2,176 +2,46 @@
 
 #include "portable.h"
 #include "header.h"
+#include "inipara.h"
 #include "ttf_list.h"
 #include "safe_ex.h"
 #include "ice_error.h"
 #include "bosskey.h"
+#include "mhook-lib/mhook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <process.h>
-#include "mhook-lib/mhook.h"
-#ifdef _MSC_VER
-  #include <stdarg.h>
-#endif
+#include <stdio.h>
 
 #define SIZE_OF_NT_SIGNATURE		sizeof (DWORD)
-#define CRT_LEN								100
-#define MAX_ENV_SIZE					32767
-
-HMODULE	dll_module				= NULL;
-
-/* fonts list */
-List    ttf_list 									= NULL;
+#define CRT_LEN						100
+#define MAX_ENV_SIZE				32767
 
 static  WCHAR  appdata_path[VALUE_LEN+1];	
 static  WCHAR  localdata_path[VALUE_LEN+1];
 
-static _NtSHGetFolderPathW				TrueSHGetFolderPathW					= NULL;
+static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
 static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
-#ifdef _LOGDEBUG
-static char  logfile_buf[VALUE_LEN+1];
-LPCSTR logname = "run_hook.log";
-
-void __cdecl logmsg(const char * format, ...)
+/* Asm replacment for memset */
+TETE_EXT_CLASS 
+void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
 {
-	va_list args;
-	int		len	 ;
-	char	  buffer[VALUE_LEN+3];
-	va_start (args, format);
-	len	 =	_vscprintf(format, args);
-	if (len > 0 && len < VALUE_LEN && strlen(logfile_buf) > 0)
-	{
-		FILE	*pFile = NULL;
-		len = _vsnprintf(buffer,len,format, args);
-		buffer[len++] = '\n';
-		buffer[len] = '\0';
-		if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
-		{
-			fprintf(pFile,buffer);
-			fclose(pFile);
-		}
-		va_end (args);
-	}
-	return;
+	return A_memset(dest, c, count);
 }
-#endif
 
+/* Never used,to be compatible with tete's patch */
 TETE_EXT_CLASS  
 uint32_t GetNonTemporalDataSizeMin_tt( void )
 {
 	return 0;
 }
 
-/* Never used,to be compatible with tete's patch */
-TETE_EXT_CLASS 
-void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
-{
-	return memset(dest, c, count);
-}
-
 TETE_EXT_CLASS
 intptr_t GetAppDirHash_tt( void )
 {
 	return 0;
-}
-
-void find_fonts_tolist(LPCWSTR parent)
-{
-    HANDLE h_file = NULL;
-    WIN32_FIND_DATAW fd;
-    WCHAR filepathname[VALUE_LEN+1] = {0};
-    WCHAR sub[VALUE_LEN+1] = {0};
-    if( parent[wcslen(parent) -1] != L'\\' )
-        _snwprintf(filepathname,VALUE_LEN, L"%ls\\*.*", parent);
-    else
-        _snwprintf(filepathname,VALUE_LEN, L"%ls*.*", parent);
-    h_file = FindFirstFileW(filepathname, &fd);
-    if(h_file != INVALID_HANDLE_VALUE)
-    {
-        do
-        {
-			if(	wcscmp(fd.cFileName, L".") == 0 ||
-				wcscmp(fd.cFileName, L"..")== 0 )
-				continue;
-            if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            {
-                int m = _snwprintf(sub,VALUE_LEN, L"%ls\\%ls",parent, fd.cFileName);
-				sub[m] = L'\0';
-                find_fonts_tolist(sub);
-            }
-            else if( PathMatchSpecW(fd.cFileName, L"*.ttf") ||
-				     PathMatchSpecW(fd.cFileName, L"*.ttc") ||
-				     PathMatchSpecW(fd.cFileName, L"*.otf") )
-            {
-                WCHAR font_path[VALUE_LEN+1] = {0};
-                _snwprintf(font_path, VALUE_LEN, L"%s\\%s", parent, fd.cFileName);
-				if (ttf_list)
-				{
-					add_node(font_path, ttf_list);
-				}
-            }
-        } while(FindNextFileW(h_file, &fd) != 0 || GetLastError() != ERROR_NO_MORE_FILES);
-        FindClose(h_file); h_file = NULL;
-    }
-	return;
-}
-
-void add_fonts_toapp(List *Li_header)
-{
-	PtrToNode *curr;
-	for (curr = Li_header; *curr; )
-	{
-		Position ttf_element = *curr;
-		DWORD	 numFonts = 0;
-		if ( AddFontResourceExW(ttf_element->Element,FR_PRIVATE,&numFonts) )
-		{
-		#ifdef _LOGDEBUG
-			logmsg("AddFontResourceW ok\n");
-		#endif
-		}
-		*curr = ttf_element->Next; 
-	}
-}
-
-unsigned WINAPI install_fonts(void * pParam)
-{
-	WCHAR fonts_path[VALUE_LEN+1];
-	if ( read_appkey(L"Env",L"DiyFontPath",fonts_path,sizeof(fonts_path)) )
-	{
-		PathToCombineW(fonts_path,VALUE_LEN);
-		if ( PathFileExistsW(fonts_path) )
-		{
-			/* 初始化字体存储链表 */
-			struct	Node fonts_header;
-			ttf_list = init_listing( &fonts_header );
-			if (ttf_list)
-			{
-				find_fonts_tolist(fonts_path);
-				add_fonts_toapp(&ttf_list);
-			}
-		}
-	}
-	return (1);
-}
-
-void WINAPI uninstall_fonts(List *PtrLi)
-{
-	PtrToNode *curr;
-	for (curr = PtrLi; *curr; )
-	{
-		Position pfonts = *curr; 
-		if ( wcslen(pfonts->Element)>0 )
-		{
-			RemoveFontResourceExW(pfonts->Element,FR_PRIVATE,NULL);
-		}
-        *curr = pfonts->Next; 
-        if (pfonts)
-        {
-			SYS_FREE(pfonts);
-        }
-	}
 }
 
 BOOL WINAPI WaitWriteFile(LPCWSTR ap_path)
@@ -223,6 +93,7 @@ BOOL WINAPI WaitWriteFile(LPCWSTR ap_path)
 	return ret;
 }
 
+/* 初始化全局变量 */
 unsigned WINAPI init_global_env(void * pParam)
 {
 	BOOL diff = (char *)pParam?TRUE:FALSE;
@@ -273,9 +144,7 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 											  LPITEMIDLIST *ppidl)								
 {  
 	int folder = nFolder & 0xff;
-	if ( CSIDL_APPDATA == folder || 
-		 CSIDL_LOCAL_APPDATA == folder
-	    )
+	if ( CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder )
 	{  
 		LPITEMIDLIST pidlnew = NULL;
 		HRESULT result = 0L;
@@ -303,46 +172,51 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 									DWORD dwFlags,LPWSTR pszPath)								
 {  
-	int folder = nFolder & 0xff;
-	if( CSIDL_APPDATA == folder			||
-		CSIDL_LOCAL_APPDATA == folder
-	  )
-	{  
-		UINT_PTR	dwCaller;
-		int			num = 0;
-		static        BOOL        startup = TRUE;
-	#ifdef __GNUC__
-		dwCaller = (UINT_PTR)__builtin_return_address(0);
-	#else
-		dwCaller = (UINT_PTR)_ReturnAddress();
-	#endif
-		if ( ( CSIDL_LOCAL_APPDATA == folder && !is_nplugins() ) ||
-			 ( IsSpecialDll(dwCaller, L"*\\np*.dll") )
-			)
+	UINT_PTR	dwCaller;
+	BOOL        dwFf = FALSE;
+	WCHAR		dllname[VALUE_LEN+1];
+	int			folder = nFolder & 0xff;
+#ifdef __GNUC__
+	dwCaller = (UINT_PTR)__builtin_return_address(0);
+#else
+	dwCaller = (UINT_PTR)_ReturnAddress();
+#endif
+	GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
+	dwFf = is_specialdll(dwCaller, dllname)       ||
+		   is_specialdll(dwCaller, L"*\\xul.dll") || 
+		   is_specialdll(dwCaller, L"*\\npswf*.dll");
+	if ( dwFf )
+	{
+		switch (folder)
 		{
-			num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-			pszPath[num] = L'\0';
-			return S_OK;
-		}
-		else if (startup && CSIDL_APPDATA == folder)  /* Redirecting APPDATA  on startup */
-		{
-			num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-			pszPath[num] = L'\0';
-			startup = !startup;
-			return S_OK;
+			int	 num = 0;
+			case CSIDL_APPDATA:
+			{
+				num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
+				pszPath[num] = L'\0';
+				return S_OK;
+			}
+			case CSIDL_LOCAL_APPDATA:
+			{
+				num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
+				pszPath[num] = L'\0';
+				return S_OK;
+			}
+			default:
+				break;
 		}
 	}
-	return TrueSHGetFolderPathW(hwndOwner, nFolder, hToken,dwFlags,pszPath);
+	return TrueSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
 }
 
 BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
 {
     return (HookSHGetFolderPathW(
-        hwndOwner,
-        csidl + (fCreate ? CSIDL_FLAG_CREATE : 0),
-        NULL,
-        0,
-        lpszPath)) == S_OK ? TRUE : FALSE;
+			hwndOwner,
+			csidl + (fCreate ? CSIDL_FLAG_CREATE : 0),
+			NULL,
+			0,
+			lpszPath)) == S_OK ? TRUE : FALSE;
 }
 
 /* 从输入表查找CRT版本 */
@@ -370,10 +244,10 @@ BOOL find_msvcrt(char *crt_name,int len)
 	pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
                                              (BYTE *)hMod
                                              + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
-                      ) ;
+										  ) ;
 	while( TRUE )
 	{
-		char*	pszDllName = NULL;
+		char*		pszDllName = NULL;
 		char		name[CRT_LEN+1] = {0};
 		IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
 		IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
@@ -394,14 +268,15 @@ BOOL find_msvcrt(char *crt_name,int len)
 	return ret;
 }
 
+/* 必须使用进程依赖crt的wputenv函数追加环境变量 */
 unsigned WINAPI SetPluginPath(void * pParam)
 {
-	typedef			 int (__cdecl *_pwrite_env)(LPCWSTR envstring);
-	int				 ret = 0;
-	HMODULE	 hCrt =NULL;
-	_pwrite_env   write_env = NULL;
-	char				 msvc_crt[CRT_LEN+1] = {0};
-	LPWSTR		 lpstring;
+	typedef			int (__cdecl *_pwrite_env)(LPCWSTR envstring);
+	int				ret = 0;
+	HMODULE			hCrt =NULL;
+	_pwrite_env		write_env = NULL;
+	char			msvc_crt[CRT_LEN+1] = {0};
+	LPWSTR			lpstring;
 	if ( !find_msvcrt(msvc_crt,CRT_LEN) )
 	{
 		return ((unsigned)ret);
@@ -441,7 +316,8 @@ unsigned WINAPI SetPluginPath(void * pParam)
 						}
 					}
 					else if	(stristrW(strKey, L"TmpDataPath") ||
-								 stristrW(strKey, L"DiyFontPath") )
+							 stristrW(strKey, L"DiyFontPath") 
+							)
 					{
 						;
 					}
@@ -481,7 +357,7 @@ unsigned WINAPI init_portable(void * pParam)
 	}
     if (TrueSHGetSpecialFolderPathW)
     {
-            Mhook_SetHook((PVOID*)&TrueSHGetSpecialFolderPathW, (PVOID)HookSHGetSpecialFolderPathW);
+        Mhook_SetHook((PVOID*)&TrueSHGetSpecialFolderPathW, (PVOID)HookSHGetSpecialFolderPathW);
     }
 	return (1);
 }
@@ -495,7 +371,7 @@ void WINAPI hook_end(void)
 	}
     if (TrueSHGetSpecialFolderPathW)
     {
-            Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
+        Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
     }
 	if (TrueSHGetSpecialFolderLocation)
 	{
@@ -503,10 +379,7 @@ void WINAPI hook_end(void)
 	}
 	jmp_end();
 	safe_end();
-	if (ttf_list)
-	{
-		uninstall_fonts(&ttf_list);
-	}
+	uninstall_fonts(&ttf_list);
 	return;
 }
 
@@ -530,10 +403,10 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			dll_module = (HMODULE)hModule;
 			DisableThreadLibraryCalls(hModule);
 		#ifdef _LOGDEBUG
-			if ( SHGetSpecialFolderPathA(NULL,logfile_buf,CSIDL_APPDATA,FALSE) )
+			if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
 			{
 				strncat(logfile_buf,"\\",1);
-				strncat(logfile_buf,logname,strlen(logname));
+				strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
 			}
 		#endif
 			if ( read_appint(L"General",L"SafeEx") > 0 )
@@ -542,7 +415,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			}
 			if ( read_appint(L"General", L"Portable") > 0 )
 			{
-				BOOL		diff = read_appint(L"General", L"Nocompatete") > 0;
+				BOOL	diff = read_appint(L"General", L"Nocompatete") > 0;
 				HANDLE	h_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,diff?&diff:NULL,0,NULL);
 				if (h_thread)
 				{
@@ -551,32 +424,35 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 				}
 				init_portable(NULL);
 			}
-			if ( read_appint(L"General",L"GdiBatchLimit") > 0 )
+			if ( is_browser() || is_thunderbird() )
 			{
-				hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
-				if (hc)
+				if ( read_appint(L"General",L"GdiBatchLimit") > 0 )
 				{
-					CloseHandle((HANDLE)_beginthreadex(NULL,0,&GdiSetLimit_tt,hc,0,NULL));
+					hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
+					if (hc)
+					{
+						CloseHandle((HANDLE)_beginthreadex(NULL,0,&GdiSetLimit_tt,hc,0,NULL));
+					}
 				}
-			}
-			CloseHandle((HANDLE)_beginthreadex(NULL,0,&install_fonts,NULL,0,NULL));
-			if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-			{
-				hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
-				if (hc)
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&install_fonts,NULL,0,NULL));
+				if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
 				{
-					CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,hc,0,NULL));
+					hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
+					if (hc)
+					{
+						CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,hc,0,NULL));
+					}
 				}
+				if ( read_appint(L"General",L"CreateCrashDump") > 0 )
+				{
+					CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
+				}
+				if ( read_appint(L"General", L"Bosskey") > 0 )
+				{
+					CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+				}
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
 			}
-			if ( read_appint(L"General",L"CreateCrashDump") > 0 )
-			{
-				CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
-			}
-			if ( read_appint(L"General", L"Bosskey") > 0 )
-			{
-				CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
-			}
-			CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
 		}
 			break;
 		case DLL_PROCESS_DETACH:
