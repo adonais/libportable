@@ -17,6 +17,7 @@
 #define CRT_LEN						100
 #define MAX_ENV_SIZE				32767
 
+static  LOCKS  gcs;
 static  WCHAR  appdata_path[VALUE_LEN+1];	
 static  WCHAR  localdata_path[VALUE_LEN+1];
 
@@ -96,7 +97,7 @@ BOOL WINAPI WaitWriteFile(LPCWSTR ap_path)
 /* 初始化全局变量 */
 unsigned WINAPI init_global_env(void * pParam)
 {
-	BOOL diff = (char *)pParam?TRUE:FALSE;
+	BOOL diff = read_appint(L"General", L"Nocompatete") > 0;
 	if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path)) )
 	{
 		return (0);
@@ -176,6 +177,13 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 	BOOL        dwFf = FALSE;
 	WCHAR		dllname[VALUE_LEN+1];
 	int			folder = nFolder & 0xff;
+	HRESULT     ret = E_FAIL;
+	if ( !add_lock(&gcs) )
+	{
+	#ifdef _LOGDEBUG
+		logmsg("add_lock() falsed!\n");
+	#endif
+	}
 #ifdef __GNUC__
 	dwCaller = (UINT_PTR)__builtin_return_address(0);
 #else
@@ -194,19 +202,26 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 			{
 				num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
 				pszPath[num] = L'\0';
-				return S_OK;
+				ret = S_OK;
+				break;
 			}
 			case CSIDL_LOCAL_APPDATA:
 			{
 				num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
 				pszPath[num] = L'\0';
-				return S_OK;
+				ret = S_OK;
+				break;
 			}
 			default:
 				break;
 		}
 	}
-	return TrueSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
+	if (S_OK != ret)
+	{
+		ret = TrueSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
+	}
+	un_lock(&gcs);
+	return ret;
 }
 
 BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
@@ -380,6 +395,10 @@ void WINAPI hook_end(void)
 	jmp_end();
 	safe_end();
 	uninstall_fonts(&ttf_list);
+	if (gcs.use == 1)
+	{
+		DeleteCriticalSection(&gcs.mutex);
+	}
 	return;
 }
 
@@ -415,13 +434,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 			}
 			if ( read_appint(L"General", L"Portable") > 0 )
 			{
-				BOOL	diff = read_appint(L"General", L"Nocompatete") > 0;
-				HANDLE	h_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,diff?&diff:NULL,0,NULL);
-				if (h_thread)
-				{
-					SetThreadPriority(h_thread,THREAD_PRIORITY_HIGHEST);
-					CloseHandle(h_thread);
-				}
+				init_global_env(NULL);
 				init_portable(NULL);
 			}
 			if ( is_browser() || is_thunderbird() )

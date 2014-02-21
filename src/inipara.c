@@ -384,3 +384,37 @@ DWORD WINAPI GetOsVersion(void)
 	}
 	return ver;
 }
+
+void WINAPI init_locks(void)
+{
+	HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+    if ( hKernel32 && !pfnInitializeCriticalSectionEx )
+    {
+		pfnInitializeCriticalSectionEx = (INITIALIZECRITICALSECTIONEX)GetProcAddress(hKernel32, \
+			                             "InitializeCriticalSectionEx");
+	}
+	return;
+}
+
+BOOL WINAPI add_lock(LOCKS *lock)
+{
+	BOOL ok = TRUE;
+	CRITICAL_SECTION *cs = &lock->mutex;
+	init_locks();
+    if (pfnInitializeCriticalSectionEx) 
+	{
+        ok = pfnInitializeCriticalSectionEx(cs, LOCK_SPIN_COUNT,
+                                            CRITICAL_SECTION_NO_DEBUG_INFO);
+    } 
+	else
+	{
+        ok = InitializeCriticalSectionAndSpinCount(cs, LOCK_SPIN_COUNT);
+    }
+	lock->use = 1;
+	return ok;
+}
+
+void WINAPI un_lock(LOCKS *lock)
+{
+	LeaveCriticalSection(&lock->mutex);
+}

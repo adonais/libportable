@@ -323,6 +323,12 @@ BOOL WINAPI iSAuthorized(LPCWSTR lpFileName)
 		{
 			filename = PathFindFileNameW(lpFileName);
 		}
+		else if ( wow64 && wcslen(sysdir)>0 )   /* compare system32 directory again */
+		{
+			PathRemoveFileSpecW(sysdir);
+			PathAppendW(sysdir,L"system32");
+			filename = _wcsnicmp(lpFileName,sysdir,wcslen(sysdir))?NULL:PathFindFileNameW(lpFileName);
+		}
 	}
 	else
 	{
