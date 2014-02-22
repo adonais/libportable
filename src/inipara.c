@@ -396,7 +396,7 @@ void WINAPI init_locks(void)
 	return;
 }
 
-BOOL WINAPI add_lock(LOCKS *lock)
+BOOL WINAPI new_locks(LOCKS *lock)
 {
 	BOOL ok = TRUE;
 	CRITICAL_SECTION *cs = &lock->mutex;
@@ -410,11 +410,37 @@ BOOL WINAPI add_lock(LOCKS *lock)
 	{
         ok = InitializeCriticalSectionAndSpinCount(cs, LOCK_SPIN_COUNT);
     }
-	lock->use = 1;
+	lock->use = (int)ok;
 	return ok;
 }
 
-void WINAPI un_lock(LOCKS *lock)
+BOOL WINAPI lc_lock(LOCKS *lock)
 {
-	LeaveCriticalSection(&lock->mutex);
+	BOOL  ok = FALSE;
+	if (lock->use == 1)
+	{
+		EnterCriticalSection(&lock->mutex);
+		ok = TRUE;
+	}
+	return ok;
+}
+
+BOOL WINAPI un_lock(LOCKS *lock)
+{
+	BOOL  ok = FALSE;
+	DWORD threadId = (DWORD)lock->mutex.OwningThread;
+	if ( threadId == GetCurrentThreadId() )
+	{
+		LeaveCriticalSection(&lock->mutex);
+		ok = TRUE;
+	}
+	return ok;
+}
+
+void WINAPI free_locks(LOCKS *lock)
+{
+	if (lock->use == 1)
+	{
+		DeleteCriticalSection(&(lock)->mutex);
+	}
 }

@@ -23,10 +23,10 @@ typedef BOOL (WINAPI *INITIALIZECRITICALSECTIONEX)(
 			  DWORD dwSpinCount,
 			  DWORD Flags);
 
-typedef struct _locks {
+typedef struct _locks 
+{
     CRITICAL_SECTION mutex;
 	int use;
-
 }LOCKS;
 
 INI_EXTERN wchar_t profile_path[MAX_PATH+1];               /* only init once */
@@ -75,8 +75,10 @@ INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
 INI_EXTERN unsigned WINAPI GdiSetLimit_tt(void * pParam);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen);
-INI_EXTERN BOOL WINAPI add_lock(LOCKS *lock);
-INI_EXTERN void WINAPI un_lock(LOCKS *lock);
+INI_EXTERN BOOL WINAPI new_locks(LOCKS *lock);
+INI_EXTERN BOOL WINAPI lc_lock(LOCKS *lock);
+INI_EXTERN BOOL WINAPI un_lock(LOCKS *lock);
+INI_EXTERN void WINAPI free_locks(LOCKS *lock);
 
 #ifdef __cplusplus
 }
