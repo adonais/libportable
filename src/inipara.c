@@ -9,6 +9,9 @@
 #  include <stdarg.h>
 #endif
 
+typedef BOOL  (WINAPI *_pGdiFlush)(void);
+typedef DWORD (WINAPI *_pGdiSetBatchLimit)(DWORD);
+typedef BOOL  (WINAPI *_pInitializeCriticalSectionEx)(CRITICAL_SECTION *lpCriticalSection,DWORD dwSpinCount,DWORD Flags);
 
 BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
 {
@@ -238,17 +241,26 @@ unsigned WINAPI SetCpuAffinity_tt(void * pParam)
 
 unsigned WINAPI GdiSetLimit_tt(void * pParam)
 {
-	HANDLE	hc = (HANDLE)pParam;
-	if (hc)
+	HANDLE	 hc = (HANDLE)pParam;
+	HMODULE	 hGdi32 = GetModuleHandleW(L"gdi32.dll");
+	int		 limit = read_appint(L"General",L"GdiBatchLimit");
+	if (hc && hGdi32 && limit > 0)
 	{
-		int limit = read_appint(L"General",L"GdiBatchLimit");
-		if (limit > 0)
+		_pGdiSetBatchLimit pfnGdiSetBatchLimit = (_pGdiSetBatchLimit)GetProcAddress(hGdi32, "GdiSetBatchLimit");
+		_pGdiFlush pfnGdiFlush = (_pGdiFlush)GetProcAddress(hGdi32, "GdiFlush");
+		if (pfnGdiSetBatchLimit && pfnGdiFlush)
 		{
+		#ifdef _LOGDEBUG
+			logmsg("exec GdiSetBatchLimit()\n");
+		#endif
 			SuspendThread(hc);
-			GdiSetBatchLimit(limit);
-			GdiFlush();
+			pfnGdiSetBatchLimit(limit);
+			pfnGdiFlush();
 			ResumeThread(hc);
 		}
+	}
+	if (hc)
+	{
 		CloseHandle(hc);
 	}
 	return (1);
@@ -385,32 +397,28 @@ DWORD WINAPI GetOsVersion(void)
 	return ver;
 }
 
-void WINAPI init_locks(void)
-{
-	HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
-    if ( hKernel32 && !pfnInitializeCriticalSectionEx )
-    {
-		pfnInitializeCriticalSectionEx = (INITIALIZECRITICALSECTIONEX)GetProcAddress(hKernel32, \
-			                             "InitializeCriticalSectionEx");
-	}
-	return;
-}
-
 BOOL WINAPI new_locks(LOCKS *lock)
 {
 	BOOL ok = TRUE;
 	CRITICAL_SECTION *cs = &lock->mutex;
-	init_locks();
-    if (pfnInitializeCriticalSectionEx) 
+	LONG volatile *used = &lock->use;
+	_pInitializeCriticalSectionEx pfnInitializeCriticalSectionEx = NULL;
+	HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+	if ( hKernel32 && *used != 1)
 	{
-        ok = pfnInitializeCriticalSectionEx(cs, LOCK_SPIN_COUNT,
-                                            CRITICAL_SECTION_NO_DEBUG_INFO);
-    } 
-	else
-	{
-        ok = InitializeCriticalSectionAndSpinCount(cs, LOCK_SPIN_COUNT);
-    }
-	lock->use = (int)ok;
+		pfnInitializeCriticalSectionEx = (_pInitializeCriticalSectionEx)GetProcAddress(hKernel32, \
+			                             "InitializeCriticalSectionEx");
+		if ( pfnInitializeCriticalSectionEx ) 
+		{
+			ok = pfnInitializeCriticalSectionEx(cs, LOCK_SPIN_COUNT,
+												CRITICAL_SECTION_NO_DEBUG_INFO);
+		} 
+		else
+		{
+			ok = InitializeCriticalSectionAndSpinCount(cs, LOCK_SPIN_COUNT);
+		}
+		InterlockedExchange(used,(LONG)ok);
+	}
 	return ok;
 }
 
@@ -428,7 +436,7 @@ BOOL WINAPI lc_lock(LOCKS *lock)
 BOOL WINAPI un_lock(LOCKS *lock)
 {
 	BOOL  ok = FALSE;
-	DWORD threadId = (DWORD)lock->mutex.OwningThread;
+	DWORD_PTR threadId = (DWORD_PTR)lock->mutex.OwningThread;
 	if ( threadId == GetCurrentThreadId() )
 	{
 		LeaveCriticalSection(&lock->mutex);
@@ -439,8 +447,10 @@ BOOL WINAPI un_lock(LOCKS *lock)
 
 void WINAPI free_locks(LOCKS *lock)
 {
-	if (lock->use == 1)
+	LONG volatile *used = &lock->use;
+	if (*used == 1)
 	{
 		DeleteCriticalSection(&(lock)->mutex);
+		InterlockedExchange(used,(LONG)0);
 	}
 }

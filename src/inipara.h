@@ -18,20 +18,14 @@
 #define   BUFSIZE   (MAX_PATH*2)
 #define	  LOCK_SPIN_COUNT 1500
 
-typedef BOOL (WINAPI *INITIALIZECRITICALSECTIONEX)(
-			  CRITICAL_SECTION *lpCriticalSection,
-			  DWORD dwSpinCount,
-			  DWORD Flags);
-
 typedef struct _locks 
 {
     CRITICAL_SECTION mutex;
-	int use;
+	LONG use;
 }LOCKS;
 
 INI_EXTERN wchar_t profile_path[MAX_PATH+1];               /* only init once */
 INI_EXTERN HMODULE dll_module;                             /* portable module addr */
-INI_EXTERN INITIALIZECRITICALSECTIONEX pfnInitializeCriticalSectionEx;
 
 #ifdef _LOGDEBUG
 #define LOG_FILE	"run_hook.log"
@@ -65,7 +59,7 @@ INI_EXTERN BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
 				 LPWSTR  prefstring,						/* 保存值缓冲区 */	
 				 DWORD   bufsize							/* 缓冲区大小 */
 				 );
-INI_EXTERN int read_appint(LPCWSTR cat, LPCWSTR name);
+INI_EXTERN int  read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL foreach_section(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
 INI_EXTERN BOOL is_nplugins(void);
 INI_EXTERN BOOL is_thunderbird(void);

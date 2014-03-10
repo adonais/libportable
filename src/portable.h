@@ -11,7 +11,9 @@
 #  define TETE_CLASS_IMPORT __declspec(dllimport)
 #endif
 
-#ifdef  TETE_BUILD
+#if defined(LIBPORTABLE_STATIC)
+#  define TETE_EXT_CLASS extern
+#elif defined(TETE_BUILD)
 #  define TETE_EXT_CLASS       TETE_CLASS_EXPORT
 #else
 #  define TETE_EXT_CLASS       TETE_CLASS_IMPORT
@@ -28,6 +30,11 @@ TETE_EXT_CLASS uint32_t GetNonTemporalDataSizeMin_tt ( void );
 TETE_EXT_CLASS void *  __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count );
 
 TETE_EXT_CLASS intptr_t GetAppDirHash_tt ( void );  /* compatibility with older browsers versions */
+
+#if defined(LIBPORTABLE_STATIC)
+TETE_EXT_CLASS void __stdcall do_it( void );
+TETE_EXT_CLASS void __stdcall undo_it( void );
+#endif
 
 #ifdef  __cplusplus
 }

@@ -1,4 +1,6 @@
+#ifndef LIBPORTABLE_STATIC
 #define TETE_BUILD
+#endif
 
 #include "portable.h"
 #include "header.h"
@@ -17,29 +19,27 @@
 #define CRT_LEN						100
 #define MAX_ENV_SIZE				32767
 
-static  HANDLE env_thread;
-static  WCHAR  appdata_path[VALUE_LEN+1];	
-static  WCHAR  localdata_path[VALUE_LEN+1];
+static  HANDLE  env_thread;
+static  WNDINFO ff_info;
+static  WCHAR   appdata_path[VALUE_LEN+1];	
+static  WCHAR   localdata_path[VALUE_LEN+1];
 
 static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
 static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
 /* Asm replacment for memset */
-TETE_EXT_CLASS 
 void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
 {
 	return A_memset(dest, c, count);
 }
 
 /* Never used,to be compatible with tete's patch */
-TETE_EXT_CLASS  
 uint32_t GetNonTemporalDataSizeMin_tt( void )
 {
 	return 0;
 }
 
-TETE_EXT_CLASS
 intptr_t GetAppDirHash_tt( void )
 {
 	return 0;
@@ -320,9 +320,7 @@ unsigned WINAPI SetPluginPath(void * pParam)
 							}
 						}
 					}
-					else if	(stristrW(strKey, L"TmpDataPath") ||
-							 stristrW(strKey, L"DiyFontPath") 
-							)
+					else if	(stristrW(strKey, L"TmpDataPath"))
 					{
 						;
 					}
@@ -367,9 +365,14 @@ unsigned WINAPI init_portable(void * pParam)
 	return (1);
 }
 
-/* uninstall hook */
-void WINAPI hook_end(void)
+/* uninstall hook and clean up */
+void WINAPI undo_it(void)
 {
+	if (ff_info.atom_str)
+	{
+		UnregisterHotKey(NULL, ff_info.atom_str);
+		GlobalDeleteAtom(ff_info.atom_str);
+	}
 	if (TrueSHGetFolderPathW)
 	{
 		Mhook_Unhook((PVOID*)&TrueSHGetFolderPathW);
@@ -384,8 +387,73 @@ void WINAPI hook_end(void)
 	}
 	jmp_end();
 	safe_end();
-	uninstall_fonts(&ttf_list);
 	return;
+}
+
+void WINAPI do_it(void)
+{
+	HANDLE		 hc = NULL;
+	UINT_PTR	 dwCaller = 0;
+#ifdef _LOGDEBUG
+	if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
+	{
+		strncat(logfile_buf,"\\",1);
+		strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
+	}
+#endif
+	if (!dll_module)
+	{
+	#ifdef __GNUC__
+		dwCaller = (UINT_PTR)__builtin_return_address(0);
+	#else
+		dwCaller = (UINT_PTR)_ReturnAddress();
+	#endif
+	}
+	if (dwCaller)
+	{
+		GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)dwCaller, &dll_module);
+	}
+	if ( read_appint(L"General",L"SafeEx") > 0 )
+	{
+		init_safed(NULL);
+	}
+	if ( read_appint(L"General", L"Portable") > 0 )
+	{
+		env_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,NULL,0,NULL);
+		if (env_thread) 
+		{
+			SetThreadPriority(env_thread,THREAD_PRIORITY_HIGHEST);
+			init_portable(NULL);
+		}
+	}
+	if ( is_browser() || is_thunderbird() )
+	{
+		if ( read_appint(L"General",L"GdiBatchLimit") > 0 )
+		{
+			hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
+			if (hc)
+			{
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&GdiSetLimit_tt,hc,0,NULL));
+			}
+		}
+		if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+		{
+			hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
+			if (hc)
+			{
+				CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,hc,0,NULL));
+			}
+		}
+		if ( read_appint(L"General",L"CreateCrashDump") > 0 )
+		{
+			CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
+		}
+		if ( read_appint(L"General", L"Bosskey") > 0 )
+		{
+			CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+		}
+		CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
+	}
 }
 
 /* This is standard DllMain function. */
@@ -393,78 +461,18 @@ void WINAPI hook_end(void)
 extern "C" {
 #endif 
 
-#if defined(LIBPORTABLE_EXPORTS) && defined(_MSC_VER)
+#if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
 int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
-#else
-BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
-#endif
 {
-	static WNDINFO ff_info;
     switch(dwReason) 
 	{
 		case DLL_PROCESS_ATTACH:
-		{
-			HANDLE		 hc = NULL;
 			dll_module = (HMODULE)hModule;
 			DisableThreadLibraryCalls(hModule);
-		#ifdef _LOGDEBUG
-			if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
-			{
-				strncat(logfile_buf,"\\",1);
-				strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
-			}
-		#endif
-			if ( read_appint(L"General",L"SafeEx") > 0 )
-			{
-				init_safed(NULL);
-			}
-			if ( read_appint(L"General", L"Portable") > 0 )
-			{
-				env_thread = (HANDLE)_beginthreadex(NULL,0,&init_global_env,NULL,0,NULL);
-				if (env_thread) 
-				{
-					SetThreadPriority(env_thread,THREAD_PRIORITY_HIGHEST);
-					init_portable(NULL);
-				}
-			}
-			if ( is_browser() || is_thunderbird() )
-			{
-				if ( read_appint(L"General",L"GdiBatchLimit") > 0 )
-				{
-					hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
-					if (hc)
-					{
-						CloseHandle((HANDLE)_beginthreadex(NULL,0,&GdiSetLimit_tt,hc,0,NULL));
-					}
-				}
-				CloseHandle((HANDLE)_beginthreadex(NULL,0,&install_fonts,NULL,0,NULL));
-				if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-				{
-					hc = OpenThread(THREAD_ALL_ACCESS, 0, GetCurrentThreadId());
-					if (hc)
-					{
-						CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,hc,0,NULL));
-					}
-				}
-				if ( read_appint(L"General",L"CreateCrashDump") > 0 )
-				{
-					CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
-				}
-				if ( read_appint(L"General", L"Bosskey") > 0 )
-				{
-					CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
-				}
-				CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
-			}
-		}
+			do_it();
 			break;
 		case DLL_PROCESS_DETACH:
-			if (ff_info.atom_str)
-			{
-				UnregisterHotKey(NULL, ff_info.atom_str);
-				GlobalDeleteAtom(ff_info.atom_str);
-			}
-			hook_end();
+			undo_it();
 			break;
 		case DLL_THREAD_ATTACH:
 			break;
@@ -475,6 +483,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 	}
 	return TRUE;
 }
+#endif  /* LIBPORTABLE_EXPORTS */
 
 #ifdef __cplusplus
 }

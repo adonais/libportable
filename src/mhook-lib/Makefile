@@ -5,13 +5,13 @@ DFLAGS :=
 LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
 AR       =$(CROSS_COMPILING)ar
-CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG -msse2 -finline-functions -fomit-frame-pointer
+CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG -finline-functions -fomit-frame-pointer
 CFLAGSEX =
 LDLIBS   = -lmhook$(BITS) -municode
 MD       = mkdir -p
 SRC      = src
 DEP      = ../../.dep
-X86FLAG  = -m32
+X86FLAG  = -msse2 -m32
 X64FLAG  = -m64
 
 OBJECTS  = $(DEP)/cpu.o $(DEP)/disasm.o $(DEP)/disasm_x86.o \

@@ -1,9 +1,15 @@
-# nmake -f makefile.msvc
+# nmake -f Makefile.msvc
 CC       = cl.exe
-CPP     = cl.exe
-DFLAGS   =
-CFLAGS   = $(DFLAGS) /nologo /W3 /WX- /O2 /GS- /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "LIBPORTABLE_EXPORTS"
+CPP      = cl.exe
+CFLAGS   = $(DFLAGS) /nologo /W3 /WX- /O2 /GS- /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE"
 LD       = link.exe
+
+!if "$(LIBPORTABLE_STATIC)"=="1"
+CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
+!else
+CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
+!endif
+
 !if "$(PLATFORM)"=="X64"
 PLATFORM = X64
 BITS	 = 64

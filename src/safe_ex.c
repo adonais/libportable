@@ -200,12 +200,12 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 								  CreateInfo, AttributeList);
 	if ( NT_SUCCESS(status)&&tohook)
 	{
-		ULONG Suspend;
+		ULONG Suspend = 0;
 		fzero(&ProcessInformation,sizeof(PROCESS_INFORMATION));
 		ProcessInformation.hProcess = *ProcessHandle;
 		ProcessInformation.hThread = *ThreadHandle;
 	/* when tcmalloc enabled or MinGW compile time,InjectDll crash on win8/8.1 */
-	#if !defined(ENABLE_TCMALLOC) && !defined(__GNUC__) 
+	#if !defined(ENABLE_TCMALLOC) && !defined(__GNUC__) && !defined(LIBPORTABLE_STATIC)
 		if ( NT_SUCCESS(TrueNtSuspendThread(ProcessInformation.hThread,&Suspend)) )
 		{
 		#ifdef _LOGDEBUG
@@ -249,8 +249,11 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 		 stristrW(lpfile, L"java.exe") ||
 		 stristrW(lpfile, L"jp2launcher.exe"))
 	{
+	/* 静态编译时,不能启用远程注入 */
+	#if !defined(LIBPORTABLE_STATIC)  
 		dwCreationFlags |= CREATE_SUSPENDED;
 		tohook = TRUE;
+	#endif
 	}
 	/* 如果启用白名单制度(严格检查) */
 	else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
@@ -283,7 +286,6 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 	ret =  TrueCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
 		   lpThreadAttributes,bInheritHandles,dwCreationFlags,lpEnvironment,lpCurrentDirectory,
 		   lpStartupInfo,lpProcessInformation,hNewToken);
-	/* 远程注入进程 */
 	if ( ret && tohook )
 	{
 	#ifdef _LOGDEBUG
@@ -365,9 +367,9 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     /* 判断是否是从User32.dll调用 */
 	if ( is_specialdll(dwCaller,L"user32.dll") )
 	{
-		if ( PathMatchSpecW(lpFileName, L"*.exe") || in_whitelist(lpFileName) )
+		/* 如果进程或模块在白名单里 */
+		if ( in_whitelist(lpFileName) )
 		{
-			/* javascript api 获取应用程序图标时 */
 		#ifdef _LOGDEBUG
 			logmsg("%ls in whitelist\n",lpFileName);
 		#endif
