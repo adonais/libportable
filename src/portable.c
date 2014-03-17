@@ -5,7 +5,6 @@
 #include "portable.h"
 #include "header.h"
 #include "inipara.h"
-#include "ttf_list.h"
 #include "safe_ex.h"
 #include "ice_error.h"
 #include "bosskey.h"
@@ -166,18 +165,24 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 {  
 	UINT_PTR	dwCaller;
 	BOOL        dwFf = FALSE;
-	WCHAR		dllname[VALUE_LEN+1];
 	int			folder = nFolder & 0xff;
 	HRESULT     ret = E_FAIL;
+#ifndef LIBPORTABLE_STATIC
+	WCHAR		dllname[VALUE_LEN+1];
+	GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
+#endif
 #ifdef __GNUC__
 	dwCaller = (UINT_PTR)__builtin_return_address(0);
 #else
 	dwCaller = (UINT_PTR)_ReturnAddress();
 #endif
-	GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
+#ifndef LIBPORTABLE_STATIC
 	dwFf = is_specialdll(dwCaller, dllname)       ||
-		   is_specialdll(dwCaller, L"*\\xul.dll") || 
+		   is_specialdll(dwCaller, L"*\\xul.dll") ||
 		   is_specialdll(dwCaller, L"*\\npswf*.dll");
+#else
+	dwFf = is_specialdll(dwCaller, L"*\\xul.dll") || is_specialdll(dwCaller, L"*\\npswf*.dll");
+#endif
 	if (env_thread)
 	{
 		WaitForSingleObject(env_thread,1500);
