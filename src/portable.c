@@ -221,6 +221,18 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 
 BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)                                                      
 {
+	UINT_PTR	dwCaller;
+	BOOL        internal;
+#ifdef __GNUC__
+	dwCaller = (UINT_PTR)__builtin_return_address(0);
+#else
+	dwCaller = (UINT_PTR)_ReturnAddress();
+#endif
+	internal = is_specialdll(dwCaller, L"*\\xul.dll") || is_specialdll(dwCaller, L"*\\npswf*.dll");
+	if ( !internal )
+	{
+		return TrueSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
+	}
     return (HookSHGetFolderPathW(
 			hwndOwner,
 			csidl + (fCreate ? CSIDL_FLAG_CREATE : 0),
