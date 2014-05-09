@@ -94,7 +94,7 @@ ULONG_PTR WINAPI GetParentProcess(HANDLE hProcess)
 											NULL );
 
 	if ( NT_SUCCESS(status) )
-		dwParentPID = (ULONG_PTR)pbi.Reserved3;
+		dwParentPID = (ULONG_PTR)pbi.InheritedFromUniqueProcessId;
 	else
 		dwParentPID = 0;
 	return dwParentPID;
@@ -378,7 +378,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 		else
 		{
 		#ifdef _LOGDEBUG
-			logmsg("the  %ls disable load\n",lpFileName);
+			// logmsg("the  %ls disable load\n",lpFileName);
 		#endif
 			return NULL;  
 		}

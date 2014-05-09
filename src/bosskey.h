@@ -12,7 +12,7 @@
 
 typedef struct tagWNDINFO
 {
-	int	  atom_str;
+	int	     atom_str;
 	int      key_mod;
 	int      key_vk;
 	DWORD    pFF;

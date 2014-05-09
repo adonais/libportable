@@ -3,7 +3,6 @@
 #endif
 
 #include "portable.h"
-#include "header.h"
 #include "inipara.h"
 #include "safe_ex.h"
 #include "ice_error.h"
@@ -14,9 +13,19 @@
 #include <process.h>
 #include <stdio.h>
 
-#define SIZE_OF_NT_SIGNATURE		sizeof (DWORD)
-#define CRT_LEN						100
-#define MAX_ENV_SIZE				32767
+
+typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
+									    int nFolder,
+									    HANDLE hToken,
+									    DWORD dwFlags,
+									    LPWSTR pszPath);
+typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
+									    int nFolder,
+									    LPITEMIDLIST *ppidl);
+typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
+									    LPWSTR lpszPath,
+									    int csidl,
+									    BOOL fCreate);
 
 static  HANDLE  env_thread;
 static  WNDINFO ff_info;
@@ -197,14 +206,12 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 			case CSIDL_APPDATA:
 			{
 				num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-				pszPath[num] = L'\0';
 				ret = S_OK;
 				break;
 			}
 			case CSIDL_LOCAL_APPDATA:
 			{
 				num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-				pszPath[num] = L'\0';
 				ret = S_OK;
 				break;
 			}
@@ -241,118 +248,6 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 			lpszPath)) == S_OK ? TRUE : FALSE;
 }
 
-/* 从输入表查找CRT版本 */
-BOOL find_msvcrt(char *crt_name,int len)
-{
-	BOOL			ret = FALSE;
-	IMAGE_DOS_HEADER      *pDos;
-	IMAGE_OPTIONAL_HEADER *pOptHeader;
-	IMAGE_IMPORT_DESCRIPTOR    *pImport ;
-	HMODULE hMod=GetModuleHandleW(NULL);
-	if (!hMod)
-	{
-	#ifdef _LOGDEBUG
-		logmsg("GetModuleHandleW false,hMod = 0\n");
-	#endif
-		return ret;
-	}
-	pDos = (IMAGE_DOS_HEADER *)hMod;
-	pOptHeader = (IMAGE_OPTIONAL_HEADER *)( 
-										(BYTE *)hMod 
-                                       + pDos->e_lfanew
-                                       + SIZE_OF_NT_SIGNATURE
-									   + sizeof(IMAGE_FILE_HEADER)
-                             );
-	pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
-                                             (BYTE *)hMod
-                                             + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
-										  ) ;
-	while( TRUE )
-	{
-		char*		pszDllName = NULL;
-		char		name[CRT_LEN+1] = {0};
-		IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
-		IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
-		if(pThunk == 0 && pThunkIAT == 0) break;
-		pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-	#ifdef _LOGDEBUG
-		logmsg("dllname:  [%s]\n",(const char *)pszDllName);
-	#endif
-		if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
-		{
-			strncpy(name,pszDllName,CRT_LEN);
-			strncpy(crt_name,CharLowerA(name),len);
-			ret = TRUE;
-			break;
-		}
-		pImport++;
-	}
-	return ret;
-}
-
-/* 必须使用进程依赖crt的wputenv函数追加环境变量 */
-unsigned WINAPI SetPluginPath(void * pParam)
-{
-	typedef			int (__cdecl *_pwrite_env)(LPCWSTR envstring);
-	int				ret = 0;
-	HMODULE			hCrt =NULL;
-	_pwrite_env		write_env = NULL;
-	char			msvc_crt[CRT_LEN+1] = {0};
-	LPWSTR			lpstring;
-	if ( !find_msvcrt(msvc_crt,CRT_LEN) )
-	{
-		return ((unsigned)ret);
-	}
-	if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
-	{
-		return ((unsigned)ret);
-	}
-	if ( profile_path[1] != L':' )
-	{
-		if (!ini_ready(profile_path,MAX_PATH))
-		{
-			return ((unsigned)ret);
-		}
-	}
-	write_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
-	if ( write_env )
-	{
-		if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) != NULL )
-		{
-			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path)) > 0 )
-			{
-				LPWSTR	strKey = lpstring;
-				while(*strKey != L'\0') 
-				{
-					if ( stristrW(strKey, L"NpluginPath") )
-					{
-						WCHAR lpfile[VALUE_LEN+1];
-						if ( read_appkey(L"Env",L"NpluginPath",lpfile,sizeof(lpfile)) )
-						{
-							WCHAR env_string[VALUE_LEN+1] = {0};
-							PathToCombineW(lpfile, VALUE_LEN);
-							if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",lpfile) > 0)
-							{
-								ret = write_env( (LPCWSTR)env_string );
-							}
-						}
-					}
-					else if	(stristrW(strKey, L"TmpDataPath"))
-					{
-						;
-					}
-					else
-					{
-						ret = write_env( (LPCWSTR)strKey );
-					}
-					strKey += wcslen(strKey)+1;
-				}
-			}
-			SYS_FREE(lpstring);
-		}
-	}
-	return ( (unsigned)ret );
-}
 
 unsigned WINAPI init_portable(void * pParam)
 {
@@ -389,6 +284,16 @@ void WINAPI undo_it(void)
 	{
 		UnregisterHotKey(NULL, ff_info.atom_str);
 		GlobalDeleteAtom(ff_info.atom_str);
+	}
+	if (g_handle[0]>0)
+	{
+		int i;
+		for ( i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i )
+		{
+			TerminateProcess(g_handle[i], (DWORD)-1);
+			CloseHandle(g_handle[i]);
+		}
+		refresh_tray();
 	}
 	if (TrueSHGetFolderPathW)
 	{
@@ -470,6 +375,10 @@ void WINAPI do_it(void)
 			CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
 		}
 		CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
+		if ( read_appint(L"General", L"ProxyExe") > 0 )
+		{
+			CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+		}
 	}
 }
 

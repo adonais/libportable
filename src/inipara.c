@@ -2,6 +2,7 @@
 
 #include "inipara.h"
 #include <shlwapi.h>
+#include <tlhelp32.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -9,9 +10,9 @@
 #  include <stdarg.h>
 #endif
 
-typedef BOOL  (WINAPI *_pGdiFlush)(void);
-typedef DWORD (WINAPI *_pGdiSetBatchLimit)(DWORD);
-typedef BOOL  (WINAPI *_pInitializeCriticalSectionEx)(CRITICAL_SECTION *lpCriticalSection,DWORD dwSpinCount,DWORD Flags);
+typedef BOOL     (WINAPI *_pGdiFlush)(void);
+typedef DWORD    (WINAPI *_pGdiSetBatchLimit)(DWORD);
+typedef BOOL     (WINAPI *_pInitializeCriticalSectionEx)(CRITICAL_SECTION *lpCriticalSection,DWORD dwSpinCount,DWORD Flags);
 
 BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
 {
@@ -180,6 +181,7 @@ void WINAPI charTochar(LPWSTR path)
 
 BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 {
+	int n = 1;
 	if ( dll_module && lpfile[1] != L':' )
 	{
 		wchar_t buf_modname[VALUE_LEN+1] = {0};
@@ -190,12 +192,11 @@ BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 			PathRemoveFileSpecW(buf_modname);
 			if ( PathCombineW(tmp_path,buf_modname,lpfile) )
 			{
-				int n = _snwprintf(lpfile,str_len,L"%ls",tmp_path);
-				lpfile[n] = L'\0';
+				n = _snwprintf(lpfile,str_len,L"%ls",tmp_path);
 			}
 		}
 	}
-	return TRUE;
+	return (n>0);
 }
 
 static int GetNumberOfWorkers(void) 
@@ -320,11 +321,32 @@ BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 		}
 		if ( i > 0 )
 		{
-			i = _snwprintf(lpstrName,wlen-1,L"%ls",lpFullPath+i+1);
-			lpstrName[i] = L'\0';
+			i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath+i+1);
 		}
 	}
-	return !!i;
+	return (i>0);
+}
+
+BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
+{
+	size_t i = 0;
+	WCHAR lpFullPath[MAX_PATH+1]={0};
+	if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
+	{
+		for( i=wcslen(lpFullPath); i>0; i-- )
+		{
+			if (lpFullPath[i] == L'\\')
+			{
+				lpFullPath[i] = L'\0';
+				break;
+			}
+		}
+		if ( i > 0 )
+		{
+			i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath);
+		}
+	}
+	return (i>0);
 }
 
 BOOL is_nplugins(void)
@@ -395,6 +417,309 @@ DWORD WINAPI GetOsVersion(void)
 		}
 	}
 	return ver;
+}
+
+/* 从输入表查找CRT版本 */
+BOOL WINAPI find_msvcrt(char *crt_name,int len)
+{
+	BOOL			ret = FALSE;
+	IMAGE_DOS_HEADER      *pDos;
+	IMAGE_OPTIONAL_HEADER *pOptHeader;
+	IMAGE_IMPORT_DESCRIPTOR    *pImport ;
+	HMODULE hMod=GetModuleHandleW(NULL);
+	if (!hMod)
+	{
+	#ifdef _LOGDEBUG
+		logmsg("GetModuleHandleW false,hMod = 0\n");
+	#endif
+		return ret;
+	}
+	pDos = (IMAGE_DOS_HEADER *)hMod;
+	pOptHeader = (IMAGE_OPTIONAL_HEADER *)( 
+										(BYTE *)hMod 
+                                       + pDos->e_lfanew
+                                       + SIZE_OF_NT_SIGNATURE
+									   + sizeof(IMAGE_FILE_HEADER)
+                             );
+	pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
+                                             (BYTE *)hMod
+                                             + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
+										  ) ;
+	while( TRUE )
+	{
+		char*		pszDllName = NULL;
+		char		name[CRT_LEN+1] = {0};
+		IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
+		IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
+		if(pThunk == 0 && pThunkIAT == 0) break;
+		pszDllName = (char*)((BYTE*)hMod+pImport->Name);
+	#ifdef _LOGDEBUG
+		logmsg("dllname:  [%s]\n",(const char *)pszDllName);
+	#endif
+		if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
+		{
+			strncpy(name,pszDllName,CRT_LEN);
+			strncpy(crt_name,CharLowerA(name),len);
+			ret = TRUE;
+			break;
+		}
+		pImport++;
+	}
+	return ret;
+}
+
+/* 必须使用进程依赖crt的wputenv函数追加环境变量 */
+unsigned WINAPI SetPluginPath(void * pParam)
+{
+	typedef			int (__cdecl *_pwrite_env)(LPCWSTR envstring);
+	int				ret = 0;
+	HMODULE			hCrt =NULL;
+	_pwrite_env		write_env = NULL;
+	char			msvc_crt[CRT_LEN+1] = {0};
+	LPWSTR			lpstring;
+	if ( !find_msvcrt(msvc_crt,CRT_LEN) )
+	{
+		return ((unsigned)ret);
+	}
+	if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
+	{
+		return ((unsigned)ret);
+	}
+	if ( profile_path[1] != L':' )
+	{
+		if (!ini_ready(profile_path,MAX_PATH))
+		{
+			return ((unsigned)ret);
+		}
+	}
+	write_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
+	if ( write_env )
+	{
+		if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) != NULL )
+		{
+			if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path)) > 0 )
+			{
+				LPWSTR	strKey = lpstring;
+				while(*strKey != L'\0') 
+				{
+					if ( stristrW(strKey, L"NpluginPath") )
+					{
+						WCHAR lpfile[VALUE_LEN+1];
+						if ( read_appkey(L"Env",L"NpluginPath",lpfile,sizeof(lpfile)) )
+						{
+							WCHAR env_string[VALUE_LEN+1] = {0};
+							PathToCombineW(lpfile, VALUE_LEN);
+							if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",lpfile) > 0)
+							{
+								ret = write_env( (LPCWSTR)env_string );
+							}
+						}
+					}
+					else if	(stristrW(strKey, L"TmpDataPath"))
+					{
+						;
+					}
+					else
+					{
+						ret = write_env( (LPCWSTR)strKey );
+					}
+					strKey += wcslen(strKey)+1;
+				}
+			}
+			SYS_FREE(lpstring);
+		}
+	}
+	return ( (unsigned)ret );
+}
+
+BOOL WINAPI parse_shcommand(void)
+{
+	LPWSTR	*args = NULL;
+	int		m_arg = 0;
+	BOOL    ret = FALSE;
+	args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
+	if ( NULL != args )
+	{
+		int i;
+		for (i = 1; i < m_arg; ++i) 
+		{
+			if ( StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") )
+			{
+				ret = TRUE;
+				break;
+			}
+		}
+		LocalFree(args);
+	}
+	return ret;
+}
+
+void WINAPI refresh_tray(void)
+{
+	HWND hwnd ;          /* tray hwnd */
+	RECT m_trayToolBar;
+	int  x;
+	hwnd = FindWindowW(L"Shell_TrayWnd", NULL);
+	hwnd = FindWindowExW(hwnd, 0, L"TrayNotifyWnd", NULL);
+	hwnd = FindWindowExW(hwnd, 0, L"SysPager", NULL);
+	hwnd = FindWindowExW(hwnd, 0, L"ToolbarWindow32", NULL);
+	GetClientRect(hwnd, &m_trayToolBar);
+	for(x = 1; x < m_trayToolBar.right - 1; x++)
+	{
+		int y = m_trayToolBar.bottom / 2;
+		PostMessage(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+	}
+}
+
+HANDLE WINAPI search_process(LPCWSTR lpstr, DWORD m_parent)
+{
+	BOOL   b_more;
+	PROCESSENTRY32W pe32;
+	HANDLE hSnapshot = INVALID_HANDLE_VALUE;
+	DWORD  chi_pid[PROCESS_NUM] = {0};
+	HANDLE m_handle = NULL;
+	volatile int    i = 1;
+	static   int    h_num = 1;
+	hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    if( hSnapshot == INVALID_HANDLE_VALUE )
+    {
+	#ifdef _LOGDEBUG
+		logmsg("CreateToolhelp32Snapshot (of processes) error %ld\n",GetLastError() );
+	#endif
+		return m_handle;
+    }
+	chi_pid[0] = m_parent;
+	pe32.dwSize=sizeof(pe32);
+	b_more = Process32FirstW(hSnapshot,&pe32);
+	while (b_more)
+	{
+		if ( m_parent == pe32.th32ParentProcessID )
+		{
+			chi_pid[i++] = pe32.th32ProcessID;
+			if (i>=PROCESS_NUM)
+			{
+				break;
+			}
+		}
+		if ( lpstr && pe32.th32ParentProcessID>4 && StrStrIW((LPWSTR)lpstr,(LPCWSTR)pe32.szExeFile) )
+		{
+			m_handle = (HANDLE)pe32.th32ProcessID;
+			break;
+		}
+		b_more = Process32NextW(hSnapshot,&pe32);
+	} 
+	CloseHandle(hSnapshot);
+	if ( !m_handle && chi_pid[0] )
+	{
+		for ( i=1 ; i<PROCESS_NUM&&h_num<PROCESS_NUM; ++i )
+		{
+			HANDLE tmp = OpenProcess(PROCESS_TERMINATE, FALSE, chi_pid[i]);
+			if ( NULL != tmp )
+			{
+				g_handle[h_num++] =  tmp;
+				search_process(NULL, chi_pid[i]);
+			}
+		}
+	}
+	return m_handle;
+}
+
+int WINAPI get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
+{
+	int		ret = -1;
+	LPWSTR	lp = NULL;
+	WCHAR   temp[VALUE_LEN+1]   = {0};
+	WCHAR   m_para[VALUE_LEN+1] = {0};
+	if ( read_appkey(L"attach",L"ExPath",temp,sizeof(temp)) )
+	{
+		wdir[0] = L'\0';
+		lp =  StrChrW(temp,L',');
+		if (isdigit(temp[wcslen(temp)-1])&&lp)
+		{
+			ret = temp[wcslen(temp)-1] - L'0';
+			temp[lp-temp] = L'\0';
+			lp =  StrChrW(temp,L' ');
+			/* 如果第三方进程存在参数,工作目录设为浏览器主进程所在目录 */
+			if ( lp )
+			{
+				temp[lp-temp] = L'\0';
+				_snwprintf(m_para,VALUE_LEN,L" "L"%ls",lp+1);
+				if ( !GetCurrentWorkDir(wdir,len) )
+				{
+					wdir[0] = L'\0';
+				}
+			}
+			_snwprintf(lpstrCmd,len,L"%ls",temp);
+			if (lpstrCmd[0] == L'.')
+			{
+				PathToCombineW(lpstrCmd,VALUE_LEN);
+			}
+			wcsncat(lpstrCmd,m_para,len);
+			if ( wcslen(wdir) == 0 )
+			{
+				_snwprintf(wdir,len,L"%ls",lpstrCmd);
+				if ( !PathRemoveFileSpecW(wdir) )
+				{
+					wdir[0] = L'\0';
+				}
+			}
+		}
+	}
+	return ret;
+}
+
+unsigned WINAPI run_process(void * pParam) 
+{
+	PROCESS_INFORMATION pi;
+	STARTUPINFOW si;
+	WCHAR wcmd[VALUE_LEN+1] = {0};
+	WCHAR wdirectory[VALUE_LEN+1] = {0};
+	DWORD dwCreat = 0;
+	int flags = get_parameters(wdirectory, wcmd, VALUE_LEN);
+	if (flags<0)
+	{
+		return (0);
+	}
+	/* 如果是预启动,直接返回 */
+	if ( parse_shcommand() )
+	{
+		return (0);
+	}
+	// PathFileExistsW(wcmd)
+	if ( wcslen(wcmd)>0  && !search_process(wcmd,0) )
+	{
+		fzero(&si,sizeof(si));
+		si.cb = sizeof(si); 
+		si.dwFlags = STARTF_USESHOWWINDOW;
+		si.wShowWindow = SW_MINIMIZE;
+		if (!flags)
+		{
+			si.wShowWindow = SW_HIDE;
+			dwCreat |= CREATE_NEW_PROCESS_GROUP;
+		}
+		if(!CreateProcessW(NULL,  
+			(LPWSTR)wcmd,  
+			NULL,  
+			NULL,  
+			FALSE,  
+			dwCreat,
+			NULL,  
+			(LPCWSTR)wdirectory,  
+			&si,&pi))   
+		{
+		#ifdef _LOGDEBUG
+			logmsg("CreateProcessW error %lu\n",GetLastError());
+		#endif
+			return (0);   
+		}
+		g_handle[0] = pi.hProcess;
+		CloseHandle(pi.hThread);
+		if ( pi.dwProcessId >4 && (SleepEx(6000,FALSE) == 0) )
+		{   
+			search_process(NULL, pi.dwProcessId);
+		}
+	}
+	return (1);
 }
 
 BOOL WINAPI new_locks(LOCKS *lock)
