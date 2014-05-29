@@ -31,6 +31,7 @@ typedef struct _locks
 INI_EXTERN wchar_t profile_path[MAX_PATH+1];               /* only init once */
 INI_EXTERN HMODULE dll_module;                             /* portable module addr */
 INI_EXTERN HANDLE  g_handle[PROCESS_NUM];				   /* process tree handle */
+INI_EXTERN HANDLE  g_mutex;
 
 #ifdef _LOGDEBUG
 #define LOG_FILE	"run_hook.log"

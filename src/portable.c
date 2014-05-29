@@ -285,6 +285,11 @@ void WINAPI undo_it(void)
 		UnregisterHotKey(NULL, ff_info.atom_str);
 		GlobalDeleteAtom(ff_info.atom_str);
 	}
+    if (g_mutex>0)
+    {
+        CloseHandle(g_mutex);
+        g_mutex = NULL;
+    }
 	if (g_handle[0]>0)
 	{
 		int i;

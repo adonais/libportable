@@ -54,7 +54,7 @@ BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
 		SYS_FREE(lpstring);
 		return FALSE;
 	}
-	wcsncpy(prefstring,lpstring,bufsize/sizeof(wchar_t)-1);
+	wcsncpy(prefstring,lpstring,bufsize/sizeof(WCHAR)-1);
 	prefstring[res] = '\0';
 	SYS_FREE(lpstring);
 	return ( res>0 );
@@ -75,7 +75,7 @@ int read_appint(LPCWSTR cat,LPCWSTR name)
 }
 
 BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
-					 wchar_t (*lpdata)[VALUE_LEN+1],	/* 二维数组首地址,保存多个段值 */
+					 WCHAR (*lpdata)[VALUE_LEN+1],	    /* 二维数组首地址,保存多个段值 */
 					 int line							/* 二维数组行数 */
 					 )
 {
@@ -83,8 +83,8 @@ BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
 	LPWSTR	lpstring;
 	LPWSTR	strKey;
 	int		i = 0;
-	const	wchar_t delim[] = L"=";
-	DWORD	num = VALUE_LEN*sizeof(wchar_t)*line;
+	const	WCHAR delim[] = L"=";
+	DWORD	num = VALUE_LEN*sizeof(WCHAR)*line;
 	if ( profile_path[1] != L':' )
 	{
 		if (!ini_ready(profile_path,MAX_PATH))
@@ -101,7 +101,7 @@ BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
 			while(*strKey != L'\0'&& i < line) 
 			{
 				LPWSTR strtmp;
-				wchar_t t_str[VALUE_LEN] = {0};
+				WCHAR t_str[VALUE_LEN] = {0};
 				wcsncpy(t_str,strKey,VALUE_LEN-1);
 				strtmp = StrStrW(t_str, delim);
 				if (strtmp)
@@ -144,14 +144,14 @@ void __cdecl logmsg(const char * format, ...)
 
 LPWSTR stristrW(LPCWSTR Str, LPCWSTR Pat)
 {
-    wchar_t *pptr, *sptr, *start;
+    WCHAR *pptr, *sptr, *start;
 
-    for (start = (wchar_t *)Str; *start != '\0'; start++)
+    for (start = (WCHAR *)Str; *start != '\0'; start++)
     {
         for ( ; ((*start!='\0') && (toupper(*start) != toupper(*Pat))); start++);
         if ('\0' == *start) return NULL;
-        pptr = (wchar_t *)Pat;
-        sptr = (wchar_t *)start;
+        pptr = (WCHAR *)Pat;
+        sptr = (WCHAR *)start;
         while (toupper(*sptr) == toupper(*pptr))
         {
             sptr++;
@@ -181,14 +181,36 @@ void WINAPI charTochar(LPWSTR path)
 
 BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 {
-	int n = 1;
+	size_t n = 1;
+    if ( lpfile[0] == L'%' )
+    {
+        WCHAR buf_env[VALUE_LEN+1] = {0};
+        while ( lpfile[n] != L'\0' )
+        {
+            if ( lpfile[n] == L'%' )
+            {
+                break;
+            }
+            ++n;
+        }
+        if ( n < str_len )
+        {
+            _snwprintf(buf_env, n+1 ,L"%ls", lpfile);
+        }
+        if ( wcslen(buf_env) > 1 && ExpandEnvironmentStringsW(buf_env,buf_env,VALUE_LEN) > 0 )
+        {
+            WCHAR tmp_env[VALUE_LEN+1] = {0};
+            _snwprintf(tmp_env, str_len ,L"%ls%ls", buf_env, &lpfile[n+1]);
+            n = _snwprintf(lpfile, str_len ,L"%ls", tmp_env);
+        }
+    }
 	if ( dll_module && lpfile[1] != L':' )
 	{
-		wchar_t buf_modname[VALUE_LEN+1] = {0};
+		WCHAR buf_modname[VALUE_LEN+1] = {0};
 		charTochar(lpfile);
 		if ( GetModuleFileNameW( dll_module, buf_modname, VALUE_LEN) > 0)
 		{
-			wchar_t tmp_path[MAX_PATH] = {0};
+			WCHAR tmp_path[MAX_PATH] = {0};
 			PathRemoveFileSpecW(buf_modname);
 			if ( PathCombineW(tmp_path,buf_modname,lpfile) )
 			{
@@ -650,7 +672,7 @@ int WINAPI get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
 				}
 			}
 			_snwprintf(lpstrCmd,len,L"%ls",temp);
-			if (lpstrCmd[0] == L'.')
+			if ( lpstrCmd[0] == L'.' || lpstrCmd[0] == L'%' )
 			{
 				PathToCombineW(lpstrCmd,VALUE_LEN);
 			}
@@ -685,7 +707,11 @@ unsigned WINAPI run_process(void * pParam)
 	{
 		return (0);
 	}
-	// PathFileExistsW(wcmd)
+    g_mutex = CreateMutexW(NULL, FALSE, L"DllRunOnce");
+    if ( GetLastError() == ERROR_ALREADY_EXISTS )
+    {
+        return (0);
+    }
 	if ( wcslen(wcmd)>0  && !search_process(wcmd,0) )
 	{
 		fzero(&si,sizeof(si));
