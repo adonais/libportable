@@ -2,8 +2,7 @@
 #  define _ICE_ERROR_H_
 
 #ifdef ERROR_EXTERN
-#  undef ERROR_EXTERN
-#  define ERROR_EXTERN
+/* do nothing: it's been defined by ice_error.c */
 #else
 #  define ERROR_EXTERN extern
 #endif

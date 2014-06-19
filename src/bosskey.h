@@ -2,8 +2,7 @@
 #  define _BOSS_KEY_H_
 
 #ifdef BOSS_EXTERN
-#  undef BOSS_EXTERN
-#  define BOSS_EXTERN
+/* do nothing: it's been defined by bosskey.c */
 #else
 #  define BOSS_EXTERN extern
 #endif

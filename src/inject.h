@@ -2,8 +2,7 @@
 #define _IN_JECT_H
  
 #ifdef JECT_EXTERN
-#  undef JECT_EXTERN
-#  define JECT_EXTERN
+/* do nothing: it's been defined by inject.c */
 #else
 #  define JECT_EXTERN extern
 #endif

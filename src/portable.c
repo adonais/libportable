@@ -113,28 +113,36 @@ unsigned WINAPI init_global_env(void * pParam)
 		{
 			PathToCombineW(appdata_path,VALUE_LEN);
 		}
-		/* 处理localdata变量 */
-		if ( !read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path)) )
-		{
-			wcsncpy(localdata_path,appdata_path,VALUE_LEN);
-		}
-		/* 修正相对路径问题 */
-		if (localdata_path[1] != L':')
-		{
-			PathToCombineW(localdata_path,VALUE_LEN);
-		}
-		/* 为appdata建立目录 */
 		charTochar(appdata_path);
-		wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
-		SHCreateDirectoryExW(NULL,appdata_path,NULL);
-		/* 为localdata建立目录 */
-		charTochar(localdata_path);
-		wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
-		SHCreateDirectoryExW(NULL,localdata_path,NULL);
-		if ( diff )
-		{
-			WaitWriteFile(appdata_path);
-		}
+    }
+	if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path)) )
+	{
+        /* 修正相对路径问题 */
+        if (localdata_path[1] != L':')
+        {
+            PathToCombineW(localdata_path,VALUE_LEN);
+        }
+        charTochar(localdata_path);
+    }
+    else
+    {
+        wcsncpy(localdata_path,appdata_path,VALUE_LEN);
+    }
+    if ( appdata_path[0] != L'\0' )
+    {
+        /* 为appdata建立目录 */
+        wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
+        SHCreateDirectoryExW(NULL,appdata_path,NULL);
+    }
+    if ( localdata_path[0] != L'\0' )
+    {
+        /* 为localdata建立目录 */
+        wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
+        SHCreateDirectoryExW(NULL,localdata_path,NULL);
+    }
+	if ( diff && PathIsDirectoryW(appdata_path) )
+	{
+		WaitWriteFile(appdata_path);
 	}
 	return (unsigned)diff;
 }
@@ -147,18 +155,27 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 	if ( CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder )
 	{  
 		LPITEMIDLIST pidlnew = NULL;
-		HRESULT result = 0L;
-		if ( appdata_path[0] == L'\0' )
+		HRESULT result = S_FALSE;
+		switch (folder)
 		{
-			return TrueSHGetSpecialFolderLocation(hwndOwner, nFolder, ppidl);
-		}
-		if (CSIDL_LOCAL_APPDATA == folder)
-		{
-			result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
-		}
-		else
-		{
-			result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
+			case CSIDL_APPDATA:
+			{
+                if ( appdata_path[0] != L'\0' )
+                {
+                    result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
+                }
+				break;
+			}
+			case CSIDL_LOCAL_APPDATA:
+			{
+                if (localdata_path[0] != L'\0' )
+                {
+				    result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
+                }
+				break;
+			}
+			default:
+				break;
 		}
 		if (result == S_OK)
 		{
@@ -205,14 +222,20 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 			int	 num = 0;
 			case CSIDL_APPDATA:
 			{
-				num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-				ret = S_OK;
+                if ( PathIsDirectoryW(appdata_path) )
+                {
+                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
+                    ret = S_OK;
+                }
 				break;
 			}
 			case CSIDL_LOCAL_APPDATA:
 			{
-				num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-				ret = S_OK;
+                if ( PathIsDirectoryW(localdata_path) )
+                {
+                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
+                    ret = S_OK;
+                }
 				break;
 			}
 			default:

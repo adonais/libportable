@@ -2,8 +2,7 @@
 #  define _INI_PARA_H_
 
 #ifdef INI_EXTERN
-#  undef INI_EXTERN
-#  define INI_EXTERN
+/* do nothing: it's been defined by inipara.c */
 #else
 #  define INI_EXTERN extern
 #endif

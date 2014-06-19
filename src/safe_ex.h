@@ -2,8 +2,7 @@
 #  define _SAFE_EX_H_
 
 #ifdef SAFE_EXTERN
-#  undef SAFE_EXTERN
-#  define SAFE_EXTERN
+/* do nothing: it's been defined by safe_ex.c */
 #else
 #  define SAFE_EXTERN extern
 #endif
