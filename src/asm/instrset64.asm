@@ -1,7 +1,7 @@
 ;*************************  instrset64.asm  **********************************
 ; Author:           Agner Fog
 ; Date created:     2003-12-12
-; Last modified:    2013-09-11
+; Last modified:    2014-07-30
 ; Source URL:       www.agner.org/optimize
 ; Project:          asmlib.zip
 ; Language:         assembly, NASM/YASM syntax, 64 bit
@@ -18,13 +18,11 @@
 ; The method used here for detecting whether XMM instructions are enabled by
 ; the operating system is different from the method recommended by Intel.
 ; The method used here has the advantage that it is independent of the 
-; ability of the operating system to catch invalid opcode exceptions. The
-; method used here has been thoroughly tested on many different versions of
-; Intel and AMD microprocessors, and is believed to work reliably. For further
-; discussion of this method, see my manual "Optimizing subroutines in assembly
-; language" (www.agner.org/optimize/).
+; ability of the operating system to catch invalid opcode exceptions. For 
+; further discussion of this method, see my manual "Optimizing subroutines
+; in assembly language" (www.agner.org/optimize/).
 ; 
-; Copyright (c) 2003-2013 GNU General Public License www.gnu.org/licenses
+; Copyright (c) 2003-2014 GNU General Public License www.gnu.org/licenses
 ;******************************************************************************
 ;
 ; ********** InstructionSet function **********
@@ -46,7 +44,7 @@
 ; 12 or above = PCLMUL and AES supported
 ; 13 or above = AVX2 supported
 ; 14 or above = FMA3, F16C, BMI1, BMI2, LZCNT
-; 15 or above = HLE + RTM supported
+; 15 or above = AVX512f supported
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -68,16 +66,6 @@ SECTION .text  align=16
 ; ********** InstructionSet function **********
 ; C++ prototype:
 ; extern "C" int InstructionSet (void);
-
-; return value:
-;  4 or above = SSE2 supported
-;  5 or above = SSE3 supported
-;  6 or above = Supplementary SSE3 supported
-;  8 or above = SSE4.1 supported
-;  9 or above = POPCNT supported
-; 10 or above = SSE4.2 supported
-; 11 or above = AVX supported by processor and operating system
-; 12 or above = PCLMUL and AES supported
 
 
 InstructionSet:
@@ -171,8 +159,11 @@ FirstTime:
         pop     rbx
         pop     rax
         jnc     ISEND
-        
         inc     eax                    ; 14
+
+        bt      ebx, 16                ; AVX512f
+        jnc     ISEND
+        inc     eax                    ; 15
        
 ISEND:  mov     [IInstrSet@], eax      ; save value in global variable
 

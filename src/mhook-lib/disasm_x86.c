@@ -3847,9 +3847,9 @@ INTERNAL U8 *SetOperands(INSTRUCTION *Instruction, U8 *Address, U32 Flags)
 				switch (Operand->Length)
 				{
 					case 8: Operand->Register = AMD64_64BIT_OFFSET + rex_modrm.rm; break;
-					case 4: Operand->Register = X86_32BIT_OFFSET; CHECK_AMD64_REG(); break;
-					case 2: Operand->Register = X86_16BIT_OFFSET; CHECK_AMD64_REG(); break;
-					case 1: Operand->Register = X86_8BIT_OFFSET; if (X86Instruction->rex_b) CHECK_AMD64_REG(); break;
+					case 4: Operand->Register = X86_32BIT_OFFSET, rex_modrm.rm; CHECK_AMD64_REG(); break;
+					case 2: Operand->Register = X86_16BIT_OFFSET, rex_modrm.rm; CHECK_AMD64_REG(); break;
+					case 1: Operand->Register = X86_8BIT_OFFSET, rex_modrm.rm; if (X86Instruction->rex_b) CHECK_AMD64_REG(); break;
 					default: assert(0); return NULL;
 				}
 				X86_SET_REG(rex_modrm.rm);

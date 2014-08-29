@@ -4,6 +4,7 @@ BITS 32
 global _GetLoaderPic, _GetLoaderPicSize
 
 section .text
+align 16
 
 ;extern "C" DWORD __cdecl GetLoaderPicSize();
 _GetLoaderPicSize:

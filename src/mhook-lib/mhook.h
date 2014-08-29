@@ -33,5 +33,3 @@ BOOL Mhook_Unhook(PVOID *ppHookedFunction);
 }
 #endif 
 
-#define MHOOKS_MAX_SUPPORTED_HOOKS	64
-

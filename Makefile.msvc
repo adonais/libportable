@@ -14,15 +14,15 @@ LIBPORTABLE_STATIC =
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
 PLATFORM = X64
 BITS	 = 64
-CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
+CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
 DEPLIBS  = /LIBPATH:msrt msvcrt-light-x64.lib
-ASMFLAGS = -fwin64 -DWINDOWS -Worphan-labels
+ASMFLAGS = -fwin64 -O2 -DWINDOWS -Worphan-labels
 !else
 PLATFORM = X86
 BITS	 = 32
 CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
 DEPLIBS  = /LIBPATH:msrt msvcrt-light-x86.lib
-ASMFLAGS = -fwin32 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
+ASMFLAGS = -fwin32 -O2 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
 !endif
 
 CPPFLAGS = $(CFLAGS) /TP
@@ -41,9 +41,9 @@ RC       = rc.exe
 RCFLAGS  = /D "_UNICODE" /D "UNICODE"
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj  $(DEP)\safe_ex.obj \
-           $(DEP)\inject.obj $(DEP)\bosskey.obj  $(DEP)\cachesize$(BITS).obj $(DEP)\instrset$(BITS).obj \
-	   $(DEP)\unalignedisfaster$(BITS).obj $(DEP)\memset$(BITS).obj $(DEP)\cputype$(BITS).obj \
-	   $(DEP)\inject$(BITS).obj
+           $(DEP)\inject.obj $(DEP)\bosskey.obj  $(DEP)\prefjs.obj $(DEP)\cachesize$(BITS).obj \
+	   $(DEP)\instrset$(BITS).obj $(DEP)\unalignedisfaster$(BITS).obj $(DEP)\memset$(BITS).obj \
+	   $(DEP)\cputype$(BITS).obj $(DEP)\inject$(BITS).obj
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 LD       = lib.exe
@@ -55,7 +55,7 @@ DEPLIBS  =
 OBJS     = $(DEP)\*.obj
 !else
 CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
-LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES
+LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
 DEPLIBS  = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(DEPLIBS)
 OUT	 = $(DISTDIR)\portable$(BITS).dll
 TETE	 = $(DISTDIR)\tmemutil.dll
@@ -91,6 +91,8 @@ $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
 	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
 $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
+$(DEP)\prefjs.obj      : $(SRC)\prefjs.c $(SRC)\prefjs.h
+	$(CC) $(CFLAGS) /c $(SRC)\prefjs.c /Fo$@
 $(DEP)\cachesize$(BITS).obj	    : $(SRC)\asm\cachesize$(BITS).asm
 	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\cachesize$(BITS).asm
 $(DEP)\instrset$(BITS).obj	    : $(SRC)\asm\instrset$(BITS).asm

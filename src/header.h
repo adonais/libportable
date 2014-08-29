@@ -92,28 +92,6 @@ typedef struct _STRING
 } STRING, *PSTRING;
 #endif
 
-#if !defined(_MSC_VER)
-#ifndef _LARGE_INTEGER_DEFINED
-#define _LARGE_INTEGER_DEFINED
-/* Large Integer Unions */
-#if defined(MIDL_PASS)
-typedef struct _LARGE_INTEGER {
-#else
-typedef union _LARGE_INTEGER {
-  __C89_NAMELESS struct {
-    ULONG LowPart;
-    LONG HighPart;
-  } DUMMYSTRUCTNAME;
-  struct {
-    ULONG LowPart;
-    LONG HighPart;
-  } u;
-#endif
-  LONGLONG QuadPart;
-} LARGE_INTEGER, *PLARGE_INTEGER;
-#endif
-#endif
-
 typedef struct _FILE_NAME_INFORMATION {
   ULONG FileNameLength;
   WCHAR FileName[1];

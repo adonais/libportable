@@ -20,7 +20,7 @@ else
 DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
-CFLAGS   += $(DFLAGS)  -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
+CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
 	    -fomit-frame-pointer -finline-functions -fno-stack-protector
 
 MD       = mkdir -p
@@ -32,9 +32,9 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -msse2 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o  $(DEP)/cachesize$(BITS).o $(DEP)/instrset$(BITS).o \
-	   $(DEP)/unalignedisfaster$(BITS).o $(DEP)/memset$(BITS).o $(DEP)/cputype$(BITS).o \
-	   $(DEP)/inject$(BITS).o
+           $(DEP)/inject.o $(DEP)/bosskey.o  $(DEP)/prefjs.o $(DEP)/cachesize$(BITS).o \
+	   $(DEP)/instrset$(BITS).o $(DEP)/unalignedisfaster$(BITS).o $(DEP)/memset$(BITS).o \
+	   $(DEP)/cputype$(BITS).o $(DEP)/inject$(BITS).o
 
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libmhook$(BITS).a
@@ -47,7 +47,7 @@ EXEC     = \
 ifeq ($(BITS),32)
     CFLAGS  += $(X86FLAG)
     LDFLAGS := -m32
-    ASMFLAGS = -fwin32 -DWINDOWS -D__i386__ -DWIN32 -Worphan-labels
+    ASMFLAGS = -fwin32 -DWINDOWS -O2 -D__i386__ -DWIN32 -Worphan-labels
 else
     ifeq ($(BITS),64)
         CFLAGS	+= $(X64FLAG)
@@ -94,6 +94,8 @@ $(DEP)/safe_ex.o      : $(SRC)/safe_ex.c $(SRC)/safe_ex.h $(SRC)/header.h
 $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/prefjs.o      : $(SRC)/prefjs.c $(SRC)/prefjs.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/cachesize$(BITS).o	  : $(SRC)/asm/cachesize$(BITS).asm
 	$(YASM) -o $@ $(ASMFLAGS) $<

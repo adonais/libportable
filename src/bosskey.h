@@ -14,7 +14,7 @@ typedef struct tagWNDINFO
 	int	     atom_str;
 	int      key_mod;
 	int      key_vk;
-	DWORD    pFF;
+    DWORD    hPid;
     HWND     hFF;
 } WNDINFO;
 

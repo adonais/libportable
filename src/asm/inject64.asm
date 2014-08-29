@@ -6,6 +6,7 @@ DEFAULT REL
 global GetLoaderPic, GetLoaderPicSize
 
 section .text
+align 16
 
 GetLoaderPicSize:
 	mov rax, loader_pic_config_size + loader_pic_size

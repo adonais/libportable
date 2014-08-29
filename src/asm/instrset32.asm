@@ -1,7 +1,7 @@
 ;*************************  instrset32.asm  **********************************
 ; Author:           Agner Fog
 ; Date created:     2003-12-12
-; Last modified:    2013-09-11
+; Last modified:    2014-07-30
 ; Source URL:       www.agner.org/optimize
 ; Project:          asmlib.zip
 ; Language:         assembly, NASM/YASM syntax, 32 bit
@@ -24,7 +24,7 @@
 ; discussion of this method, see my manual "Optimizing subroutines in assembly
 ; language" (www.agner.org/optimize/).
 ; 
-; Copyright (c) 2003-2013 GNU General Public License www.gnu.org/licenses
+; Copyright (c) 2003-2014 GNU General Public License www.gnu.org/licenses
 ;******************************************************************************
 ;
 ; ********** InstructionSet function **********
@@ -46,7 +46,7 @@
 ; 12 or above = PCLMUL and AES supported
 ; 13 or above = AVX2 supported
 ; 14 or above = FMA3, F16C, BMI1, BMI2, LZCNT
-; 15 or above = HLE + RTM supported
+; 15 or above = AVX512f supported
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -229,9 +229,12 @@ TESTPS   EQU 10CH                      ; position to write TESTDATA = upper part
         pop     ecx
         pop     ebx
         pop     eax
-        jnc     ISEND
-        
+        jnc     ISEND        
         inc     eax                    ; 14
+
+        bt      ebx, 16                ; AVX512f
+        jnc     ISEND
+        inc     eax                    ; 15
         
 ISEND:  pop     edx                    ; address of _IInstrSet
         mov     [edx], eax             ; save value in public variable _IInstrSet
