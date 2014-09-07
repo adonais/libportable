@@ -32,8 +32,6 @@ static  WNDINFO ff_info;
 static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
 static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
 static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
-static void before_run(void);
-int    user_tcmalloc = 1;
 
 /* 数据段共享锁,保证进程生存周期内只运行一次 */
 #ifdef _MSC_VER
