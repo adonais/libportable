@@ -3,7 +3,7 @@
 #include "disasm.h"
 #include "cpu.h"
 
-#if defined(LIBPORTABLE_EXPORTS) && defined(_MSC_VER)
+#if defined(LIBPORTABLE_EXPORTS) && !defined(VC12_CRT) && defined(_MSC_VER)
 #undef stdout
 extern FILE _iob[];
 #define stdout (&_iob[1])

@@ -28,6 +28,13 @@ typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
         BOOL fCreate);
 typedef void (CALLBACK *user_func)(void);
 
+static  WNDINFO ff_info;
+static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
+static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
+static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
+static void before_run(void);
+int    user_tcmalloc = 1;
+
 /* 数据段共享锁,保证进程生存周期内只运行一次 */
 #ifdef _MSC_VER
 #pragma data_seg(".shrd")
@@ -39,11 +46,6 @@ WCHAR   localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
 #pragma data_seg()
 #endif
-
-static  WNDINFO ff_info;
-static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
-static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
-static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 
 /* Asm replacment for memset */
 void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
@@ -390,8 +392,14 @@ void WINAPI do_it(void)
 extern "C" {
 #endif
 
+#if defined(VC12_CRT)
+#define dllstartup DllMain
+#elif defined(LIBPORTABLE_EXPORTS)
+#define dllstartup _DllMainCRTStartup
+#endif
+
 #if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
-int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
+int CALLBACK dllstartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 {
     switch(dwReason)
     {
