@@ -9,6 +9,11 @@
 #define __C89_NAMELESS
 #endif
 
+#if !defined (_NTDEF_) && !defined (_NTSTATUS_PSDK)
+#define _NTSTATUS_PSDK
+typedef LONG NTSTATUS, *PNTSTATUS;
+#endif
+
 #define CREATE_PROCESS_BREAKAWAY_FROM_JOB	0x0001
 #define CREATE_PROCESS_INHERIT_HANDLES		0x0004
 #define CREATE_PROCESS_PROTECTED			0x0040
@@ -19,6 +24,20 @@
 #define STATUS_SUCCESS						((NTSTATUS)0x00000000)
 #define STATUS_OBJECT_PATH_NOT_FOUND		((NTSTATUS)0xC000003A)
 #define NtCurrentProcess()					((HANDLE)(LONG_PTR) -1)
+#define STATUS_END_OF_FILE                  ((NTSTATUS)0xC0000011)
+#ifndef STATUS_PENDING
+#define STATUS_PENDING                      ((NTSTATUS)0x00000103)
+#endif
+
+#define FILE_SUPERSEDE                      0x00000000
+#define FILE_OPEN                           0x00000001
+#define FILE_CREATE                         0x00000002
+#define FILE_OPEN_IF                        0x00000003
+#define FILE_OVERWRITE                      0x00000004
+#define FILE_OVERWRITE_IF                   0x00000005
+#define FILE_MAXIMUM_DISPOSITION            0x00000005
+#define FILE_SYNCHRONOUS_IO_NONALERT        0x00000020
+#define FILE_NON_DIRECTORY_FILE             0x00000040
 
 #define ProcThreadAttributeValue( p1, p2, p3, p4 ) \
         (((p1) & PROC_THREAD_ATTRIBUTE_NUMBER) | \
@@ -30,17 +49,12 @@
 
 #define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004)
 
-#ifndef _NTSTATUS_PSDK
-#define _NTSTATUS_PSDK
-  typedef LONG NTSTATUS;
-#endif
-
 #ifndef __UNICODE_STRING_DEFINED
 #define __UNICODE_STRING_DEFINED
   typedef struct _UNICODE_STRING {
     USHORT Length;
     USHORT MaximumLength;
-    PWSTR Buffer;
+    PWSTR  Buffer;
   } UNICODE_STRING;
   typedef UNICODE_STRING *PUNICODE_STRING;
 #endif
@@ -49,19 +63,50 @@
 #define __OBJECT_ATTRIBUTES_DEFINED
   typedef struct _OBJECT_ATTRIBUTES {
     ULONG Length;
-#if defined(_M_X64)
+#ifdef _WIN64
     ULONG pad1;
 #endif
     HANDLE RootDirectory;
     PUNICODE_STRING ObjectName;
     ULONG Attributes;
-#if defined(_M_X64)
+#ifdef _WIN64
     ULONG pad2;
 #endif
     PVOID SecurityDescriptor;
     PVOID SecurityQualityOfService;
   } OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
 #endif
+
+/* Values for the Attributes member */
+#define OBJ_INHERIT             0x00000002
+#define OBJ_PERMANENT           0x00000010
+#define OBJ_EXCLUSIVE           0x00000020
+#define OBJ_CASE_INSENSITIVE    0x00000040
+#define OBJ_OPENIF              0x00000080
+#define OBJ_OPENLINK            0x00000100
+#define OBJ_KERNEL_HANDLE       0x00000200
+#define OBJ_FORCE_ACCESS_CHECK  0x00000400
+#define OBJ_VALID_ATTRIBUTES    0x000007F2
+
+/* Helper Macro */
+#define InitializeObjectAttributes(p,n,a,r,s) { \
+    (p)->Length = sizeof(OBJECT_ATTRIBUTES); \
+    (p)->RootDirectory = (r); \
+    (p)->Attributes = (a); \
+    (p)->ObjectName = (n); \
+    (p)->SecurityDescriptor = (s); \
+    (p)->SecurityQualityOfService = NULL; \
+}
+
+typedef struct _IO_STATUS_BLOCK {
+  __C89_NAMELESS union {
+    NTSTATUS Status;
+    PVOID Pointer;
+  };
+  ULONG_PTR Information;
+} IO_STATUS_BLOCK,*PIO_STATUS_BLOCK;
+
+typedef VOID (NTAPI *PIO_APC_ROUTINE)(PVOID ApcContext,PIO_STATUS_BLOCK IoStatusBlock,ULONG Reserved);
 
 #ifndef __NT_PROC_THREAD_ATTRIBUTE_ENTRY
 #define __NT_PROC_THREAD_ATTRIBUTE_ENTRY
@@ -602,7 +647,7 @@ typedef NTSTATUS (NTAPI *_NtTerminateProcess)(HANDLE hProcess,
 									    NTSTATUS ExitStatus);
 typedef NTSTATUS (NTAPI *_NtUnmapViewOfSection)( HANDLE ProcessHandle,
 										PVOID BaseAddress );
-typedef NTSTATUS (NTAPI *_NtCLOSE) ( HANDLE ); 
+typedef NTSTATUS (NTAPI *_NtClose) ( HANDLE ); 
 typedef NTSTATUS (NTAPI *_NtAllocateVirtualMemory)(HANDLE ProcessHandle,
 										PVOID *BaseAddress,
 										ULONG_PTR ZeroBits,
@@ -691,5 +736,47 @@ typedef HMODULE  (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,
 typedef NTSTATUS (NTAPI *_NtLdrpProcessImportDirectory)(PLDR_DATA_TABLE_ENTRY Module,
 										PLDR_DATA_TABLE_ENTRY ImportedModule,
 										PCHAR ImportedName);
-
+typedef NTSTATUS (NTAPI *_NtLdrLoadDll) (PWCHAR PathToFile,
+                                        ULONG Flags,
+                                        PUNICODE_STRING ModuleFileName,
+                                        PHANDLE ModuleHandle);
+typedef VOID (NTAPI *_RtlInitUnicodeString)(PUNICODE_STRING DestinationString,
+                                        PCWSTR SourceString);
+typedef BOOL (NTAPI *_RtlDosPathNameToNtPathName_U)(PCWSTR DosPathName, 
+                                        PUNICODE_STRING NtPathName, 
+                                        PCWSTR *NtFileNamePart, 
+                                        VOID *DirectoryInfo);
+typedef VOID (NTAPI *_RtlFreeUnicodeString)(PUNICODE_STRING DestinationString);
+typedef NTSTATUS (NTAPI *_NtCreateFile)(PHANDLE FileHandle,
+                                        ACCESS_MASK DesiredAccess,
+                                        POBJECT_ATTRIBUTES ObjectAttributes,
+                                        PIO_STATUS_BLOCK IoStatusBlock,
+                                        PLARGE_INTEGER AllocationSize,
+                                        ULONG FileAttributes,
+                                        ULONG ShareAccess,
+                                        ULONG CreateDisposition,
+                                        ULONG CreateOptions,
+                                        PVOID EaBuffer,
+                                        ULONG EaLength
+                                        );
+typedef NTSTATUS (NTAPI *_NtReadFile)(HANDLE FileHandle,
+                                        HANDLE Event,
+                                        PIO_APC_ROUTINE ApcRoutine,
+                                        PVOID ApcContext,
+                                        PIO_STATUS_BLOCK IoStatusBlock,
+                                        PVOID Buffer,
+                                        ULONG Length,
+                                        PLARGE_INTEGER ByteOffset,
+                                        PULONG Key
+                                        );
+typedef NTSTATUS (NTAPI *_NtWriteFile)(HANDLE FileHandle,
+                                        HANDLE Event,
+                                        PIO_APC_ROUTINE ApcRoutine,
+                                        PVOID ApcContext,
+                                        PIO_STATUS_BLOCK IoStatusBlock,
+                                        PVOID Buffer,
+                                        ULONG Length,
+                                        PLARGE_INTEGER ByteOffset,
+                                        PULONG Key
+                                        );                                       
 #endif  /* _HEAD_ER_H_ */

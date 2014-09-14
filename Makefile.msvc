@@ -2,8 +2,8 @@
 
 CC       = cl.exe
 CPP	 = cl.exe
-TCFLAGS  =
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GS- /GR- /Gd /GL /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+TCMALLOC  =
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /GS- /GR- /Gd /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -11,7 +11,7 @@ YASM     = msrt\yasm.exe
 
 LIBPORTABLE_STATIC =
 
-!if "$(TCFLAGS)"=="1"
+!if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
 !else
@@ -37,18 +37,24 @@ CP	 = copy
 RM	 = @del /q
 RMDIR    = @rmdir /s /q
 SRC      = src
-SUB_DIR  = $(SRC)\mhook-lib
+SUB_DIR  = $(SRC)\minhook
 SUBMK    =\
 	@cd $(SUB_DIR) && $(MAKE) -f Makefile.msvc
 
 DEP      = .dep
 RC       = rc.exe
 RCFLAGS  = /D "_UNICODE" /D "UNICODE"
+MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj  $(DEP)\safe_ex.obj \
-           $(DEP)\inject.obj $(DEP)\bosskey.obj  $(DEP)\prefjs.obj $(DEP)\cachesize$(BITS).obj \
-	   $(DEP)\instrset$(BITS).obj $(DEP)\unalignedisfaster$(BITS).obj $(DEP)\memset$(BITS).obj \
-	   $(DEP)\cputype$(BITS).obj $(DEP)\inject$(BITS).obj
+OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj
+
+!if "$(DISABLE_SAFE)"!="1"
+OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
+!else
+CFLAGS   = $(CFLAGS) /D "DISABLE_SAFE"
+!endif
+
+CFLAGS   = $(CFLAGS) /I$(MIN_INC)
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 LD       = lib.exe
@@ -60,7 +66,7 @@ CRTFLAGS =
 OBJS     = $(DEP)\*.obj
 !else
 CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
-!if "$(TCFLAGS)"=="1"
+!if "$(TCMALLOC)"=="1"
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
@@ -73,7 +79,7 @@ OBJS     = $(OBJDLL)
 !endif
 
 DISTDIR	 = Release
-OUT1	 = $(DISTDIR)\mhook$(BITS).lib
+OUT1	 = $(DISTDIR)\minhook$(BITS).lib
 
 EXEC		= \
 	@echo coming to src subdir...  && \
@@ -85,35 +91,23 @@ $(OUT1)			: $(SUB_DIR)/Makefile.msvc
 	@if not exist $(YASM) (@echo Error: yasm not exist & exit 1)
 	$(SUBMK)
 $(OUT)			: $(OBJDLL)
-	$(LD) /OUT:"$@" $(OBJS) $(LDFLAGS) $(CRTFLAGS)
+	$(LD) /OUT:"$@" $(OBJS) $(LDFLAGS) $(MIN_LIB) $(CRTFLAGS)
 	-copy /y $(OUT) $(TETE) 2>&1>NUL
-$(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h $(SRC)\header.h
+$(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
 	$(EXEC)
 	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
 $(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
+!if "$(DISABLE_SAFE)"!="1"
 $(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\header.h
 	$(CC) $(CFLAGS) /c $(SRC)\inject.c /Fo$@
 $(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\header.h
 	$(CC) $(CFLAGS) /c $(SRC)\safe_ex.c /Fo$@
+!endif
 $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
 	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
 $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
-$(DEP)\prefjs.obj      : $(SRC)\prefjs.c $(SRC)\prefjs.h
-	$(CC) $(CFLAGS) /c $(SRC)\prefjs.c /Fo$@
-$(DEP)\cachesize$(BITS).obj	    : $(SRC)\asm\cachesize$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\cachesize$(BITS).asm
-$(DEP)\instrset$(BITS).obj	    : $(SRC)\asm\instrset$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\instrset$(BITS).asm
-$(DEP)\memset$(BITS).obj	    : $(SRC)\asm\memset$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\memset$(BITS).asm
-$(DEP)\cputype$(BITS).obj	    : $(SRC)\asm\cputype$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\cputype$(BITS).asm
-$(DEP)\unalignedisfaster$(BITS).obj : $(SRC)\asm\unalignedisfaster$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\unalignedisfaster$(BITS).asm
-$(DEP)\inject$(BITS).obj	    : $(SRC)\asm\inject$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $(SRC)\asm\inject$(BITS).asm
 $(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 

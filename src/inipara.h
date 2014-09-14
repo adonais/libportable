@@ -29,7 +29,6 @@
 #define SHARED
 #endif
 
-INI_EXTERN wchar_t profile_path[MAX_PATH+1];               /* only init once */
 INI_EXTERN HMODULE dll_module;                             /* portable module addr */
 INI_EXTERN HANDLE  g_handle[PROCESS_NUM];				   /* process tree handle */
 
@@ -43,13 +42,7 @@ extern
 void __cdecl logmsg(const char * format, ...);
 #endif
 
-extern 
-#ifdef __cplusplus
-"C"
-#endif
-void * __cdecl A_memset(void * dest, int c, size_t count); /*asm memset funciton */
-
-#define fzero(b,len) (A_memset((b),'\0',(len)),(void)0)
+#define fzero(b,len) (memset((b),'\0',(len)),(void)0)
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,17 +60,19 @@ INI_EXTERN BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
 				 );
 INI_EXTERN int  read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL foreach_section(LPCWSTR cat, wchar_t (*lpdata)[VALUE_LEN+1], int m);
+INI_EXTERN BOOL inifile_exist(void);
 INI_EXTERN BOOL is_nplugins(void);
 INI_EXTERN BOOL is_thunderbird(void);
 INI_EXTERN BOOL is_browser(void);
+INI_EXTERN BOOL WINAPI get_mozilla_profile(LPCWSTR app, LPWSTR in_dir, size_t len);
 INI_EXTERN BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file);
 INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
-INI_EXTERN BOOL WINAPI get_mozilla_profile(LPCWSTR app, LPWSTR in_dir, size_t len);
 INI_EXTERN unsigned WINAPI SetPluginPath(void * pParam);
 INI_EXTERN unsigned WINAPI run_process(void * pParam);
 INI_EXTERN void WINAPI refresh_tray(void);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen);
+INI_EXTERN BOOL WINAPI find_msvcrt(LPCWSTR pfile,char *crt_name,int len);
 INI_EXTERN char * WINAPI unicode_ansi(LPCWSTR pwszUnicode);
 
 #ifdef __cplusplus

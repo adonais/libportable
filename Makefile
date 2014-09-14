@@ -21,23 +21,24 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-	    -fomit-frame-pointer -finline-functions -fno-stack-protector
+	    -fdata-sections -fomit-frame-pointer -finline-functions -fno-stack-protector
 
 MD       = mkdir -p
 CP       = cp
 SRC      = src
-SUB_DIR  = $(SRC)/mhook-lib
+SUB_DIR  = $(SRC)/minhook
 SUBMK    = $(MAKE) -C $(SUB_DIR)
 DEP      = .dep
-X86FLAG  = -D_WIN32 -msse2 -m32
+X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o  $(DEP)/prefjs.o $(DEP)/cachesize$(BITS).o \
 	   $(DEP)/instrset$(BITS).o $(DEP)/unalignedisfaster$(BITS).o $(DEP)/memset$(BITS).o \
-	   $(DEP)/cputype$(BITS).o $(DEP)/inject$(BITS).o
-
+	   $(DEP)/cputype$(BITS).o
+MIN_INC  = $(SRC)/minhook/include
+CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
-OUT1     = $(DISTDIR)/libmhook$(BITS).a
+OUT1     = $(DISTDIR)/libminhook$(BITS).a
 
 EXEC     = \
     @echo Starting Compile... \
@@ -68,8 +69,8 @@ else
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
 LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
-LDFLAGS  += -L$(DISTDIR) -lmhook$(BITS) -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
-DLLFLAGS += -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
+LDFLAGS  += -L$(DISTDIR) -lminhook$(BITS) -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
+DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff
 OBJECTS  += $(DEP)/resource.o
@@ -106,8 +107,6 @@ $(DEP)/memset$(BITS).o	          : $(SRC)/asm/memset$(BITS).asm
 $(DEP)/cputype$(BITS).o	          : $(SRC)/asm/cputype$(BITS).asm
 	$(YASM) -o $@ $(ASMFLAGS) $<
 $(DEP)/unalignedisfaster$(BITS).o : $(SRC)/asm/unalignedisfaster$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
-$(DEP)/inject$(BITS).o	          : $(SRC)/asm/inject$(BITS).asm
 	$(YASM) -o $@ $(ASMFLAGS) $<
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

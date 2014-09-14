@@ -4,11 +4,13 @@
 
 #include "portable.h"
 #include "inipara.h"
+#ifndef DISABLE_SAFE
 #include "safe_ex.h"
+#endif
 #include "ice_error.h"
 #include "bosskey.h"
 #include "prefjs.h"
-#include "mhook-lib/mhook.h"
+#include "minhook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <process.h>
@@ -48,7 +50,7 @@ WCHAR   localdata_path[VALUE_LEN+1] SHARED = {0} ;
 /* Asm replacment for memset */
 void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
 {
-    return A_memset(dest, c, count);
+    return memset(dest, c, count);
 }
 
 /* Never used,to be compatible with tete's patch */
@@ -65,41 +67,41 @@ intptr_t GetAppDirHash_tt( void )
 BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
 {
     BOOL  ret = FALSE;
-    WCHAR profile_orgi[MAX_PATH+1];   
-    if ( !get_mozilla_profile(app_path, profile_orgi, MAX_PATH) )
+    WCHAR moz_profile[MAX_PATH+1];   
+    if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
     {
         return ret;
     }
-    if ( PathFileExistsW(profile_orgi) )
+    if ( PathFileExistsW(moz_profile) )
     {
         if ( is_thunderbird() )
         {
-            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../",profile_orgi);
+            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../",moz_profile);
         }
         else
         {
-            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../../",profile_orgi);
+            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../../",moz_profile);
         }
     }
     else
     {
         LPWSTR szDir;
-        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(profile_orgi) ) ) != NULL )
+        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL )
         {
-            wcsncpy (szDir, profile_orgi, MAX_PATH);
+            wcsncpy (szDir, moz_profile, MAX_PATH);
             PathRemoveFileSpecW( szDir );
             SHCreateDirectoryExW(NULL,szDir,NULL);
             SYS_FREE(szDir);
-            WritePrivateProfileSectionW(L"General",L"StartWithLastProfile=1\r\n\0",profile_orgi);
+            WritePrivateProfileSectionW(L"General",L"StartWithLastProfile=1\r\n\0",moz_profile);
             if ( is_thunderbird() )
             {
                 ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../\r\nDefault=1\r\n\0" \
-                                                  ,profile_orgi);
+                                                  ,moz_profile);
             }
             else
             {
                 ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0" \
-                                                  ,profile_orgi);
+                                                  ,moz_profile);
             }
         }
     }
@@ -270,31 +272,35 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
 
 void WINAPI init_portable(user_func init_env)
 {
-    HMODULE hShell32;
-    (*init_env)();
-    hShell32 = GetModuleHandleW(L"shell32.dll");
-    if (hShell32 == NULL)
-    {
-        return;
-    }
-    TrueSHGetFolderPathW = (_NtSHGetFolderPathW)GetProcAddress(hShell32,
-                           "SHGetFolderPathW");
-    TrueSHGetSpecialFolderPathW = (_NtSHGetSpecialFolderPathW)GetProcAddress(hShell32,
-                                  "SHGetSpecialFolderPathW");
-    TrueSHGetSpecialFolderLocation = (_NtSHGetSpecialFolderLocation)GetProcAddress(hShell32,
-                                     "SHGetSpecialFolderLocation"); 
+    /* 回调函数运行,初始化全局变量 */
+    (*init_env)();                 
     /* hook 下面几个函数 */
-    if (TrueSHGetSpecialFolderLocation)
+    if ( MH_CreateHook(&SHGetSpecialFolderLocation, &HookSHGetSpecialFolderLocation, (LPVOID*)&TrueSHGetSpecialFolderLocation) == MH_OK )
     {
-        Mhook_SetHook((PVOID*)&TrueSHGetSpecialFolderLocation, (PVOID)HookSHGetSpecialFolderLocation);
+        if ( MH_EnableHook(&SHGetSpecialFolderLocation) != MH_OK )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("SHGetSpecialFolderLocation hook failed!\n");
+        #endif
+        }
     }
-    if (TrueSHGetFolderPathW)
+    if ( MH_CreateHook(&SHGetFolderPathW, &HookSHGetFolderPathW, (LPVOID*)&TrueSHGetFolderPathW) == MH_OK )
     {
-        Mhook_SetHook((PVOID*)&TrueSHGetFolderPathW, (PVOID)HookSHGetFolderPathW);
+        if ( MH_EnableHook(&SHGetFolderPathW) != MH_OK )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("SHGetFolderPathW hook failed!\n");
+        #endif
+        }
     }
-    if (TrueSHGetSpecialFolderPathW)
+    if ( MH_CreateHook(&SHGetSpecialFolderPathW, &HookSHGetSpecialFolderPathW, (LPVOID*)&TrueSHGetSpecialFolderPathW) == MH_OK )
     {
-        Mhook_SetHook((PVOID*)&TrueSHGetSpecialFolderPathW, (PVOID)HookSHGetSpecialFolderPathW);
+        if ( MH_EnableHook(&SHGetSpecialFolderPathW) != MH_OK )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("SHGetSpecialFolderPathW hook failed!\n");
+        #endif
+        }
     }
     return;
 }
@@ -319,18 +325,21 @@ void WINAPI undo_it(void)
     }
     if (TrueSHGetFolderPathW)
     {
-        Mhook_Unhook((PVOID*)&TrueSHGetFolderPathW);
+        MH_DisableHook(&SHGetFolderPathW);
     }
     if (TrueSHGetSpecialFolderPathW)
     {
-        Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderPathW);
+        MH_DisableHook(&SHGetSpecialFolderPathW);
     }
     if (TrueSHGetSpecialFolderLocation)
     {
-        Mhook_Unhook((PVOID*)&TrueSHGetSpecialFolderLocation);
+        MH_DisableHook(&SHGetSpecialFolderLocation);
     }
     jmp_end();
-    safe_end();
+#ifndef DISABLE_SAFE
+	safe_end();
+#endif
+	MH_Uninitialize();
     return;
 }
 
@@ -344,26 +353,25 @@ void WINAPI do_it(void)
         strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
     }
 #endif
+    if (MH_Initialize() != MH_OK) return;
     if ( read_appint(L"General", L"Portable") > 0 && (appdata_path[1] == L':' ||
          read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path))) )
     {
         init_portable(&init_global_env);
     }
+#ifndef DISABLE_SAFE
     if ( read_appint(L"General",L"SafeEx") > 0 )
     {
         init_safed(NULL);
     }
- #ifdef _LOGDEBUG
-     logmsg("RunPart = %d, appdata = %ls\n",RunPart, appdata_path);
- #endif
-    if ( !RunPart )
+#endif
+    if ( !RunPart && inifile_exist() )
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&gmpservice_check,NULL,0,NULL));
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,NULL,0,NULL));
         }
-        if ( read_appint(L"General",L"CreateCrashDump") > 0 )
+        if ( read_appint(L"General",L"CreateCrashDump") )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
         }
@@ -371,9 +379,6 @@ void WINAPI do_it(void)
         {
             ZeroMemory(&ff_info, sizeof(WNDINFO));
             ff_info.hPid = GetCurrentProcessId();
-         #ifdef _LOGDEBUG
-            logmsg("ff_info.hPid = %lu\n",ff_info.hPid);
-         #endif
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
         }
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
@@ -391,13 +396,12 @@ extern "C" {
 #endif
 
 #if defined(VC12_CRT)
-#define dllstartup DllMain
-#elif defined(LIBPORTABLE_EXPORTS)
-#define dllstartup _DllMainCRTStartup
+#undef _DllMainCRTStartup
+#define _DllMainCRTStartup DllMain
 #endif
 
 #if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
-int CALLBACK dllstartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
+int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 {
     switch(dwReason)
     {

@@ -10,11 +10,28 @@
 #  include <stdarg.h>
 #endif
 
-typedef BOOL (WINAPI *_pInitializeCriticalSectionEx)(CRITICAL_SECTION *lpCriticalSection,DWORD dwSpinCount,DWORD Flags);
+typedef	int (__cdecl *_pwrite_env)(LPCWSTR envstring);
+
+/* only init once */
+static WCHAR profile_path[MAX_PATH+1];
+
+volatile LONG g_locked = FALSE;
+static VOID EnterSpinLock(VOID)
+{
+    while (_InterlockedCompareExchange(&g_locked, TRUE, FALSE) != FALSE)
+    {
+        Sleep(1);
+    }
+}
+static VOID LeaveSpinLock(VOID)
+{
+    _InterlockedExchange(&g_locked, FALSE);
+}
 
 BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
 {
     BOOL rect = FALSE;
+    EnterSpinLock();
 #ifdef LIBPORTABLE_STATIC
     dll_module = NULL;
 #endif
@@ -30,6 +47,7 @@ BOOL WINAPI ini_ready(LPWSTR inifull_name,DWORD str_len)
             rect = PathFileExistsW(inifull_name);
         }
     }
+    LeaveSpinLock();
     return rect;
 }
 
@@ -57,7 +75,6 @@ BOOL read_appkey(LPCWSTR lpappname,              /* 区段名 */
     }
     wcsncpy(prefstring,lpstring,bufsize/sizeof(WCHAR)-1);
     prefstring[res] = '\0';
-    SYS_FREE(lpstring);
     return ( res>0 );
 }
 
@@ -118,6 +135,15 @@ BOOL foreach_section(LPCWSTR cat,						/* ini 区段 */
     return (BOOL)res;
 }
 
+BOOL inifile_exist(void)
+{
+    WCHAR file[VALUE_LEN+1] = {0};
+    if ( profile_path[1] == L':' )
+        return PathFileExistsW(profile_path);
+    else
+        return ini_ready(file,VALUE_LEN);
+}
+
 #ifdef _LOGDEBUG
 void __cdecl logmsg(const char * format, ...)
 {
@@ -175,14 +201,14 @@ void WINAPI charTochar(LPWSTR path)
             pos = lp-path;
             path[pos] = L'\\';
         }
-    }
-    while (lp!=NULL);
+    }while (lp!=NULL);
     return;
 }
 
 BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
 {
     size_t n = 1;
+    EnterSpinLock();
     if ( lpfile[0] == L'%' )
     {
         WCHAR buf_env[VALUE_LEN+1] = {0};
@@ -219,6 +245,7 @@ BOOL PathToCombineW(LPWSTR lpfile, size_t str_len)
             }
         }
     }
+    LeaveSpinLock();
     return (n>0);
 }
 
@@ -318,13 +345,13 @@ BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
             i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath+i+1);
         }
     }
-    return (i>0);
+    return (i>0 && i<wlen);
 }
 
 BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
 {
     size_t i = 0;
-    WCHAR lpFullPath[MAX_PATH+1]= {0};
+    WCHAR lpFullPath[MAX_PATH+1] = {0};
     if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
     {
         for( i=wcslen(lpFullPath); i>0; i-- )
@@ -340,7 +367,7 @@ BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
             i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath);
         }
     }
-    return (i>0);
+    return (i>0 && i<wlen);
 }
 
 BOOL is_nplugins(void)
@@ -394,18 +421,16 @@ BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
 
 BOOL WINAPI get_mozilla_profile(LPCWSTR app, LPWSTR in_dir, size_t len)
 {
-    BOOL  sz_name = is_thunderbird();
-    in_dir[0] = L'\0';
-    if (sz_name)
+    int m = 0;
+    if (is_thunderbird())
     {
-        _snwprintf(in_dir,len,L"%ls%ls",app,L"\\Thunderbird\\profiles.ini");
+        m = _snwprintf(in_dir,len,L"%ls%ls",app,L"\\Thunderbird\\profiles.ini");
     }
     else if (is_browser())
     {
-        _snwprintf(in_dir,len,L"%ls%ls",app,L"\\Mozilla\\Firefox\\profiles.ini");
-        sz_name = TRUE;
+        m = _snwprintf(in_dir,len,L"%ls%ls",app,L"\\Mozilla\\Firefox\\profiles.ini");
     }
-    return sz_name;
+    return (m>0 && m < (int)len);
 }
 
 DWORD WINAPI GetOsVersion(void)
@@ -429,31 +454,34 @@ DWORD WINAPI GetOsVersion(void)
     return ver;
 }
 
-/* 从输入表查找CRT版本 */
-BOOL WINAPI find_msvcrt(char *crt_name,int len)
+/* TMD的mozilla把主进程静态链接了,改成从mozglue.dll文件查找CRT版本 */
+BOOL WINAPI find_msvcrt(LPCWSTR pfile,char *crt_name,int len)
 {
-    BOOL			ret = FALSE;
-    IMAGE_DOS_HEADER      *pDos;
-    IMAGE_OPTIONAL_HEADER *pOptHeader;
-    IMAGE_IMPORT_DESCRIPTOR    *pImport ;
-    HMODULE hMod=GetModuleHandleW(NULL);
+    IMAGE_DOS_HEADER        *pDos;
+    IMAGE_OPTIONAL_HEADER   *pOptHeader;
+    IMAGE_IMPORT_DESCRIPTOR *pImport ;
+    BOOL			        ret  = FALSE;
+    HMODULE                 hMod = NULL;
+    Sleep(100);
+    hMod = GetModuleHandleW(pfile);
     if (!hMod)
     {
-#ifdef _LOGDEBUG
+    #ifdef _LOGDEBUG
         logmsg("GetModuleHandleW false,hMod = 0\n");
-#endif
+    #endif
         return ret;
     }
+    EnterSpinLock();
     pDos = (IMAGE_DOS_HEADER *)hMod;
     pOptHeader = (IMAGE_OPTIONAL_HEADER *)(
-                     (BYTE *)hMod
-                     + pDos->e_lfanew
-                     + SIZE_OF_NT_SIGNATURE
-                     + sizeof(IMAGE_FILE_HEADER)
+                  (BYTE *)hMod
+                  + pDos->e_lfanew
+                  + SIZE_OF_NT_SIGNATURE
+                  + sizeof(IMAGE_FILE_HEADER)
                  );
     pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
-                  (BYTE *)hMod
-                  + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
+               (BYTE *)hMod
+               + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
               ) ;
     while( TRUE )
     {
@@ -463,9 +491,9 @@ BOOL WINAPI find_msvcrt(char *crt_name,int len)
         IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
         if(pThunk == 0 && pThunkIAT == 0) break;
         pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-#ifdef _LOGDEBUG
+    #ifdef _LOGDEBUG
         logmsg("dllname:  [%s]\n",(const char *)pszDllName);
-#endif
+    #endif
         if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
         {
             strncpy(name,pszDllName,CRT_LEN);
@@ -475,76 +503,50 @@ BOOL WINAPI find_msvcrt(char *crt_name,int len)
         }
         pImport++;
     }
+    LeaveSpinLock();
     return ret;
 }
 
 /* 必须使用进程依赖crt的wputenv函数追加环境变量 */
 unsigned WINAPI SetPluginPath(void * pParam)
 {
-    typedef			int (__cdecl *_pwrite_env)(LPCWSTR envstring);
     int				ret = 0;
-    HMODULE			hCrt =NULL;
+    HMODULE			hcrt =NULL;
     _pwrite_env		write_env = NULL;
     char			msvc_crt[CRT_LEN+1] = {0};
     LPWSTR			lpstring;
-    if ( !find_msvcrt(msvc_crt,CRT_LEN) )
-    {
-        return (0);
-    }
-    if ( (hCrt = GetModuleHandleA(msvc_crt)) == NULL )
-    {
-        return (0);
-    }
-    if ( profile_path[1] != L':' )
-    {
-        if (!ini_ready(profile_path,MAX_PATH))
-        {
-            return (0);
-        }
-    }
-    write_env = (_pwrite_env)GetProcAddress(hCrt,"_wputenv");
-    if ( write_env == NULL )
-    {
-        return (0);
-    }
     if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
     {
+    #ifdef _LOGDEBUG
+        logmsg("SYS_MALLOC(MAX_ENV_SIZE) return false\n");
+    #endif
         return (0);
     }
-    if ( (ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path)) > 0 )
+    ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path);
+
+    if ( ret>4 && (find_msvcrt(NULL,msvc_crt,CRT_LEN)||find_msvcrt(L"mozglue.dll",msvc_crt,CRT_LEN)) )
+    {
+        hcrt = GetModuleHandleA(msvc_crt);
+    }
+    if ( hcrt && (write_env = (_pwrite_env)GetProcAddress(hcrt,"_wputenv")) != NULL )
     {
         LPWSTR	strKey = lpstring;
         while(*strKey != L'\0')
         {
-            if ( stristrW(strKey, L"NpluginPath") )
+            WCHAR value_str[VALUE_LEN+1] = {0};
+            WCHAR env_string[VALUE_LEN+1] = {0};
+            if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
+                 read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
             {
-                WCHAR lpfile[VALUE_LEN+1];
-                if ( read_appkey(L"Env",L"NpluginPath",lpfile,sizeof(lpfile)) )
+                PathToCombineW(value_str, VALUE_LEN);
+                if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0)
                 {
-                    WCHAR env_string[VALUE_LEN+1] = {0};
-                    PathToCombineW(lpfile, VALUE_LEN);
-                    if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",lpfile) > 0)
-                    {
-                        ret = write_env( (LPCWSTR)env_string );
-                    }
+                    ret = write_env( (LPCWSTR)env_string );
                 }
             }
-            else if	(stristrW(strKey, L"MOZ_GMP_PATH"))
+            else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
             {
-                WCHAR lpfile[VALUE_LEN+1];
-                if ( read_appkey(L"Env",L"MOZ_GMP_PATH",lpfile,sizeof(lpfile)) )
-                {
-                    WCHAR env_string[VALUE_LEN+1] = {0};
-                    PathToCombineW(lpfile, VALUE_LEN);
-                    if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_GMP_PATH=",lpfile) > 0)
-                    {
-                        ret = write_env( (LPCWSTR)env_string );
-                    }
-                }
-            }
-            else if	(stristrW(strKey, L"TmpDataPath"))
-            {
-                /* the PATH environment variable does not exist */
+                /* 忽略此变量,已经由init_global_env函数处理完成 */
             }
             else
             {
@@ -608,9 +610,9 @@ HANDLE WINAPI search_process(LPCWSTR lpstr, DWORD m_parent)
     hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
     if( hSnapshot == INVALID_HANDLE_VALUE )
     {
-#ifdef _LOGDEBUG
+    #ifdef _LOGDEBUG
         logmsg("CreateToolhelp32Snapshot (of processes) error %lu\n",GetLastError() );
-#endif
+    #endif
         return m_handle;
     }
     chi_pid[0] = m_parent;
@@ -641,7 +643,9 @@ HANDLE WINAPI search_process(LPCWSTR lpstr, DWORD m_parent)
             HANDLE tmp = OpenProcess(PROCESS_TERMINATE, FALSE, chi_pid[i]);
             if ( NULL != tmp )
             {
+                EnterSpinLock();
                 g_handle[h_num++] =  tmp;
+                LeaveSpinLock();
                 search_process(NULL, chi_pid[i]);
             }
         }
@@ -735,9 +739,9 @@ unsigned WINAPI run_process(void * pParam)
                            (LPCWSTR)wdirectory,
                            &si,&pi))
         {
-#ifdef _LOGDEBUG
+        #ifdef _LOGDEBUG
             logmsg("CreateProcessW error %lu\n",GetLastError());
-#endif
+        #endif
             return (0);
         }
         g_handle[0] = pi.hProcess;

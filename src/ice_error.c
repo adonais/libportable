@@ -3,10 +3,10 @@
 #include "ice_error.h"
 #include <shlwapi.h>
 #include <dbghelp.h>
-#include "mhook-lib/mhook.h"
+#include "minhook.h"
 
-typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *_NtSetUnhandledExceptionFilter)
-(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter);
+typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *_NtSetUnhandledExceptionFilter)(LPTOP_LEVEL_EXCEPTION_FILTER 
+                                      lpTopLevelExceptionFilter);
 static _NtSetUnhandledExceptionFilter TrueSetUnhandledExceptionFilter = NULL;
 
 BOOL WINAPI MiniDumpWriteDump_func( HANDLE hProcess,DWORD ProcessId,HANDLE hFile,
@@ -90,20 +90,19 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
 
 unsigned WINAPI init_exeception(void * pParam)
 {
-    TrueSetUnhandledExceptionFilter = (_NtSetUnhandledExceptionFilter)GetProcAddress
-                                      (GetModuleHandleW(L"kernel32.dll"), "SetUnhandledExceptionFilter");
-    if (TrueSetUnhandledExceptionFilter)
+    if ( MH_CreateHook(&SetUnhandledExceptionFilter, &HookSetUnhandledExceptionFilter, 
+        (LPVOID*)&TrueSetUnhandledExceptionFilter) != MH_OK )
     {
-        Mhook_SetHook((PVOID*)&TrueSetUnhandledExceptionFilter, (PVOID)HookSetUnhandledExceptionFilter);
+        return (0);
     }
-    return (1);
+    return MH_EnableHook(&SetUnhandledExceptionFilter);
 }
 
 void jmp_end(void)
 {
     if (TrueSetUnhandledExceptionFilter)
     {
-        Mhook_Unhook((PVOID*)&TrueSetUnhandledExceptionFilter);
+        MH_DisableHook(&SetUnhandledExceptionFilter);
     }
     return;
 }
