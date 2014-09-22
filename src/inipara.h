@@ -72,7 +72,6 @@ INI_EXTERN unsigned WINAPI run_process(void * pParam);
 INI_EXTERN void WINAPI refresh_tray(void);
 INI_EXTERN BOOL WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN BOOL WINAPI GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen);
-INI_EXTERN BOOL WINAPI find_msvcrt(LPCWSTR pfile,char *crt_name,int len);
 INI_EXTERN char * WINAPI unicode_ansi(LPCWSTR pwszUnicode);
 
 #ifdef __cplusplus

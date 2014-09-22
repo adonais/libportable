@@ -9,7 +9,6 @@
 #endif
 #include "ice_error.h"
 #include "bosskey.h"
-#include "prefjs.h"
 #include "minhook.h"
 #include <shlobj.h>
 #include <shlwapi.h>

@@ -10,7 +10,7 @@
 #  include <stdarg.h>
 #endif
 
-typedef	int (__cdecl *_pwrite_env)(LPCWSTR envstring);
+typedef	int (__cdecl *_PR_setenv)(const char* envA);
 
 /* only init once */
 static WCHAR profile_path[MAX_PATH+1];
@@ -454,109 +454,72 @@ DWORD WINAPI GetOsVersion(void)
     return ver;
 }
 
-/* TMD的mozilla把主进程静态链接了,改成从mozglue.dll文件查找CRT版本 */
-BOOL WINAPI find_msvcrt(LPCWSTR pfile,char *crt_name,int len)
-{
-    IMAGE_DOS_HEADER        *pDos;
-    IMAGE_OPTIONAL_HEADER   *pOptHeader;
-    IMAGE_IMPORT_DESCRIPTOR *pImport ;
-    BOOL			        ret  = FALSE;
-    HMODULE                 hMod = NULL;
-    Sleep(100);
-    hMod = GetModuleHandleW(pfile);
-    if (!hMod)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("GetModuleHandleW false,hMod = 0\n");
-    #endif
-        return ret;
-    }
-    EnterSpinLock();
-    pDos = (IMAGE_DOS_HEADER *)hMod;
-    pOptHeader = (IMAGE_OPTIONAL_HEADER *)(
-                  (BYTE *)hMod
-                  + pDos->e_lfanew
-                  + SIZE_OF_NT_SIGNATURE
-                  + sizeof(IMAGE_FILE_HEADER)
-                 );
-    pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
-               (BYTE *)hMod
-               + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
-              ) ;
-    while( TRUE )
-    {
-        char*		pszDllName = NULL;
-        char		name[CRT_LEN+1] = {0};
-        IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
-        IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
-        if(pThunk == 0 && pThunkIAT == 0) break;
-        pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-    #ifdef _LOGDEBUG
-        logmsg("dllname:  [%s]\n",(const char *)pszDllName);
-    #endif
-        if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
-        {
-            strncpy(name,pszDllName,CRT_LEN);
-            strncpy(crt_name,CharLowerA(name),len);
-            ret = TRUE;
-            break;
-        }
-        pImport++;
-    }
-    LeaveSpinLock();
-    return ret;
-}
-
 /* 必须使用进程依赖crt的wputenv函数追加环境变量 */
 unsigned WINAPI SetPluginPath(void * pParam)
 {
     int				ret = 0;
     HMODULE			hcrt =NULL;
-    _pwrite_env		write_env = NULL;
-    char			msvc_crt[CRT_LEN+1] = {0};
+    _PR_setenv		write_env = NULL;
     LPWSTR			lpstring;
-    if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
+    do
     {
-    #ifdef _LOGDEBUG
-        logmsg("SYS_MALLOC(MAX_ENV_SIZE) return false\n");
-    #endif
-        return (0);
-    }
-    ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path);
-
-    if ( ret>4 && (find_msvcrt(NULL,msvc_crt,CRT_LEN)||find_msvcrt(L"mozglue.dll",msvc_crt,CRT_LEN)) )
-    {
-        hcrt = GetModuleHandleA(msvc_crt);
-    }
-    if ( hcrt && (write_env = (_pwrite_env)GetProcAddress(hcrt,"_wputenv")) != NULL )
-    {
-        LPWSTR	strKey = lpstring;
-        while(*strKey != L'\0')
+        if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
         {
-            WCHAR value_str[VALUE_LEN+1] = {0};
-            WCHAR env_string[VALUE_LEN+1] = {0};
-            if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
-                 read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
+        #ifdef _LOGDEBUG
+            logmsg("SYS_MALLOC(MAX_ENV_SIZE) return false\n");
+        #endif
+            break;
+        }
+        ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, profile_path);
+
+        if ( ret < 4 )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("GetPrivateProfileSectionW return false\n");
+        #endif
+            break;;
+        }
+        if ( (hcrt = GetModuleHandleW(L"nss3.dll")) != NULL && \
+             (write_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) != NULL )
+        {
+            LPWSTR	strKey = lpstring;
+            while(*strKey != L'\0')
             {
-                PathToCombineW(value_str, VALUE_LEN);
-                if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0)
+                WCHAR value_str[VALUE_LEN+1] = {0};
+                WCHAR env_string[VALUE_LEN+1] = {0};
+                char* envA = NULL;
+                if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
+                     read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
                 {
-                    ret = write_env( (LPCWSTR)env_string );
+                    PathToCombineW(value_str, VALUE_LEN);
+                    if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0)
+                    {
+                        envA = unicode_ansi(env_string);
+                        ret = write_env( envA );
+                    }
+                }
+                else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
+                {
+                    /* 忽略此变量,已经由init_global_env函数处理完成 */
+                }
+                else
+                {
+                    envA = unicode_ansi(strKey);
+                    ret = write_env( envA );
+                }
+                strKey += wcslen(strKey)+1;
+                if (envA)
+                {
+                    SYS_FREE(envA);
                 }
             }
-            else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
-            {
-                /* 忽略此变量,已经由init_global_env函数处理完成 */
-            }
-            else
-            {
-                ret = write_env( (LPCWSTR)strKey );
-            }
-            strKey += wcslen(strKey)+1;
         }
+    } while (0);
+    if (lpstring)
+    {
+        SYS_FREE(lpstring);
     }
-    SYS_FREE(lpstring);
-    return (1);
+    return (ret);
 }
 
 BOOL WINAPI parse_shcommand(void)
@@ -711,10 +674,6 @@ unsigned WINAPI run_process(void * pParam)
     }
     /* 如果是预启动,直接返回 */
     if ( parse_shcommand() )
-    {
-        return (0);
-    }
-    if ( GetLastError() == ERROR_ALREADY_EXISTS )
     {
         return (0);
     }
