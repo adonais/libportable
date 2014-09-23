@@ -206,13 +206,11 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 #else
     dwCaller = (UINT_PTR)_ReturnAddress();
 #endif
-#ifndef LIBPORTABLE_STATIC
-    dwFf = is_specialdll(dwCaller, dllname)       ||
-           is_specialdll(dwCaller, L"*\\xul.dll") ||
+    dwFf = is_specialdll(dwCaller, L"*\\xul.dll") ||
+        #ifndef LIBPORTABLE_STATIC
+           is_specialdll(dwCaller, dllname)       ||
+        #endif
            is_specialdll(dwCaller, L"*\\npswf*.dll");
-#else
-    dwFf = is_specialdll(dwCaller, L"*\\xul.dll") || is_specialdll(dwCaller, L"*\\npswf*.dll");
-#endif
     if ( dwFf )
     {
         switch (folder)

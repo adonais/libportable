@@ -157,7 +157,6 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
                                         PNT_PROC_THREAD_ATTRIBUTE_LIST AttributeList)
 {
     RTL_USER_PROCESS_PARAMETERS mY_ProcessParameters;
-    PROCESS_INFORMATION ProcessInformation;
     NTSTATUS	status;
     BOOL		tohook	= FALSE;
     fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
@@ -201,6 +200,7 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 #if !defined(LIBPORTABLE_STATIC)
     if ( NT_SUCCESS(status)&&tohook )
     {
+        PROCESS_INFORMATION ProcessInformation;
         ULONG Suspend = 0;
         fzero(&ProcessInformation,sizeof(PROCESS_INFORMATION));
         ProcessInformation.hProcess = *ProcessHandle;
@@ -346,36 +346,33 @@ BOOL WINAPI iSAuthorized(LPCWSTR lpFileName)
 
 HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {
-    UINT_PTR	dwCaller;
-    /* 是否信任的dll */
-    if ( iSAuthorized(lpFileName) )
+    do
     {
-        return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
-    }
-#ifdef __GNUC__
-    dwCaller = (UINT_PTR)__builtin_return_address(0);
-#else
-    dwCaller = (UINT_PTR)_ReturnAddress();
-#endif
-    /* 判断是否是从User32.dll调用 */
-    if ( is_specialdll(dwCaller,L"user32.dll") )
-    {
-        /* 如果进程或模块在白名单里 */
-        if ( in_whitelist(lpFileName) )
+        UINT_PTR dwCaller;
+        if ( iSAuthorized(lpFileName) ) 
         {
-        #ifdef _LOGDEBUG
-            logmsg("%ls in whitelist\n",lpFileName);
-        #endif
-            return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
+            break;
         }
-        else
+    #ifdef __GNUC__
+        dwCaller = (UINT_PTR)__builtin_return_address(0);
+    #else
+        dwCaller = (UINT_PTR)_ReturnAddress();
+    #endif
+        if ( is_specialdll(dwCaller,L"user32.dll") )
         {
-        #ifdef _LOGDEBUG
-            logmsg("the  %ls disable load\n",lpFileName);
-        #endif
-            return NULL;
+            if ( in_whitelist(lpFileName) )
+            {
+                break;
+            }
+            else
+            {
+            #ifdef _LOGDEBUG
+                logmsg("%ls disable loadlirary!\n", lpFileName);
+            #endif
+                return NULL;
+            }
         }
-    }
+    }while (0);
     return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
 }
 

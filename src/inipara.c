@@ -479,7 +479,7 @@ unsigned WINAPI SetPluginPath(void * pParam)
         #endif
             break;;
         }
-        if ( (hcrt = GetModuleHandleW(L"nss3.dll")) != NULL && \
+        if ( (hcrt = LoadLibraryW(L"nss3.dll")) != NULL && \
              (write_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) != NULL )
         {
             LPWSTR	strKey = lpstring;
@@ -513,6 +513,7 @@ unsigned WINAPI SetPluginPath(void * pParam)
                     SYS_FREE(envA);
                 }
             }
+            FreeLibrary(hcrt);
         }
     } while (0);
     if (lpstring)
