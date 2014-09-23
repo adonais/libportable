@@ -32,9 +32,7 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o  $(DEP)/prefjs.o $(DEP)/cachesize$(BITS).o \
-	   $(DEP)/instrset$(BITS).o $(DEP)/unalignedisfaster$(BITS).o $(DEP)/memset$(BITS).o \
-	   $(DEP)/cputype$(BITS).o
+           $(DEP)/inject.o $(DEP)/bosskey.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
@@ -96,18 +94,6 @@ $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/prefjs.o      : $(SRC)/prefjs.c $(SRC)/prefjs.h
-	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/cachesize$(BITS).o	  : $(SRC)/asm/cachesize$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
-$(DEP)/instrset$(BITS).o	  : $(SRC)/asm/instrset$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
-$(DEP)/memset$(BITS).o	          : $(SRC)/asm/memset$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
-$(DEP)/cputype$(BITS).o	          : $(SRC)/asm/cputype$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
-$(DEP)/unalignedisfaster$(BITS).o : $(SRC)/asm/unalignedisfaster$(BITS).asm
-	$(YASM) -o $@ $(ASMFLAGS) $<
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@
 

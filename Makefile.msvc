@@ -88,7 +88,6 @@ EXEC		= \
 
 all				: $(OUT1) $(OUT)
 $(OUT1)			: $(SUB_DIR)/Makefile.msvc
-	@if not exist $(YASM) (@echo Error: yasm not exist & exit 1)
 	$(SUBMK)
 $(OUT)			: $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(LDFLAGS) $(MIN_LIB) $(CRTFLAGS)
