@@ -360,16 +360,12 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     #endif
         if ( is_specialdll(dwCaller,L"user32.dll") )
         {
-            if ( in_whitelist(lpFileName) )
-            {
-                break;
-            }
-            else
+            if ( !in_whitelist(lpFileName) )
             {
             #ifdef _LOGDEBUG
-                logmsg("%ls disable loadlirary!\n", lpFileName);
+                logmsg("disable loading %ls!\n", lpFileName);
             #endif
-                return NULL;
+                lpFileName = NULL;
             }
         }
     }while (0);

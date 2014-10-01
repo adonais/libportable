@@ -3,6 +3,7 @@
 #include "inipara.h"
 #include <shlwapi.h>
 #include <tlhelp32.h>
+#include <shlobj.h>                /* SHCreateDirectoryExW function prototype */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -292,40 +293,40 @@ BOOL WINAPI IsGUI(LPCWSTR lpFileName)
 {
     IMAGE_DOS_HEADER dos_header;
     IMAGE_NT_HEADERS pe_header;
-    DWORD	readed;
     BOOL	ret     = FALSE;
     HANDLE	hFile	=  CreateFileW(lpFileName,GENERIC_READ,
                                    FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL,NULL);
-    if(hFile == INVALID_HANDLE_VALUE)
+    if( !goodHandle(hFile) )
     {
         return ret;
     }
-    SetFilePointer(hFile,0,0,FILE_BEGIN);
-
-    ReadFile(hFile,&dos_header,sizeof(IMAGE_DOS_HEADER),&readed,NULL);
-    if(readed != sizeof(IMAGE_DOS_HEADER))
+    do
     {
-        CloseHandle(hFile);
-        return ret;
-    }
-    if(dos_header.e_magic != 0x5a4d)
-    {
-        CloseHandle(hFile);
-        return ret;
-    }
-    SetFilePointer(hFile,dos_header.e_lfanew,NULL,FILE_BEGIN);
-    ReadFile(hFile,&pe_header,sizeof(IMAGE_NT_HEADERS),&readed,NULL);
-    if(readed != sizeof(IMAGE_NT_HEADERS))
-    {
-        CloseHandle(hFile);
-        return ret;
-    }
+        DWORD readed;
+        SetFilePointer(hFile,0,0,FILE_BEGIN);
+        ReadFile(hFile,&dos_header,sizeof(IMAGE_DOS_HEADER),&readed,NULL);
+        if(readed != sizeof(IMAGE_DOS_HEADER))
+        {
+            break;
+        }
+        if(dos_header.e_magic != 0x5a4d)
+        {
+            break;
+        }
+        SetFilePointer(hFile,dos_header.e_lfanew,NULL,FILE_BEGIN);
+        ReadFile(hFile,&pe_header,sizeof(IMAGE_NT_HEADERS),&readed,NULL);
+        if(readed != sizeof(IMAGE_NT_HEADERS))
+        {
+            
+            break;
+        }
+        if(pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI)
+        {
+            ret = TRUE;
+        }
+    }while (0);    
     CloseHandle(hFile);
-    if(pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI)
-    {
-        ret = TRUE;
-    }
     return ret;
 }
 
@@ -454,13 +455,13 @@ DWORD WINAPI GetOsVersion(void)
     return ver;
 }
 
-/* 必须使用进程依赖crt的wputenv函数追加环境变量 */
+/* 使用nspr库里面的PR_SetEnv函数追加环境变量 */
 unsigned WINAPI SetPluginPath(void * pParam)
 {
-    int				ret = 0;
-    HMODULE			hcrt =NULL;
-    _PR_setenv		write_env = NULL;
-    LPWSTR			lpstring;
+    int			ret  = 0;
+    HMODULE		hcrt = NULL;
+    _PR_setenv	write_env = NULL;
+    LPWSTR		strKey,lpstring = NULL;
     do
     {
         if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
@@ -477,45 +478,72 @@ unsigned WINAPI SetPluginPath(void * pParam)
         #ifdef _LOGDEBUG
             logmsg("GetPrivateProfileSectionW return false\n");
         #endif
-            break;;
+            break;
         }
-        if ( (hcrt = LoadLibraryW(L"nss3.dll")) != NULL && \
-             (write_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) != NULL )
+        if ( (hcrt = LoadLibraryW(L"nss3.dll")) == NULL )
         {
-            LPWSTR	strKey = lpstring;
-            while(*strKey != L'\0')
+        #ifdef _LOGDEBUG
+            logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
+        #endif
+            break;
+        }
+        if ( (write_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
+        #endif
+            break;
+        }
+        strKey = lpstring;
+        while(*strKey != L'\0')
+        {
+            WCHAR value_str[VALUE_LEN+1] = {0};
+            WCHAR env_string[VALUE_LEN+1] = {0};
+            char* envA = NULL;
+            /* 支持NpluginPath变量 */
+            if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
+                 read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
             {
-                WCHAR value_str[VALUE_LEN+1] = {0};
-                WCHAR env_string[VALUE_LEN+1] = {0};
-                char* envA = NULL;
-                if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
-                     read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
+                PathToCombineW(value_str, VALUE_LEN);
+                if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0 )
                 {
-                    PathToCombineW(value_str, VALUE_LEN);
-                    if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0)
-                    {
-                        envA = unicode_ansi(env_string);
-                        ret = write_env( envA );
-                    }
-                }
-                else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
-                {
-                    /* 忽略此变量,已经由init_global_env函数处理完成 */
-                }
-                else
-                {
-                    envA = unicode_ansi(strKey);
+                    envA = unicode_ansi(env_string);
                     ret = write_env( envA );
                 }
-                strKey += wcslen(strKey)+1;
-                if (envA)
-                {
-                    SYS_FREE(envA);
-                }
             }
-            FreeLibrary(hcrt);
-        }
+            /* 支持VimpPentaHome变量 */
+            else if	( _wcsnicmp(strKey, L"VimpPentaHome", wcslen(L"VimpPentaHome")) == 0 && \
+                      read_appkey(L"Env",L"VimpPentaHome",value_str,sizeof(value_str)) )
+            {
+                PathToCombineW(value_str, VALUE_LEN);
+                if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"HOME=",value_str) > 0 )
+                {
+                    envA = unicode_ansi(env_string);
+                    ret = write_env( envA );
+                    SHCreateDirectoryExW(NULL,value_str,NULL);
+                }
+                
+            }
+            else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
+            {
+                /* 忽略此变量,已经由init_global_env函数处理完成 */
+            }
+            else
+            {
+                envA = unicode_ansi(strKey);
+                ret = write_env( envA );
+            }
+            strKey += wcslen(strKey)+1;
+            if (envA)
+            {
+                SYS_FREE(envA);
+            }
+        }     
     } while (0);
+    if (hcrt)
+    {
+        FreeLibrary(hcrt);
+    }
     if (lpstring)
     {
         SYS_FREE(lpstring);
@@ -608,7 +636,7 @@ HANDLE WINAPI search_process(LPCWSTR lpstr, DWORD m_parent)
             if ( NULL != tmp )
             {
                 EnterSpinLock();
-                g_handle[h_num++] =  tmp;
+                g_handle[h_num++] = tmp;
                 LeaveSpinLock();
                 search_process(NULL, chi_pid[i]);
             }
