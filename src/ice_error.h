@@ -11,7 +11,7 @@
 extern "C" {
 #endif 
 ERROR_EXTERN unsigned __stdcall init_exeception(void * pParam);
-ERROR_EXTERN void jmp_end(void);
+ERROR_EXTERN void __stdcall jmp_end(void);
 #ifdef __cplusplus
 }
 #endif 

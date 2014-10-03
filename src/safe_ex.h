@@ -22,7 +22,7 @@ void* _ReturnAddress(void);
 extern "C" {
 #endif
 SAFE_EXTERN unsigned WINAPI init_safed(void * pParam);
-SAFE_EXTERN void safe_end(void);
+SAFE_EXTERN void WINAPI safe_end(void);
 #ifdef __cplusplus
 }
 #endif 

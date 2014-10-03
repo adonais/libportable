@@ -26,13 +26,14 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#ifndef _MIN_HOOK_H_
+#  define _MIN_HOOK_H
+
+#include <windows.h>
 
 #if !(defined _M_IX86) && !(defined _M_X64)
     #error MinHook supports only x86 and x64 systems.
 #endif
-
-#include <Windows.h>
 
 // MinHook Error Codes.
 typedef enum MH_STATUS
@@ -76,6 +77,18 @@ typedef enum MH_STATUS
     MH_ERROR_MEMORY_PROTECT
 }
 MH_STATUS;
+
+// Thread access rights for suspending/resuming threads.
+#define THREAD_ACCESS \
+    (THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | THREAD_SET_CONTEXT)
+
+// Suspended threads for Freeze()/Unfreeze().
+typedef struct _FROZEN_THREADS
+{
+    LPDWORD pItems;         // Data heap
+    UINT    capacity;       // Size of allocated data heap, items
+    UINT    size;           // Actual number of data items
+} FROZEN_THREADS, *PFROZEN_THREADS;
 
 // Can be passed as a parameter to MH_EnableHook, MH_DisableHook,
 // MH_QueueEnableHook or MH_QueueDisableHook.
@@ -140,7 +153,19 @@ extern "C" {
     // Applies all queued changes in one go.
     MH_STATUS WINAPI MH_ApplyQueued(VOID);
 
+    // export function with libportable.
+    VOID WINAPI EnterSpinLock(VOID);
+
+    VOID WINAPI LeaveSpinLock(VOID);
+
+    VOID WINAPI EnumerateThreads(PFROZEN_THREADS pThreads);
+
+    VOID WINAPI Freezex(PFROZEN_THREADS pThreads);
+
+    VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads);
+
 #ifdef __cplusplus
 }
 #endif
 
+#endif

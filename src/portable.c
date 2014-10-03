@@ -9,7 +9,7 @@
 #endif
 #include "ice_error.h"
 #include "bosskey.h"
-#include "minhook.h"
+#include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <process.h>
@@ -40,6 +40,7 @@ static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
 #endif
 int     RunOnce SHARED = 0;
 int     RunPart SHARED = 0;
+WCHAR   ini_path[MAX_PATH+1] SHARED = {0};
 WCHAR   appdata_path[VALUE_LEN+1] SHARED = {0};
 WCHAR   localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
@@ -61,50 +62,6 @@ uint32_t GetNonTemporalDataSizeMin_tt( void )
 intptr_t GetAppDirHash_tt( void )
 {
     return 0;
-}
-
-BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
-{
-    BOOL  ret = FALSE;
-    WCHAR moz_profile[MAX_PATH+1];   
-    if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
-    {
-        return ret;
-    }
-    if ( PathFileExistsW(moz_profile) )
-    {
-        if ( is_thunderbird() )
-        {
-            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../",moz_profile);
-        }
-        else
-        {
-            ret = WritePrivateProfileStringW(L"Profile0",L"Path",L"../../../",moz_profile);
-        }
-    }
-    else
-    {
-        LPWSTR szDir;
-        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL )
-        {
-            wcsncpy (szDir, moz_profile, MAX_PATH);
-            PathRemoveFileSpecW( szDir );
-            SHCreateDirectoryExW(NULL,szDir,NULL);
-            SYS_FREE(szDir);
-            WritePrivateProfileSectionW(L"General",L"StartWithLastProfile=1\r\n\0",moz_profile);
-            if ( is_thunderbird() )
-            {
-                ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../\r\nDefault=1\r\n\0" \
-                                                  ,moz_profile);
-            }
-            else
-            {
-                ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0" \
-                                                  ,moz_profile);
-            }
-        }
-    }
-    return ret;
 }
 
 /* 初始化全局变量 */
@@ -143,10 +100,7 @@ void CALLBACK init_global_env(void)
         wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
         SHCreateDirectoryExW(NULL,localdata_path,NULL);
     }
-    if ( read_appint(L"General", L"Nocompatete") > 0 )
-    {
-        WaitWriteFile(appdata_path);
-    }
+    WaitWriteFile(appdata_path);
     RunOnce = 1;
     return;
 }
@@ -267,7 +221,7 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
             lpszPath)) == S_OK ? TRUE : FALSE;
 }
 
-void WINAPI init_portable(user_func init_env)
+void init_portable(user_func init_env)
 {
     /* 回调函数运行,初始化全局变量 */
     (*init_env)();                 
@@ -342,6 +296,13 @@ void WINAPI undo_it(void)
 
 void WINAPI do_it(void)
 {
+    if ( !RunPart )
+    {
+        if ( !init_parser(ini_path, MAX_PATH) )
+        {
+            return;
+        }
+    }
     /* 初始化日志记录文件 */
 #ifdef _LOGDEBUG
     if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
@@ -362,8 +323,9 @@ void WINAPI do_it(void)
         init_safed(NULL);
     }
 #endif
-    if ( !RunPart && inifile_exist() )
+    if ( !RunPart )
     {
+        HANDLE  h_thread;
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,NULL,0,NULL));
@@ -378,7 +340,12 @@ void WINAPI do_it(void)
             ff_info.hPid = GetCurrentProcessId();
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
         }
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
+        h_thread = (HANDLE)_beginthreadex(NULL,0,&SetPluginPath,appdata_path,0,NULL);
+        if (h_thread)
+        {
+            SetThreadPriority(h_thread,THREAD_PRIORITY_HIGHEST);
+            CloseHandle(h_thread);
+        }
         if ( read_appint(L"General", L"ProxyExe") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));

@@ -49,10 +49,6 @@
 #define ACTION_ENABLE       1
 #define ACTION_APPLY_QUEUED 2
 
-// Thread access rights for suspending/resuming threads.
-#define THREAD_ACCESS \
-    (THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | THREAD_SET_CONTEXT)
-
 // Hook information.
 typedef struct _HOOK_ENTRY
 {
@@ -69,14 +65,6 @@ typedef struct _HOOK_ENTRY
     UINT8  oldIPs[8];           // Instruction boundaries of the target function.
     UINT8  newIPs[8];           // Instruction boundaries of the trampoline function.
 } HOOK_ENTRY, *PHOOK_ENTRY;
-
-// Suspended threads for Freeze()/Unfreeze().
-typedef struct _FROZEN_THREADS
-{
-    LPDWORD pItems;         // Data heap
-    UINT    capacity;       // Size of allocated data heap, items
-    UINT    size;           // Actual number of data items
-} FROZEN_THREADS, *PFROZEN_THREADS;
 
 //-------------------------------------------------------------------------
 // Global Variables:
@@ -250,7 +238,7 @@ static void ProcessThreadIPs(HANDLE hThread, UINT pos, UINT action)
 }
 
 //-------------------------------------------------------------------------
-static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
+VOID WINAPI EnumerateThreads(PFROZEN_THREADS pThreads)
 {
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hSnapshot != INVALID_HANDLE_VALUE)
@@ -294,6 +282,29 @@ static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
 }
 
 //-------------------------------------------------------------------------
+VOID WINAPI Freezex(PFROZEN_THREADS pThreads)
+{
+    pThreads->pItems   = NULL;
+    pThreads->capacity = 0;
+    pThreads->size     = 0;
+    EnumerateThreads(pThreads);
+
+    if (pThreads->pItems != NULL)
+    {
+        UINT i;
+        for (i = 0; i < pThreads->size; ++i)
+        {
+            HANDLE hThread = OpenThread(THREAD_ACCESS, FALSE, pThreads->pItems[i]);
+            if (hThread != NULL)
+            {
+                SuspendThread(hThread);
+                CloseHandle(hThread);
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
 static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 {
     pThreads->pItems   = NULL;
@@ -318,7 +329,7 @@ static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 }
 
 //-------------------------------------------------------------------------
-static VOID Unfreeze(PFROZEN_THREADS pThreads)
+VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads)
 {
     if (pThreads->pItems != NULL)
     {
@@ -410,7 +421,7 @@ static MH_STATUS EnableAllHooksLL(BOOL enable)
 }
 
 //-------------------------------------------------------------------------
-static VOID EnterSpinLock(VOID)
+VOID WINAPI EnterSpinLock(VOID)
 {
     // Wait until the flag is FALSE.
     while (_InterlockedCompareExchange(&g_isLocked, TRUE, FALSE) != FALSE)
@@ -421,7 +432,7 @@ static VOID EnterSpinLock(VOID)
 }
 
 //-------------------------------------------------------------------------
-static VOID LeaveSpinLock(VOID)
+VOID WINAPI LeaveSpinLock(VOID)
 {
     _InterlockedExchange(&g_isLocked, FALSE);
 }

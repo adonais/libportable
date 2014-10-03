@@ -32,7 +32,7 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o
+           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/prefjs.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
@@ -93,6 +93,8 @@ $(DEP)/safe_ex.o      : $(SRC)/safe_ex.c $(SRC)/safe_ex.h $(SRC)/header.h
 $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/prefjs.o      : $(SRC)/prefjs.c $(SRC)/prefjs.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

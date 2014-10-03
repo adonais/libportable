@@ -4,7 +4,7 @@
 #include "inipara.h"
 #include "header.h"
 #include "inject.h"
-#include "minhook.h"
+#include "MinHook.h"
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -20,7 +20,7 @@ static _NtSuspendThread				TrueNtSuspendThread					= NULL;
 static _NtResumeThread				TrueNtResumeThread					= NULL;
 static _NtLoadLibraryExW			TrueLoadLibraryExW					= NULL;
 
-BOOL WINAPI in_whitelist(LPCWSTR lpfile)
+BOOL in_whitelist(LPCWSTR lpfile)
 {
     WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
                               L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe",
@@ -82,25 +82,7 @@ BOOL WINAPI in_whitelist(LPCWSTR lpfile)
     return ret;
 }
 
-ULONG_PTR WINAPI GetParentProcess(HANDLE hProcess)
-{
-    ULONG_PTR	dwParentPID;
-    NTSTATUS	status;
-    PROCESS_BASIC_INFORMATION pbi;
-    status = TrueNtQueryInformationProcess( hProcess,
-                                            ProcessBasicInformation,
-                                            (PVOID)&pbi,
-                                            sizeof(PROCESS_BASIC_INFORMATION),
-                                            NULL );
-
-    if ( NT_SUCCESS(status) )
-        dwParentPID = (ULONG_PTR)pbi.InheritedFromUniqueProcessId;
-    else
-        dwParentPID = 0;
-    return dwParentPID;
-}
-
-BOOL WINAPI ProcessIsCUI(LPCWSTR lpfile)
+BOOL ProcessIsCUI(LPCWSTR lpfile)
 {
     WCHAR lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
@@ -289,7 +271,7 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
     return ret;
 }
 
-BOOL WINAPI iSAuthorized(LPCWSTR lpFileName)
+BOOL iSAuthorized(LPCWSTR lpFileName)
 {
     BOOL	ret = FALSE;
     BOOL    wow64 = FALSE;
@@ -441,7 +423,7 @@ unsigned WINAPI init_safed(void * pParam)
     return (1);
 }
 
-void safe_end(void)
+void WINAPI safe_end(void)
 {
     if (TrueLoadLibraryExW)
     {

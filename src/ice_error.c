@@ -1,9 +1,9 @@
 #define ERROR_EXTERN
 
 #include "ice_error.h"
+#include "MinHook.h"
 #include <shlwapi.h>
 #include <dbghelp.h>
-#include "minhook.h"
 
 typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *_NtSetUnhandledExceptionFilter)(LPTOP_LEVEL_EXCEPTION_FILTER 
                                       lpTopLevelExceptionFilter);
@@ -98,7 +98,7 @@ unsigned WINAPI init_exeception(void * pParam)
     return MH_EnableHook(&SetUnhandledExceptionFilter);
 }
 
-void jmp_end(void)
+void WINAPI jmp_end(void)
 {
     if (TrueSetUnhandledExceptionFilter)
     {
