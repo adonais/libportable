@@ -480,12 +480,55 @@ DWORD WINAPI GetOsVersion(void)
     return ver;
 }
 
+int __cdecl write_env(WCHAR* env)
+{
+    int        ret = -1;
+    HMODULE    hcrt = NULL;
+    char*      envA = NULL;
+    _PR_setenv moz_put_env = NULL;
+    WCHAR      dll_path[MAX_PATH+1] = {0};
+    if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
+    {
+        return ret;
+    }
+    if ( !PathAppendW(dll_path,L"nss3.dll") )
+    {
+        return ret;
+    }
+    if ( (hcrt = LoadLibraryExW(dll_path,NULL,0)) == NULL )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
+    #endif
+        return ret;
+    }
+    if ( (moz_put_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
+    #endif
+        return ret;
+    }
+    if ( (envA = unicode_ansi(env)) == NULL )
+    {
+        return ret;
+    }
+    ret = moz_put_env(envA);
+    if (hcrt)
+    {
+        FreeLibrary(hcrt);
+    }
+    if (envA)
+    {
+        SYS_FREE(envA);
+    }
+    return ret;
+}
+
 /* 使用nspr库里面的PR_SetEnv函数追加环境变量 */
 unsigned WINAPI SetPluginPath(void * pParam)
 {
     int        ret  = 0;
-    HMODULE    hcrt = NULL;
-    _PR_setenv write_env = NULL;
     LPWSTR     strKey,lpstring = NULL;
     do
     {
@@ -505,26 +548,11 @@ unsigned WINAPI SetPluginPath(void * pParam)
         #endif
             break;
         }
-        if ( (hcrt = LoadLibraryW(L"nss3.dll")) == NULL )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
-        #endif
-            break;
-        }
-        if ( (write_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
-        #endif
-            break;
-        }
         strKey = lpstring;
         while(*strKey != L'\0')
         {
             WCHAR value_str[VALUE_LEN+1] = {0};
             WCHAR env_string[VALUE_LEN+1] = {0};
-            char* envA = NULL;
             /* 支持NpluginPath变量 */
             if ( _wcsnicmp(strKey, L"NpluginPath", wcslen(L"NpluginPath")) == 0 && \
                  read_appkey(L"Env",L"NpluginPath",value_str,sizeof(value_str)) )
@@ -532,8 +560,7 @@ unsigned WINAPI SetPluginPath(void * pParam)
                 PathToCombineW(value_str, VALUE_LEN);
                 if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_PLUGIN_PATH=",value_str) > 0 )
                 {
-                    envA = unicode_ansi(env_string);
-                    ret = write_env( envA );
+                    ret = write_env( env_string );
                 }
             }
             /* 支持VimpPentaHome变量 */
@@ -543,25 +570,21 @@ unsigned WINAPI SetPluginPath(void * pParam)
                 PathToCombineW(value_str, VALUE_LEN);
                 if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"HOME=",value_str) > 0 )
                 {
-                    envA = unicode_ansi(env_string);
-                    ret = write_env( envA );
+                    ret = write_env( env_string );
                     SHCreateDirectoryExW(NULL,value_str,NULL);
                 }
                 
             }
+            /* 支持MOZ_GMP_PATH变量 */
             else if	( _wcsnicmp(strKey, L"MOZ_GMP_PATH", wcslen(L"MOZ_GMP_PATH")) == 0 && \
                       read_appkey(L"Env",L"MOZ_GMP_PATH",value_str,sizeof(value_str)) )
             {
-                FROZEN_THREADS threads;
                 PathToCombineW(value_str, VALUE_LEN);
-                Freezex(&threads);
                 if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_GMP_PATH=",value_str) > 0 )
                 {
-                    envA = unicode_ansi(env_string);
-                    ret = write_env( envA );
+                    ret = write_env( env_string );
                     gmpservice_check(pParam, value_str);
                 }
-                Unfreeze(&threads);
             }
             else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
             {
@@ -569,20 +592,11 @@ unsigned WINAPI SetPluginPath(void * pParam)
             }
             else
             {
-                envA = unicode_ansi(strKey);
-                ret = write_env( envA );
+                ret = write_env( strKey );
             }
             strKey += wcslen(strKey)+1;
-            if (envA)
-            {
-                SYS_FREE(envA);
-            }
         }     
     } while (0);
-    if (hcrt)
-    {
-        FreeLibrary(hcrt);
-    }
     if (lpstring)
     {
         SYS_FREE(lpstring);
