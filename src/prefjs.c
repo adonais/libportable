@@ -104,7 +104,7 @@ void prefs_write(LPCWSTR dist_dir, FILE* stream)
     }
     if ( _snwprintf(examp_file,MAX_PATH,L"%ls\\%ls",dist_dir,DIST_FILE_TT) > 0 )
     {
-        m_file = _wfopen(examp_file, L"w+");
+        m_file = _wfopen(examp_file, L"wb+");
     }
     SYS_FREE(examp_file);
     do
@@ -131,7 +131,7 @@ void prefs_write(LPCWSTR dist_dir, FILE* stream)
             }
             if ( !isspace(line_buf[0]) && line_buf[0] != '/' && line_buf[0] != '*' && !skip_str )
             {
-                fwrite(line_buf,sizeof(char), strlen(line_buf), m_file);
+                fputs(line_buf, m_file);
             }
         }
     }while (0);
