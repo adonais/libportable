@@ -25,7 +25,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
     WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
                               L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe",
                               L"crashreporter.exe",L"CommandExecuteHandler.exe",L"maintenanceservice.exe",
-                              L"maintenanceservice_installer.exe",L"updater.exe"
+                              L"maintenanceservice_installer.exe",L"updater.exe",L"wow_helper.exe"
                              };
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
     int		i = sizeof(moz_processes)/sizeof(moz_processes[0]);
