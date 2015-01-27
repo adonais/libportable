@@ -278,7 +278,7 @@ BOOL iSAuthorized(LPCWSTR lpFileName)
     LPWSTR	filename = NULL;
     wchar_t *szAuthorizedList[] = {L"comctl32.dll", L"uxtheme.dll", L"indicdll.dll",
                                    L"msctf.dll",L"shell32.dll", L"imageres.dll",
-                                   L"winmm.dll",L"ole32.dll", L"oleacc.dll",
+                                   L"winmm.dll",L"ole32.dll", L"oleacc.dll", L"version.dll"
                                    L"oleaut32.dll",L"secur32.dll",L"shlwapi.dll",
                                    L"ImSCTip.DLL",L"gdi32.dll",L"dwmapi.dll"
                                   };

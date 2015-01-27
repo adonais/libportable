@@ -20,7 +20,6 @@
 #define   CRT_LEN               100
 #define   NAMES_LEN             64
 #define	  MAX_ENV_SIZE          32767
-#define	  PROCESS_NUM           10
 #define   goodHandle(m_handle) ( (m_handle != INVALID_HANDLE_VALUE) && (m_handle != NULL) )
 
 #if defined(__GNUC__)
@@ -30,7 +29,6 @@
 #endif
 
 INI_EXTERN HMODULE dll_module;                             /* portable module addr */
-INI_EXTERN HANDLE  g_handle[PROCESS_NUM];                  /* process tree handle */
 
 #ifdef _LOGDEBUG
 #define LOG_FILE    "run_hook.log"
@@ -55,7 +53,8 @@ INI_EXTERN BOOL     WINAPI init_parser(LPWSTR inifull_name,DWORD buf_len);
 INI_EXTERN BOOL     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
                                        LPCWSTR lpkey,               /* 键名  */
                                        LPWSTR  prefstring,          /* 保存值缓冲区 */
-                                       DWORD   bufsize              /* 缓冲区大小 */
+                                       DWORD   bufsize,             /* 缓冲区大小 */
+									   void*   filename             /* 文件名,默认为空 */
                                        );
 INI_EXTERN int      WINAPI read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL     WINAPI foreach_section(LPCWSTR cat,                     /* ini 区段 */
@@ -65,12 +64,11 @@ INI_EXTERN BOOL     WINAPI foreach_section(LPCWSTR cat,                     /* i
 INI_EXTERN BOOL     WINAPI is_thunderbird(void);
 INI_EXTERN BOOL     WINAPI is_browser(void);
 INI_EXTERN BOOL     WINAPI get_mozprofiles_path(LPCWSTR, wchar_t*, int);
+INI_EXTERN BOOL     WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen);
 INI_EXTERN BOOL     WINAPI WaitWriteFile(LPCWSTR app_path);
 INI_EXTERN BOOL     WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file);
 INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
 INI_EXTERN unsigned WINAPI SetPluginPath(void * pParam);
-INI_EXTERN unsigned WINAPI run_process(void * pParam);
-INI_EXTERN void     WINAPI refresh_tray(void);
 INI_EXTERN BOOL     WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN char*    WINAPI unicode_ansi(LPCWSTR pwszUnicode);
 

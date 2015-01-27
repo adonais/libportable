@@ -15,6 +15,7 @@ YASM     := yasm
 endif
 
 ifeq ($(BITS),64)
+CROSS_COMPILING       := x86_64-w64-mingw32-
 DLL_MAIN_STDCALL_NAME = _DllMainCRTStartup
 else
 DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
@@ -32,7 +33,7 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/prefjs.o
+           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/prefjs.o $(DEP)/new_process.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
@@ -94,7 +95,9 @@ $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/prefjs.o      : $(SRC)/prefjs.c $(SRC)/prefjs.h
+$(DEP)/prefjs.o       : $(SRC)/prefjs.c $(SRC)/prefjs.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

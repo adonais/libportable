@@ -89,7 +89,7 @@ void set_hotkey(LPWNDINFO pInfo)
     WCHAR   tmp_stor[3][16] = { {0,0} };
     pInfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
     pInfo->key_vk = 0xc0;           /* ~键  */
-    if ( read_appkey(L"attach",L"Hotkey",lpstr,sizeof(lpstr)) )
+    if ( read_appkey(L"attach",L"Hotkey",lpstr,sizeof(lpstr),NULL) )
     {
         int		i = 0;
         LPWSTR	p = lpstr;

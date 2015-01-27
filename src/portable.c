@@ -9,6 +9,7 @@
 #endif
 #include "ice_error.h"
 #include "bosskey.h"
+#include "new_process.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -76,7 +77,7 @@ void CALLBACK init_global_env(void)
     {
         PathToCombineW(appdata_path,VALUE_LEN);
     }
-    if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path)) )
+    if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path),NULL) )
     {
         /* 修正相对路径问题 */
         if (localdata_path[1] != L':')
@@ -259,6 +260,7 @@ void init_portable(user_func init_env)
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
+	RunPart = 0;
     if (ff_info.atom_str)
     {
         UnregisterHotKey(NULL, ff_info.atom_str);
@@ -313,7 +315,7 @@ void WINAPI do_it(void)
 #endif
     if (MH_Initialize() != MH_OK) return;
     if ( read_appint(L"General", L"Portable") > 0 && (appdata_path[1] == L':' ||
-         read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path))) )
+         read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL)) )
     {
         init_portable(&init_global_env);
     }

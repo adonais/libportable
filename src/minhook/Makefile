@@ -28,6 +28,7 @@ ifeq ($(BITS),32)
     LDFLAGS += $(X86FLAG)
 else
     ifeq ($(BITS),64)
+        CROSS_COMPILING := x86_64-w64-mingw32-
         CFLAGS += $(X64FLAG)
         LDFLAGS += $(X64FLAG)
     endif

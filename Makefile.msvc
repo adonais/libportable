@@ -46,7 +46,7 @@ RC       = rc.exe
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\prefjs.obj
+OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\prefjs.obj $(DEP)\new_process.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -107,8 +107,10 @@ $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
 	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
 $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
-$(DEP)\prefjs.obj      : $(SRC)\prefjs.c $(SRC)\prefjs.h
+$(DEP)\prefjs.obj       : $(SRC)\prefjs.c $(SRC)\prefjs.h
 	$(CC) $(CFLAGS) /c $(SRC)\prefjs.c /Fo$@
+$(DEP)\new_process.obj  : $(SRC)\new_process.c $(SRC)\new_process.h
+	$(CC) $(CFLAGS) /c $(SRC)\new_process.c /Fo$@
 $(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 

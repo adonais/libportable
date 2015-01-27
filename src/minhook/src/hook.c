@@ -470,6 +470,8 @@ MH_STATUS WINAPI MH_Uninitialize(VOID)
     }
     // Free the internal function buffer.
     UninitializeBuffer();
+	/* 某些检测工具汇报此处内存泄漏, 但msdn说不会泄漏 */
+	HeapFree(g_hHeap, 0, g_hooks.pItems);        
     HeapDestroy(g_hHeap);
 
     g_hHeap = NULL;
