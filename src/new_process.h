@@ -7,7 +7,7 @@
 #  define PROCESS_EXTERN extern
 #endif
 
-#define	  PROCESS_NUM           10
+#define	  PROCESS_NUM 10
 
 PROCESS_EXTERN void*  g_handle[PROCESS_NUM];                  /* process tree handle */
 

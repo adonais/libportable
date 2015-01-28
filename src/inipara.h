@@ -54,7 +54,7 @@ INI_EXTERN BOOL     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名
                                        LPCWSTR lpkey,               /* 键名  */
                                        LPWSTR  prefstring,          /* 保存值缓冲区 */
                                        DWORD   bufsize,             /* 缓冲区大小 */
-									   void*   filename             /* 文件名,默认为空 */
+                                       void*   filename             /* 文件名,默认为空 */
                                        );
 INI_EXTERN int      WINAPI read_appint(LPCWSTR cat, LPCWSTR name);
 INI_EXTERN BOOL     WINAPI foreach_section(LPCWSTR cat,                     /* ini 区段 */

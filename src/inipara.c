@@ -34,7 +34,7 @@ static PFNGFVSW	  pfnGetFileVersionInfoSizeW = NULL;
 static PFNGFVIW	  pfnGetFileVersionInfoW = NULL;
 static PFNVQVW	  pfnVerQueryValueW = NULL;
 
-BOOL WINAPI 
+BOOL WINAPI
 init_parser(LPWSTR inifull_name,DWORD len)
 {
     BOOL ret = FALSE;
@@ -61,21 +61,21 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
             LPCWSTR lpkey,               /* 键名  */
             LPWSTR  prefstring,          /* 保存值缓冲区 */
             DWORD   bufsize,             /* 缓冲区大小 */
-			void*   filename             /* 文件名,默认为空 */
-            )
+            void*   filename             /* 文件名,默认为空 */
+           )
 {
     DWORD   res = 0;
     LPWSTR  lpstring;
-	LPCWSTR pfile = (LPCWSTR)filename;
+    LPCWSTR pfile = (LPCWSTR)filename;
     lpstring = (LPWSTR)SYS_MALLOC(bufsize);
-	if ( pfile == NULL )
-	{
-		res = GetPrivateProfileStringW(lpappname, lpkey ,L"", lpstring, bufsize, ini_path);
-	}
+    if ( pfile == NULL )
+    {
+        res = GetPrivateProfileStringW(lpappname, lpkey ,L"", lpstring, bufsize, ini_path);
+    }
     else
-	{
-		res = GetPrivateProfileStringW(lpappname, lpkey ,L"", lpstring, bufsize, pfile);
-	}
+    {
+        res = GetPrivateProfileStringW(lpappname, lpkey ,L"", lpstring, bufsize, pfile);
+    }
     if (res == 0 && GetLastError() != 0x0)
     {
         SYS_FREE(lpstring);
@@ -96,7 +96,7 @@ BOOL WINAPI
 foreach_section(LPCWSTR cat,                     /* ini 区段 */
                 WCHAR (*lpdata)[VALUE_LEN+1],    /* 二维数组首地址,保存多个段值 */
                 int line                         /* 二维数组行数 */
-                )
+               )
 {
     DWORD	res = 0;
     LPWSTR	lpstring;
@@ -133,13 +133,13 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
 void __cdecl logmsg(const char * format, ...)
 {
     va_list args;
-    int		len	 ;
-    char	buffer[VALUE_LEN+3];
+    int	    len	 ;
+    char    buffer[VALUE_LEN+3];
     va_start (args, format);
-    len	 =	_vscprintf(format, args);
+    len = _vscprintf(format, args);
     if (len > 0 && len < VALUE_LEN && strlen(logfile_buf) > 0)
     {
-        FILE	*pFile = NULL;
+        FILE *pFile = NULL;
         len = _vsnprintf(buffer,len,format, args);
         buffer[len++] = '\n';
         buffer[len] = '\0';
@@ -156,85 +156,85 @@ void __cdecl logmsg(const char * format, ...)
 
 HMODULE init_verinfo(void)          /* 初始化version.dll里面的三个函数 */
 {
-	HMODULE h_ver = LoadLibraryW(L"version.dll");
+    HMODULE h_ver = LoadLibraryW(L"version.dll");
     if (h_ver != NULL)
-	{
-		pfnGetFileVersionInfoSizeW = (PFNGFVSW)GetProcAddress(h_ver, "GetFileVersionInfoSizeW");
-		pfnGetFileVersionInfoW = (PFNGFVIW)GetProcAddress(h_ver, "GetFileVersionInfoW");
-		pfnVerQueryValueW = (PFNVQVW)GetProcAddress(h_ver, "VerQueryValueW");
-		if ( !(pfnGetFileVersionInfoSizeW && pfnGetFileVersionInfoW && pfnVerQueryValueW) )
-		{
-			FreeLibrary(h_ver);
-			h_ver = NULL;
-		}
-	}
-	return h_ver;
+    {
+        pfnGetFileVersionInfoSizeW = (PFNGFVSW)GetProcAddress(h_ver, "GetFileVersionInfoSizeW");
+        pfnGetFileVersionInfoW = (PFNGFVIW)GetProcAddress(h_ver, "GetFileVersionInfoW");
+        pfnVerQueryValueW = (PFNVQVW)GetProcAddress(h_ver, "VerQueryValueW");
+        if ( !(pfnGetFileVersionInfoSizeW && pfnGetFileVersionInfoW && pfnVerQueryValueW) )
+        {
+            FreeLibrary(h_ver);
+            h_ver = NULL;
+        }
+    }
+    return h_ver;
 }
 
 BOOL get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
 {
-	HMODULE h_ver = NULL;
-	BOOL    ret = FALSE;
-	DWORD   dwHandle = 0;
-	DWORD   dwSize = 0;
-	UINT    i;
-	UINT    cbTranslate = 0;
-	LPWSTR  pBuffer = NULL;
-	PVOID   pTmp = NULL;
-	WCHAR   dwBlock[NAMES_LEN+1] = {0};
-	LANGANDCODEPAGE *lpTranslate = NULL;
-	do
-	{
-		if ( (h_ver = init_verinfo()) == NULL )
-		{
-			break;
-		}
-		if ( (dwSize = pfnGetFileVersionInfoSizeW(filepath, &dwHandle)) == 0 )
-		{
-		#ifdef _LOGDEBUG
-			logmsg("pfnGetFileVersionInfoSizeW return false\n");
-		#endif
-			break;
-		}
-		if ( ( pBuffer = (LPWSTR)SYS_MALLOC(dwSize*sizeof(WCHAR)) ) == NULL )
-		{
-			break;
-		}
-		if( !pfnGetFileVersionInfoW(filepath,0,dwSize,(LPVOID)pBuffer) )
-		{
-		#ifdef _LOGDEBUG
-			logmsg("pfnpfnGetFileVersionInfoW return false\n");
-		#endif
-			break;
-		}
-		pfnVerQueryValueW((LPCVOID)pBuffer,L"\\VarFileInfo\\Translation",(LPVOID*)&lpTranslate,&cbTranslate);
-		if ( NULL == lpTranslate )
-		{
-			break;
-		}
-		for ( i=0; i < (cbTranslate/sizeof(LANGANDCODEPAGE)); i++ )
-		{
-			_snwprintf(dwBlock,NAMES_LEN,L"\\StringFileInfo\\%04x%04x\\ProductName", \
-					   lpTranslate[i].wLanguage, lpTranslate[i].wCodePage);
-			ret = pfnVerQueryValueW((LPCVOID)pBuffer,(LPCWSTR)dwBlock,(LPVOID *)&pTmp, &cbTranslate);
-			if (ret)
-			{
-				out_string[0] = L'\0';
-				wcsncpy(out_string, (LPCWSTR)pTmp, len);
-				ret = wcslen(out_string) > 1;
-				if (ret) break;
-			}
-		}
-	}while (0);
-	if ( pBuffer )
-	{
-		SYS_FREE(pBuffer);
-	}
-	if ( h_ver )
-	{
-		FreeLibrary(h_ver);
-	}
-	return ret;
+    HMODULE h_ver = NULL;
+    BOOL    ret = FALSE;
+    DWORD   dwHandle = 0;
+    DWORD   dwSize = 0;
+    UINT    i;
+    UINT    cbTranslate = 0;
+    LPWSTR  pBuffer = NULL;
+    PVOID   pTmp = NULL;
+    WCHAR   dwBlock[NAMES_LEN+1] = {0};
+    LANGANDCODEPAGE *lpTranslate = NULL;
+    do
+    {
+        if ( (h_ver = init_verinfo()) == NULL )
+        {
+            break;
+        }
+        if ( (dwSize = pfnGetFileVersionInfoSizeW(filepath, &dwHandle)) == 0 )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("pfnGetFileVersionInfoSizeW return false\n");
+        #endif
+            break;
+        }
+        if ( ( pBuffer = (LPWSTR)SYS_MALLOC(dwSize*sizeof(WCHAR)) ) == NULL )
+        {
+            break;
+        }
+        if( !pfnGetFileVersionInfoW(filepath,0,dwSize,(LPVOID)pBuffer) )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("pfnpfnGetFileVersionInfoW return false\n");
+        #endif
+            break;
+        }
+        pfnVerQueryValueW((LPCVOID)pBuffer,L"\\VarFileInfo\\Translation",(LPVOID*)&lpTranslate,&cbTranslate);
+        if ( NULL == lpTranslate )
+        {
+            break;
+        }
+        for ( i=0; i < (cbTranslate/sizeof(LANGANDCODEPAGE)); i++ )
+        {
+            _snwprintf(dwBlock,NAMES_LEN,L"\\StringFileInfo\\%04x%04x\\ProductName", \
+                       lpTranslate[i].wLanguage, lpTranslate[i].wCodePage);
+            ret = pfnVerQueryValueW((LPCVOID)pBuffer,(LPCWSTR)dwBlock,(LPVOID *)&pTmp, &cbTranslate);
+            if (ret)
+            {
+                out_string[0] = L'\0';
+                wcsncpy(out_string, (LPCWSTR)pTmp, len);
+                ret = wcslen(out_string) > 1;
+                if (ret) break;
+            }
+        }
+    } while (0);
+    if ( pBuffer )
+    {
+        SYS_FREE(pBuffer);
+    }
+    if ( h_ver )
+    {
+        FreeLibrary(h_ver);
+    }
+    return ret;
 }
 
 LPWSTR WINAPI
@@ -270,7 +270,7 @@ void charTochar(LPWSTR path)
             pos = lp-path;
             path[pos] = L'\\';
         }
-    }while (lp!=NULL);
+    } while (lp!=NULL);
     return;
 }
 
@@ -325,7 +325,7 @@ static int GetNumberOfWorkers(void)
     return (int)(si.dwNumberOfProcessors);
 }
 
-unsigned WINAPI 
+unsigned WINAPI
 SetCpuAffinity_tt(void * pParam)
 {
     DWORD_PTR   mask = 0L;
@@ -358,15 +358,15 @@ SetCpuAffinity_tt(void * pParam)
     return (1);
 }
 
-BOOL WINAPI 
+BOOL WINAPI
 IsGUI(LPCWSTR lpFileName)
 {
     IMAGE_DOS_HEADER dos_header;
     IMAGE_NT_HEADERS pe_header;
-    BOOL	ret     = FALSE;
-    HANDLE	hFile	=  CreateFileW(lpFileName,GENERIC_READ,
-                                   FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
-                                   FILE_ATTRIBUTE_NORMAL,NULL);
+    BOOL	ret = FALSE;
+    HANDLE	hFile = CreateFileW(lpFileName,GENERIC_READ,
+                                    FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
+                                    FILE_ATTRIBUTE_NORMAL,NULL);
     if( !goodHandle(hFile) )
     {
         return ret;
@@ -388,14 +388,14 @@ IsGUI(LPCWSTR lpFileName)
         ReadFile(hFile,&pe_header,sizeof(IMAGE_NT_HEADERS),&readed,NULL);
         if(readed != sizeof(IMAGE_NT_HEADERS))
         {
-            
+
             break;
         }
         if(pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI)
         {
             ret = TRUE;
         }
-    }while (0);    
+    } while (0);
     CloseHandle(hFile);
     return ret;
 }
@@ -443,27 +443,27 @@ BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
 
 BOOL is_ff_dev(void)
 {
-	BOOL    ret = FALSE;
-    WCHAR	process_name[VALUE_LEN+1];
-	WCHAR	product_name[NAMES_LEN+1] = {0};
-	if ( GetCurrentProcessName(process_name,VALUE_LEN) && \
-		 get_productname(process_name, product_name, NAMES_LEN) )
-	{
-		ret = _wcsicmp(L"FirefoxDeveloperEdition", product_name) == 0;
-	}
-	return ret;
+    BOOL     ret = FALSE;
+    WCHAR    process_name[VALUE_LEN+1];
+    WCHAR    product_name[NAMES_LEN+1] = {0};
+    if ( GetCurrentProcessName(process_name,VALUE_LEN) && \
+         get_productname(process_name, product_name, NAMES_LEN) )
+    {
+        ret = _wcsicmp(L"FirefoxDeveloperEdition", product_name) == 0;
+    }
+    return ret;
 }
 
 BOOL WINAPI is_thunderbird(void)
 {
-    WCHAR	process_name[VALUE_LEN+1];
+    WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
     return ( _wcsicmp(process_name, L"thunderbird.exe") == 0 );
 }
 
 BOOL WINAPI is_browser(void)
 {
-    WCHAR	process_name[VALUE_LEN+1];
+    WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
     return ( !(_wcsicmp(process_name, L"Iceweasel.exe") &&
                _wcsicmp(process_name, L"firefox.exe")	&&
@@ -473,7 +473,7 @@ BOOL WINAPI is_browser(void)
 
 BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
 {
-    BOOL	ret = FALSE;
+    BOOL    ret = FALSE;
     HMODULE hCallerModule = NULL;
     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)callerAddress, &hCallerModule))
     {
@@ -530,8 +530,8 @@ BOOL WINAPI get_mozprofiles_path(LPCWSTR app_path, WCHAR *dist_buf, int len)
         if ( ret > 1 && ret < len )
         {
             ret = PathRemoveFileSpecW(dist_buf);
-        }        
-    }while (0);
+        }
+    } while (0);
     return (ret>0&&ret<len);
 }
 
@@ -539,42 +539,42 @@ BOOL WINAPI get_mozprofiles_path(LPCWSTR app_path, WCHAR *dist_buf, int len)
 /* 函数成功返回值为0,返回任何其他值意味着段没有找到 */
 int search_section_names(LPCWSTR moz_profile, LPCWSTR moz_values, LPWSTR out_names, int len)
 {
-	int     ret = -1;
-	LPWSTR	m_section,str_section = NULL;
-	if ( (m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) != NULL )
-	{
-		if ( GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0 )
-		{
-			int     i = 0;
-			LPCWSTR pf = L"Profile";
-			size_t  j  = wcslen(pf);
-			str_section = m_section;
-			while ( *str_section != L'\0' &&  i < MAX_SECTION )
-			{
-				WCHAR values[SECTION_NAMES] = {0};
+    int    ret = -1;
+    LPWSTR m_section,str_section = NULL;
+    if ( (m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) != NULL )
+    {
+        if ( GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0 )
+        {
+            int     i = 0;
+            LPCWSTR pf = L"Profile";
+            size_t  j  = wcslen(pf);
+            str_section = m_section;
+            while ( *str_section != L'\0' &&  i < MAX_SECTION )
+            {
+                WCHAR values[SECTION_NAMES] = {0};
 
-				if ( wcsncmp(str_section,pf,j) == 0 && \
-					 read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
-				{
-					if ( wcscmp(values, moz_values)==0 && \
-						 _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
-					{
-						ret = 0;
-						break;
-					}
-					else
-					{
-						ret = StrToIntW(&str_section[j]);
-						if ( ret>=0 ) ++ret;
-					}
-				}
-				str_section += wcslen(str_section)+1;
-				++i;
-			}
-		}
-		SYS_FREE(m_section);
-	}
-	return ret;
+                if ( wcsncmp(str_section,pf,j) == 0 && \
+                        read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
+                {
+                    if ( wcscmp(values, moz_values)==0 && \
+                            _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
+                    {
+                        ret = 0;
+                        break;
+                    }
+                    else
+                    {
+                        ret = StrToIntW(&str_section[j]);
+                        if ( ret>=0 ) ++ret;
+                    }
+                }
+                str_section += wcslen(str_section)+1;
+                ++i;
+            }
+        }
+        SYS_FREE(m_section);
+    }
+    return ret;
 }
 
 BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
@@ -589,9 +589,9 @@ BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
     Freezex(&threads);
     if ( PathFileExistsW(moz_profile) )
     {
-		WCHAR app_names[MAX_PATH+1] = {0};
-		WCHAR m_profile[10] = {L'P',L'r',L'o',L'f',L'i',L'l',L'e',};
-		search_section_names(moz_profile, L"default", app_names, SECTION_NAMES);
+        WCHAR app_names[MAX_PATH+1] = {0};
+        WCHAR m_profile[10] = {L'P',L'r',L'o',L'f',L'i',L'l',L'e',};
+        search_section_names(moz_profile, L"default", app_names, SECTION_NAMES);
         if ( is_thunderbird() )
         {
             ret = WritePrivateProfileStringW(app_names,L"Path",L"../../",moz_profile);
@@ -599,16 +599,16 @@ BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
         else if ( is_ff_dev() )
         {
             int m = search_section_names(moz_profile, L"dev-edition-default", app_names, SECTION_NAMES);
-			if ( m > 0 )
-			{
-				/* 更新dev版配置文件 */
-				_snwprintf(m_profile+wcslen(m_profile), 2, L"%d", m);
-				ret = WritePrivateProfileSectionW(m_profile,L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0" \
-														  ,moz_profile);
-			}
+            if ( m > 0 )
+            {
+                /* 更新dev版配置文件 */
+                _snwprintf(m_profile+wcslen(m_profile), 2, L"%d", m);
+                ret = WritePrivateProfileSectionW(m_profile,L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0" \
+                                                  ,moz_profile);
+            }
         }
-		ret = WritePrivateProfileStringW(app_names,L"IsRelative",L"1",moz_profile);
-		ret = WritePrivateProfileStringW(app_names,L"Path",L"../../../",moz_profile);
+        ret = WritePrivateProfileStringW(app_names,L"IsRelative",L"1",moz_profile);
+        ret = WritePrivateProfileStringW(app_names,L"Path",L"../../../",moz_profile);
     }
     else
     {
@@ -626,15 +626,15 @@ BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
                                                   ,moz_profile);
             }
             else if ( is_ff_dev() )
-			{
-				ret = WritePrivateProfileSectionW(L"Profile0",L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0" \
-														  ,moz_profile);
-			}
-			else
-			{
-				ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0" \
-												  ,moz_profile);
-			}
+            {
+                ret = WritePrivateProfileSectionW(L"Profile0",L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0" \
+                                                  ,moz_profile);
+            }
+            else
+            {
+                ret = WritePrivateProfileSectionW(L"Profile0",L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0" \
+                                                  ,moz_profile);
+            }
         }
     }
     Unfreeze(&threads);
@@ -643,16 +643,16 @@ BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
 
 DWORD WINAPI GetOsVersion(void)
 {
-    OSVERSIONINFOEXA	osvi;
-    BOOL				bOs = FALSE;
-    DWORD				ver = 0L;
+    OSVERSIONINFOEXA    osvi;
+    BOOL                bOs = FALSE;
+    DWORD               ver = 0L;
     fzero(&osvi, sizeof(OSVERSIONINFOEXA));
 
     osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXA);
     if( GetVersionExA((OSVERSIONINFOA*)&osvi) )
     {
         if ( VER_PLATFORM_WIN32_NT==osvi.dwPlatformId &&
-                osvi.dwMajorVersion > 4 )
+             osvi.dwMajorVersion > 4 )
         {
             char pszOS[4] = {0};
             _snprintf(pszOS, 3, "%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
@@ -664,9 +664,9 @@ DWORD WINAPI GetOsVersion(void)
 
 char* WINAPI unicode_ansi(LPCWSTR pwszUnicode)
 {
-    int iSize; 
+    int   iSize;
     char* pszByte = NULL;
-    iSize = WideCharToMultiByte(CP_ACP, 0, pwszUnicode, -1, NULL, 0, NULL, NULL); 
+    iSize = WideCharToMultiByte(CP_ACP, 0, pwszUnicode, -1, NULL, 0, NULL, NULL);
     pszByte = (char*)SYS_MALLOC( iSize+sizeof(char) );
     if ( !pszByte )
     {
@@ -771,7 +771,7 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                     ret = write_env( env_string );
                     SHCreateDirectoryExW(NULL,value_str,NULL);
                 }
-                
+
             }
             /* 支持MOZ_GMP_PATH变量 */
             else if	( _wcsnicmp(strKey, L"MOZ_GMP_PATH", wcslen(L"MOZ_GMP_PATH")) == 0 && \
@@ -793,7 +793,7 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                 ret = write_env( strKey );
             }
             strKey += wcslen(strKey)+1;
-        }     
+        }
     } while (0);
     if (lpstring)
     {

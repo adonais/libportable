@@ -6,13 +6,13 @@
 
 typedef struct _REMOTE_PARAMETER
 {
-    WCHAR		strDll[VALUE_LEN+1];
-    DWORD_PTR	dwLoadLibraryAddr;
-    DWORD_PTR	dwRtlInitUnicodeString;
+    WCHAR     strDll[VALUE_LEN+1];
+    DWORD_PTR dwLoadLibraryAddr;
+    DWORD_PTR dwRtlInitUnicodeString;
 } RemotePara;
 
-static _NtFreeVirtualMemory  TrueNtFreeVirtualMemory	 = NULL;
-static _NtResumeThread		 TrueNtResumeThread			 = NULL;
+static _NtFreeVirtualMemory TrueNtFreeVirtualMemory = NULL;
+static _NtResumeThread      TrueNtResumeThread      = NULL;
 
 #if defined(_M_X64)
 unsigned char codeToInject[] =
@@ -81,19 +81,19 @@ _asm{
 #elif defined(__GNUC__)
 static void remote32_asm(void)
 {
-    __asm(
-      ".globl _remote_stub\n"
-      "_remote_stub:\n"
-      "pushl $0xDEADBEEF\n"         // return address, [1]
-      "pushfl\n"
-      "pushal\n"
-      "pushl $0xDEADBEEF\n"         // function parameter, [8]
-      "movl $0xDEADBEEF, %eax\n"    // function to call, [13]
-      "call *%eax\n"
-      "popal\n"
-      "popfl\n"
-      "ret"
-    );
+__asm(
+    ".globl _remote_stub\n"
+    "_remote_stub:\n"
+    "pushl $0xDEADBEEF\n"         // return address, [1]
+    "pushfl\n"
+    "pushal\n"
+    "pushl $0xDEADBEEF\n"         // function parameter, [8]
+    "movl $0xDEADBEEF, %eax\n"    // function to call, [13]
+    "call *%eax\n"
+    "popal\n"
+    "popfl\n"
+    "ret"
+);
 }
 #endif
 #endif
@@ -113,9 +113,9 @@ static void WINAPI ThreadProc(RemotePara* pRemotePara)
         PCWSTR SourceString
     );
     UNICODE_STRING			usDllName;
-    HANDLE					DllHandle;
+    HANDLE				DllHandle;
     _NtLdrLoadDll			pfnLdrLoadDll = (_NtLdrLoadDll)pRemotePara->dwLoadLibraryAddr;
-    _NtRtlInitUnicodeString pfnRtlInitUnicodeString = (_NtRtlInitUnicodeString)pRemotePara->dwRtlInitUnicodeString;
+    _NtRtlInitUnicodeString pfnRtlInitUnicodeString   = (_NtRtlInitUnicodeString)pRemotePara->dwRtlInitUnicodeString;
     pfnRtlInitUnicodeString(&usDllName, pRemotePara->strDll);
     pfnLdrLoadDll(NULL, 0, &usDllName, &DllHandle);
     return;
@@ -126,12 +126,12 @@ static void AfterThreadProc (void) { }
 #ifdef _M_IX86
 BOOL inject32(void *mpara,RemotePara* func_param)
 {
-    CONTEXT		ctx;
-    PVOID		picBuf = NULL;
-    LPVOID		funcBuff = NULL;
-    DWORD       old_protect;
-    SIZE_T		cbSize,tsize;
-    BOOL		exitCode = FALSE;
+    CONTEXT  ctx;
+    PVOID    picBuf = NULL;
+    LPVOID   funcBuff = NULL;
+    DWORD    old_protect;
+    SIZE_T   cbSize,tsize;
+    BOOL     exitCode = FALSE;
     PROCESS_INFORMATION pi = *(LPPROCESS_INFORMATION)mpara;
     ctx.ContextFlags = CONTEXT_CONTROL;
     if ( !GetThreadContext(pi.hThread, &ctx) )
@@ -159,9 +159,9 @@ BOOL inject32(void *mpara,RemotePara* func_param)
         goto clear;
     }
     memcpy( picBuf, &remote32_asm, cbSize );
-	*(DWORD*)((DWORD)picBuf + 1)  = ctx.Eip;
-	*(DWORD*)((DWORD)picBuf + 8)  = (DWORD)funcBuff + cbSize;
-	*(DWORD*)((DWORD)picBuf + 13) = (DWORD)funcBuff + ((DWORD)ThreadProc - (DWORD)remote32_asm);
+    *(DWORD*)((DWORD)picBuf + 1)  = ctx.Eip;
+    *(DWORD*)((DWORD)picBuf + 8)  = (DWORD)funcBuff + cbSize;
+    *(DWORD*)((DWORD)picBuf + 13) = (DWORD)funcBuff + ((DWORD)ThreadProc - (DWORD)remote32_asm);
     if ( !WriteProcessMemory(pi.hProcess, funcBuff, picBuf, cbSize, NULL) )
     {
     #ifdef _LOGDEBUG
@@ -190,8 +190,8 @@ BOOL inject32(void *mpara,RemotePara* func_param)
     #endif
         goto clear;
     }
-	ctx.Eip = (DWORD_PTR)funcBuff;
-	ctx.ContextFlags = CONTEXT_CONTROL;
+    ctx.Eip = (DWORD_PTR)funcBuff;
+    ctx.ContextFlags = CONTEXT_CONTROL;
     exitCode = SetThreadContext(pi.hThread,&ctx);    
 clear:
     TrueNtResumeThread(pi.hThread, NULL);
@@ -215,10 +215,10 @@ clear:
 #if defined(_M_X64)
 BOOL inject64(void *mpara,RemotePara* func_param)
 {
-	LPVOID      pRemoteMemDllName = NULL;
-	LPVOID      pRemoteMemFunction = NULL;
-	SIZE_T      nDllNameBuffSize = 0;
-	DWORD_PTR   nFunctionBuffSize;
+    LPVOID      pRemoteMemDllName = NULL;
+    LPVOID      pRemoteMemFunction = NULL;
+    SIZE_T      nDllNameBuffSize = 0;
+    DWORD_PTR   nFunctionBuffSize;
     BOOL        exitCode = FALSE;
     CONTEXT     ctx;
     DWORD_PTR   dwOldIP;
@@ -226,82 +226,82 @@ BOOL inject64(void *mpara,RemotePara* func_param)
     PROCESS_INFORMATION  pi = *(LPPROCESS_INFORMATION)mpara;
 
     nFunctionBuffSize = sizeof(codeToInject);
-	/* Allocate memory on the target process with current DLL path */
-	nDllNameBuffSize = (wcslen(func_param->strDll)+1) * sizeof(WCHAR);
-	pRemoteMemDllName = VirtualAllocEx(pi.hProcess, NULL, nDllNameBuffSize, MEM_COMMIT,PAGE_READWRITE);
-	if(pRemoteMemDllName)
-	{
+    /* Allocate memory on the target process with current DLL path */
+    nDllNameBuffSize = (wcslen(func_param->strDll)+1) * sizeof(WCHAR);
+    pRemoteMemDllName = VirtualAllocEx(pi.hProcess, NULL, nDllNameBuffSize, MEM_COMMIT,PAGE_READWRITE);
+    if(pRemoteMemDllName)
+    {
         SIZE_T nNumBytesWritten = 0;
-		exitCode = WriteProcessMemory(pi.hProcess, pRemoteMemDllName, (void*)func_param->strDll,
+        exitCode = WriteProcessMemory(pi.hProcess, pRemoteMemDllName, (void*)func_param->strDll,
                                       nDllNameBuffSize, &nNumBytesWritten);
-	}
+    }
  
-	if(!exitCode)
-	{
+    if(!exitCode)
+    {
     #ifdef _LOGDEBUG
         logmsg("WriteProcessMemory(DllName) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
     #endif
-		goto cleanup;
-	}
+        goto cleanup;
+    }
  
-	/* Allocate memory for the stub */
-	pRemoteMemFunction = VirtualAllocEx(pi.hProcess, NULL, nFunctionBuffSize, MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+    /* Allocate memory for the stub */
+    pRemoteMemFunction = VirtualAllocEx(pi.hProcess, NULL, nFunctionBuffSize, MEM_COMMIT,PAGE_EXECUTE_READWRITE);
  
-	pfnLoadLibrary = (DWORD_PTR)GetProcAddress(GetModuleHandleW(L"Kernel32"), "LoadLibraryW");
-	if(!pfnLoadLibrary)
-	{
+    pfnLoadLibrary = (DWORD_PTR)GetProcAddress(GetModuleHandleW(L"Kernel32"), "LoadLibraryW");
+    if(!pfnLoadLibrary)
+    {
     #ifdef _LOGDEBUG
         logmsg("GetProcAddress(LoadLibraryW) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
     #endif
-		goto cleanup;
-	}
-	/* Set the instruction pointer to point to our function */
-	ctx.ContextFlags = CONTEXT_FULL;
-	if(!GetThreadContext(pi.hThread, &ctx))
-	{
+        goto cleanup;
+    }
+    /* Set the instruction pointer to point to our function */
+    ctx.ContextFlags = CONTEXT_FULL;
+    if(!GetThreadContext(pi.hThread, &ctx))
+    {
     #ifdef _LOGDEBUG
         logmsg("GetThreadContext(ctx) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
     #endif
-		goto cleanup;
-	}
+        goto cleanup;
+    }
     dwOldIP = ctx.Rip;
-	/* Jump ahead the stack a little bit so we don't accidentally overwrite something */
-	ctx.Rsp -= 128;
-	/* Make sure the stack will be aligned to 16 bytes right at the LoadLibrary call */
-	ctx.Rsp = ctx.Rsp & ~15;
-	ctx.Rsp -= 8;
-	ctx.Rip = (DWORD_PTR) pRemoteMemFunction;
-	ctx.ContextFlags = CONTEXT_FULL;
+    /* Jump ahead the stack a little bit so we don't accidentally overwrite something */
+    ctx.Rsp -= 128;
+    /* Make sure the stack will be aligned to 16 bytes right at the LoadLibrary call */
+    ctx.Rsp = ctx.Rsp & ~15;
+    ctx.Rsp -= 8;
+    ctx.Rip = (DWORD_PTR) pRemoteMemFunction;
+    ctx.ContextFlags = CONTEXT_FULL;
 
-	/* Replace placeholders */
-	memcpy(codeToInject + 5, &dwOldIP, sizeof(dwOldIP));
-	memcpy(codeToInject + 45, &pRemoteMemDllName, sizeof(pRemoteMemDllName));
-	memcpy(codeToInject + 55, &pfnLoadLibrary, sizeof(pfnLoadLibrary));
-	if(!WriteProcessMemory(pi.hProcess, pRemoteMemFunction, codeToInject, nFunctionBuffSize, NULL))
-	{
+    /* Replace placeholders */
+    memcpy(codeToInject + 5, &dwOldIP, sizeof(dwOldIP));
+    memcpy(codeToInject + 45, &pRemoteMemDllName, sizeof(pRemoteMemDllName));
+    memcpy(codeToInject + 55, &pfnLoadLibrary, sizeof(pfnLoadLibrary));
+    if(!WriteProcessMemory(pi.hProcess, pRemoteMemFunction, codeToInject, nFunctionBuffSize, NULL))
+    {
     #ifdef _LOGDEBUG
         logmsg("WriteProcessMemory(codeToInject) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
     #endif
-		goto cleanup;
-	}
-	exitCode = SetThreadContext(pi.hThread, &ctx);
+        goto cleanup;
+    }
+    exitCode = SetThreadContext(pi.hThread, &ctx);
     if (!exitCode)
-	{
+    {
     #ifdef _LOGDEBUG
         logmsg("SetThreadContext(ctx) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
     #endif
-	}
+    }
  
 cleanup:
-	/* Cleanup allocated data */
-	TrueNtResumeThread(pi.hThread, NULL);
+    /* Cleanup allocated data */
+    TrueNtResumeThread(pi.hThread, NULL);
     Sleep(800);    
-	if(pRemoteMemDllName)
+    if(pRemoteMemDllName)
     {
-		nDllNameBuffSize = 0;
+        nDllNameBuffSize = 0;
         TrueNtFreeVirtualMemory(pi.hProcess,pRemoteMemDllName,&nDllNameBuffSize,MEM_RELEASE);
     }
-	if(pRemoteMemFunction)
+    if(pRemoteMemFunction)
     {
         nFunctionBuffSize = 0 ;
         TrueNtFreeVirtualMemory(pi.hProcess,pRemoteMemFunction,&nFunctionBuffSize,MEM_RELEASE);
@@ -309,17 +309,17 @@ cleanup:
 #ifdef _LOGDEBUG
     logmsg("%s return(%lu).\n", __FUNCTION__, exitCode);
 #endif
-	return exitCode;
+    return exitCode;
 }
 #endif
 
 JECT_EXTERN
 unsigned WINAPI InjectDll(void *mpara)
 {
-    RemotePara	    myPara;
-    WCHAR			dll_name[VALUE_LEN+1];
-    BOOL			bRet   = FALSE;
-    HMODULE		    hNtdll = GetModuleHandleW(L"ntdll.dll");
+    RemotePara myPara;
+    WCHAR      dll_name[VALUE_LEN+1];
+    BOOL       bRet   = FALSE;
+    HMODULE    hNtdll = GetModuleHandleW(L"ntdll.dll");
     if (!hNtdll) return bRet;
 
     /* 初始化远程函数参数 */

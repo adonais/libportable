@@ -10,15 +10,15 @@
 #include <shlobj.h>
 #include <stdio.h>
 
-static _NtCreateUserProcess         OrgiNtCreateUserProcess, TrueNtCreateUserProcess	    = NULL;
-static _NtWriteVirtualMemory		OrgiNtWriteVirtualMemory, TrueNtWriteVirtualMemory		= NULL;
-static _CreateProcessInternalW 		OrgiCreateProcessInternalW, TrueCreateProcessInternalW	= NULL;
-static _NtProtectVirtualMemory		TrueNtProtectVirtualMemory			= NULL;
-static _NtQueryInformationProcess	TrueNtQueryInformationProcess		= NULL;
-static _RtlNtStatusToDosError		TrueRtlNtStatusToDosError			= NULL;
-static _NtSuspendThread				TrueNtSuspendThread					= NULL;
-static _NtResumeThread				TrueNtResumeThread					= NULL;
-static _NtLoadLibraryExW			TrueLoadLibraryExW					= NULL;
+static _NtCreateUserProcess         OrgiNtCreateUserProcess, TrueNtCreateUserProcess        = NULL;
+static _NtWriteVirtualMemory        OrgiNtWriteVirtualMemory, TrueNtWriteVirtualMemory      = NULL;
+static _CreateProcessInternalW      OrgiCreateProcessInternalW, TrueCreateProcessInternalW  = NULL;
+static _NtProtectVirtualMemory      TrueNtProtectVirtualMemory          = NULL;
+static _NtQueryInformationProcess   TrueNtQueryInformationProcess       = NULL;
+static _RtlNtStatusToDosError       TrueRtlNtStatusToDosError           = NULL;
+static _NtSuspendThread             TrueNtSuspendThread                 = NULL;
+static _NtResumeThread              TrueNtResumeThread                  = NULL;
+static _NtLoadLibraryExW            TrueLoadLibraryExW                  = NULL;
 
 BOOL in_whitelist(LPCWSTR lpfile)
 {
@@ -28,7 +28,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
                               L"maintenanceservice_installer.exe",L"updater.exe",L"wow_helper.exe"
                              };
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
-    int		i = sizeof(moz_processes)/sizeof(moz_processes[0]);
+    int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);
     LPCWSTR pname = lpfile;
     BOOL    ret = FALSE;
     if (lpfile[0] == L'"')
@@ -84,7 +84,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
 
 BOOL ProcessIsCUI(LPCWSTR lpfile)
 {
-    WCHAR lpname[VALUE_LEN+1] = {0};
+    WCHAR   lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
     int     n;
     if ( lpfile[0] == L'"' )
@@ -129,7 +129,8 @@ NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
 
 
 NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
-                                        ACCESS_MASK ProcessDesiredAccess,ACCESS_MASK ThreadDesiredAccess,
+                                        ACCESS_MASK ProcessDesiredAccess,
+                                        ACCESS_MASK ThreadDesiredAccess,
                                         POBJECT_ATTRIBUTES ProcessObjectAttributes,
                                         POBJECT_ATTRIBUTES ThreadObjectAttributes,
                                         ULONG CreateProcessFlags,
@@ -139,8 +140,8 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
                                         PNT_PROC_THREAD_ATTRIBUTE_LIST AttributeList)
 {
     RTL_USER_PROCESS_PARAMETERS mY_ProcessParameters;
-    NTSTATUS	status;
-    BOOL		tohook	= FALSE;
+    NTSTATUS    status;
+    BOOL        tohook	= FALSE;
     fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
     if ( stristrW(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
          stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe") ||
@@ -273,9 +274,9 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
 
 BOOL iSAuthorized(LPCWSTR lpFileName)
 {
-    BOOL	ret = FALSE;
+    BOOL    ret = FALSE;
     BOOL    wow64 = FALSE;
-    LPWSTR	filename = NULL;
+    LPWSTR  filename = NULL;
     wchar_t *szAuthorizedList[] = {L"comctl32.dll", L"uxtheme.dll", L"indicdll.dll",
                                    L"msctf.dll",L"shell32.dll", L"imageres.dll",
                                    L"winmm.dll",L"ole32.dll", L"oleacc.dll", L"version.dll"
@@ -362,16 +363,11 @@ unsigned WINAPI init_safed(void * pParam)
     hNtdll = GetModuleHandleW(L"ntdll.dll");
     if (hNtdll)
     {
-        TrueNtSuspendThread				= (_NtSuspendThread)GetProcAddress
-                                          (hNtdll, "NtSuspendThread");
-        TrueNtResumeThread				= (_NtResumeThread)GetProcAddress
-                                          (hNtdll, "NtResumeThread");
-        TrueNtQueryInformationProcess	= (_NtQueryInformationProcess)GetProcAddress(hNtdll,
-                                          "NtQueryInformationProcess");
-        TrueNtWriteVirtualMemory		= (_NtWriteVirtualMemory)GetProcAddress(hNtdll,
-                                          "NtWriteVirtualMemory");
-        TrueRtlNtStatusToDosError		= (_RtlNtStatusToDosError)GetProcAddress(hNtdll,
-                                          "RtlNtStatusToDosError");
+        TrueNtSuspendThread             = (_NtSuspendThread)GetProcAddress(hNtdll, "NtSuspendThread");
+        TrueNtResumeThread              = (_NtResumeThread)GetProcAddress(hNtdll, "NtResumeThread");
+        TrueNtQueryInformationProcess   = (_NtQueryInformationProcess)GetProcAddress(hNtdll,"NtQueryInformationProcess");
+        TrueNtWriteVirtualMemory        = (_NtWriteVirtualMemory)GetProcAddress(hNtdll,"NtWriteVirtualMemory");
+        TrueRtlNtStatusToDosError       = (_RtlNtStatusToDosError)GetProcAddress(hNtdll,"RtlNtStatusToDosError");
         if (ver>601)  /* win8 */
         {
             TrueNtCreateUserProcess     = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");

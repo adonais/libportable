@@ -260,7 +260,7 @@ void init_portable(user_func init_env)
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
-	RunPart = 0;
+    RunPart = 0;
     if (ff_info.atom_str)
     {
         UnregisterHotKey(NULL, ff_info.atom_str);

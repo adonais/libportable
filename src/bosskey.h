@@ -11,11 +11,11 @@
 
 typedef struct tagWNDINFO
 {
-	int	     atom_str;
-	int      key_mod;
-	int      key_vk;
-    DWORD    hPid;
-    HWND     hFF;
+    int   atom_str;
+    int   key_mod;
+    int   key_vk;
+    DWORD hPid;
+    HWND  hFF;
 } WNDINFO;
 
 typedef WNDINFO *LPWNDINFO;
