@@ -1,4 +1,4 @@
-#ifndef LIBPORTABLE_STATIC
+﻿#ifndef LIBPORTABLE_STATIC
 #define TETE_BUILD
 #endif
 
@@ -31,9 +31,9 @@ typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
 typedef void (CALLBACK *user_func)(void);
 
 static  WNDINFO ff_info;
-static _NtSHGetFolderPathW				TrueSHGetFolderPathW				= NULL;
-static _NtSHGetSpecialFolderLocation	TrueSHGetSpecialFolderLocation		= NULL;
-static _NtSHGetSpecialFolderPathW		TrueSHGetSpecialFolderPathW			= NULL;
+static _NtSHGetFolderPathW              TrueSHGetFolderPathW            = NULL;
+static _NtSHGetSpecialFolderLocation    TrueSHGetSpecialFolderLocation  = NULL;
+static _NtSHGetSpecialFolderPathW       TrueSHGetSpecialFolderPathW     = NULL;
 
 /* 数据段共享锁,保证进程生存周期内只运行一次 */
 #ifdef _MSC_VER
@@ -148,9 +148,9 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
                                     DWORD dwFlags,LPWSTR pszPath)
 {
-    UINT_PTR	dwCaller;
+    UINT_PTR    dwCaller;
     BOOL        dwFf = FALSE;
-    int			folder = nFolder & 0xff;
+    int         folder = nFolder & 0xff;
     HRESULT     ret = E_FAIL;
 #ifndef LIBPORTABLE_STATIC
     WCHAR		dllname[VALUE_LEN+1];
@@ -290,9 +290,9 @@ void WINAPI undo_it(void)
     }
     jmp_end();
 #ifndef DISABLE_SAFE
-	safe_end();
+    safe_end();
 #endif
-	MH_Uninitialize();
+    MH_Uninitialize();
     return;
 }
 
@@ -325,7 +325,7 @@ void WINAPI do_it(void)
         init_safed(NULL);
     }
 #endif
-    if ( !RunPart )
+    if ( !RunPart && is_browser() )
     {
         HANDLE  h_thread;
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )

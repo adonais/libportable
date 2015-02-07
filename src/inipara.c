@@ -1,4 +1,4 @@
-#define INI_EXTERN
+﻿#define INI_EXTERN
 
 #include "inipara.h"
 #include "MinHook.h"
@@ -762,7 +762,7 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                 }
             }
             /* 支持VimpPentaHome变量 */
-            else if	( _wcsnicmp(strKey, L"VimpPentaHome", wcslen(L"VimpPentaHome")) == 0 && \
+            else if ( _wcsnicmp(strKey, L"VimpPentaHome", wcslen(L"VimpPentaHome")) == 0 && \
                       read_appkey(L"Env",L"VimpPentaHome",value_str,sizeof(value_str),NULL) )
             {
                 PathToCombineW(value_str, VALUE_LEN);
@@ -773,9 +773,9 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                 }
 
             }
-            /* 支持MOZ_GMP_PATH变量 */
-            else if	( _wcsnicmp(strKey, L"MOZ_GMP_PATH", wcslen(L"MOZ_GMP_PATH")) == 0 && \
-                      read_appkey(L"Env",L"MOZ_GMP_PATH",value_str,sizeof(value_str),NULL) )
+            /* 支持MOZ_OPENH264_PATH变量 */
+            else if ( _wcsnicmp(strKey, L"MOZ_OPENH264_PATH", wcslen(L"MOZ_OPENH264_PATH")) == 0 && \
+                      read_appkey(L"Env",L"MOZ_OPENH264_PATH",value_str,sizeof(value_str),NULL) )
             {
                 PathToCombineW(value_str, VALUE_LEN);
                 if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_GMP_PATH=",value_str) > 0 )
@@ -784,7 +784,7 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                     gmpservice_check(pParam, value_str);
                 }
             }
-            else if	( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
+            else if ( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
             {
                 /* 忽略此变量,已经由init_global_env函数处理完成 */
             }

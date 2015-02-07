@@ -1,3 +1,5 @@
+#define PREJS_EXTERN
+
 #include "inipara.h"
 #include <windows.h>
 #include <shlwapi.h>
@@ -18,6 +20,7 @@ typedef struct {
 } NamedStrRef;
 
 static NamedStrRef NamedEntities[] = {
+    USER_PREF("media.gmp-gmpopenh264.provider.enabled", "false"),
     USER_PREF("media.gmp-gmpopenh264.path", "%s"),
     USER_PREF("media.gmp-gmpopenh264.version", "%f"),
     USER_PREF("media.gmp-manager.url", "")
@@ -56,7 +59,15 @@ void gmp_write(LPCWSTR profile_dir,LPCWSTR path,LPCSTR version_str)
         #endif 
             break;
         }
-        for ( i=0; i<sizeof(NamedEntities)/sizeof(NamedEntities[0]) ; ++i)
+        if ( version_str[0] == '\0' )
+        {
+            char line_buf[VALUE_LEN+1] = { '\0' };
+            _snprintf(line_buf, VALUE_LEN, "%spref(\"%s\", %s);", \
+                      newline,NamedEntities[0].name,NamedEntities[0].value);
+            fputs(line_buf, pfile);
+            break;
+        }
+        for ( i=1; i<sizeof(NamedEntities)/sizeof(NamedEntities[0]) ; ++i)
         {
             if ( strcmp("%s", NamedEntities[i].value) == 0 )
             {
@@ -69,7 +80,7 @@ void gmp_write(LPCWSTR profile_dir,LPCWSTR path,LPCSTR version_str)
             if ( !NamedEntities[i].status )
             {
                 char line_buf[VALUE_LEN+1] = { '\0' };
-                int  m = _snprintf(line_buf, VALUE_LEN, "%suser_pref(\"%s\", \"%s\");", \
+                int  m = _snprintf(line_buf, VALUE_LEN, "%spref(\"%s\", \"%s\");", \
                                    newline,NamedEntities[i].name,NamedEntities[i].value);
                 if ( m>1 && m < VALUE_LEN )
                 {
@@ -216,6 +227,7 @@ BOOL get_gmp_version(WCHAR* gmp_info, char* version_str, int len)
     return (ret>0 && ret<len);
 }
 
+PREJS_EXTERN 
 void WINAPI gmpservice_check(LPCWSTR app_path, LPCWSTR gmp_path)
 {
     WCHAR   dist_dir[MAX_PATH+1]  = { L'\0' };
@@ -236,7 +248,7 @@ void WINAPI gmpservice_check(LPCWSTR app_path, LPCWSTR gmp_path)
         }
         if ( !get_gmp_version(gmp_info,version_str,VER_LEN) )
         {
-            break;
+            *version_str = '\0';
         }
         if ( get_mozprofiles_path(app_path, dist_dir, MAX_PATH) )
         {
