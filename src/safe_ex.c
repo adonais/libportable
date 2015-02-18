@@ -10,15 +10,18 @@
 #include <shlobj.h>
 #include <stdio.h>
 
-static _NtCreateUserProcess         OrgiNtCreateUserProcess, TrueNtCreateUserProcess        = NULL;
-static _NtWriteVirtualMemory        OrgiNtWriteVirtualMemory, TrueNtWriteVirtualMemory      = NULL;
-static _CreateProcessInternalW      OrgiCreateProcessInternalW, TrueCreateProcessInternalW  = NULL;
-static _NtProtectVirtualMemory      TrueNtProtectVirtualMemory          = NULL;
-static _NtQueryInformationProcess   TrueNtQueryInformationProcess       = NULL;
-static _RtlNtStatusToDosError       TrueRtlNtStatusToDosError           = NULL;
-static _NtSuspendThread             TrueNtSuspendThread                 = NULL;
-static _NtResumeThread              TrueNtResumeThread                  = NULL;
-static _NtLoadLibraryExW            TrueLoadLibraryExW                  = NULL;
+static _NtProtectVirtualMemory     TrueNtProtectVirtualMemory;
+static _NtQueryInformationProcess  TrueNtQueryInformationProcess;
+static _RtlNtStatusToDosError      TrueRtlNtStatusToDosError;
+static _NtSuspendThread            TrueNtSuspendThread;
+static _NtResumeThread             TrueNtResumeThread;
+static _NtCreateUserProcess        OrgiNtCreateUserProcess, 
+                                   TrueNtCreateUserProcess;
+static _NtWriteVirtualMemory       OrgiNtWriteVirtualMemory, 
+                                   TrueNtWriteVirtualMemory;
+static _CreateProcessInternalW     OrgiCreateProcessInternalW, 
+                                   TrueCreateProcessInternalW;
+static _NtLoadLibraryExW           TrueLoadLibraryExW;
 
 BOOL in_whitelist(LPCWSTR lpfile)
 {
@@ -263,7 +266,8 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
         }
     }
     ret =  OrgiCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
-                                      lpThreadAttributes,bInheritHandles,dwCreationFlags,lpEnvironment,lpCurrentDirectory,
+                                      lpThreadAttributes,bInheritHandles,dwCreationFlags,
+                                      lpEnvironment,lpCurrentDirectory,
                                       lpStartupInfo,lpProcessInformation,hNewToken);
     if ( ret && tohook )
     {
@@ -305,7 +309,8 @@ BOOL iSAuthorized(LPCWSTR lpFileName)
         {
             PathRemoveFileSpecW(sysdir);
             PathAppendW(sysdir,L"system32");
-            filename = _wcsnicmp(lpFileName,sysdir,wcslen(sysdir))?NULL:PathFindFileNameW(lpFileName);
+            filename = _wcsnicmp(lpFileName,sysdir,
+                       wcslen(sysdir))?NULL:PathFindFileNameW(lpFileName);
         }
     }
     else
@@ -336,11 +341,7 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
         {
             break;
         }
-    #ifdef __GNUC__
-        dwCaller = (UINT_PTR)__builtin_return_address(0);
-    #else
         dwCaller = (UINT_PTR)_ReturnAddress();
-    #endif
         if ( is_specialdll(dwCaller,L"user32.dll") )
         {
             if ( !in_whitelist(lpFileName) )
@@ -352,62 +353,75 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
             }
         }
     }while (0);
-    return TrueLoadLibraryExW(lpFileName, hFile, dwFlags);
+    return OrgiLoadLibraryExW(lpFileName, hFile, dwFlags);
 }
 
 
 unsigned WINAPI init_safed(void * pParam)
 {
-    HMODULE		hNtdll;
+    HMODULE		hNtdll, hKernel;
     DWORD		ver = GetOsVersion();
-    hNtdll = GetModuleHandleW(L"ntdll.dll");
-    if (hNtdll)
+    hNtdll   =  GetModuleHandleW(L"ntdll.dll");
+    hKernel  =  GetModuleHandleW(L"kernel32.dll");
+    if ( !(hNtdll&&hKernel) ) return (0);
+    TrueNtSuspendThread           = (_NtSuspendThread)GetProcAddress(\
+                                    hNtdll, "NtSuspendThread");
+    TrueNtResumeThread            = (_NtResumeThread)GetProcAddress(\
+                                    hNtdll, "NtResumeThread");
+    TrueNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(\
+                                    hNtdll, "NtQueryInformationProcess");
+    TrueNtWriteVirtualMemory      = (_NtWriteVirtualMemory)GetProcAddress(\
+                                    hNtdll, "NtWriteVirtualMemory");
+    TrueRtlNtStatusToDosError     = (_RtlNtStatusToDosError)GetProcAddress(\
+                                    hNtdll, "RtlNtStatusToDosError");
+    if ( ver>601 )  /* win8 */
     {
-        TrueNtSuspendThread             = (_NtSuspendThread)GetProcAddress(hNtdll, "NtSuspendThread");
-        TrueNtResumeThread              = (_NtResumeThread)GetProcAddress(hNtdll, "NtResumeThread");
-        TrueNtQueryInformationProcess   = (_NtQueryInformationProcess)GetProcAddress(hNtdll,"NtQueryInformationProcess");
-        TrueNtWriteVirtualMemory        = (_NtWriteVirtualMemory)GetProcAddress(hNtdll,"NtWriteVirtualMemory");
-        TrueRtlNtStatusToDosError       = (_RtlNtStatusToDosError)GetProcAddress(hNtdll,"RtlNtStatusToDosError");
-        if (ver>601)  /* win8 */
+        TrueNtCreateUserProcess   = (_NtCreateUserProcess)GetProcAddress(\
+                                    hNtdll, "NtCreateUserProcess");
+        if (TrueNtCreateUserProcess && MH_CreateHook \
+           (TrueNtCreateUserProcess, HookNtCreateUserProcess, \
+           (LPVOID*)&OrgiNtCreateUserProcess) == MH_OK )
         {
-            TrueNtCreateUserProcess     = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
-            if (TrueNtCreateUserProcess && \
-                MH_CreateHook(TrueNtCreateUserProcess, HookNtCreateUserProcess, (LPVOID*)&OrgiNtCreateUserProcess) == MH_OK )
+            if ( MH_EnableHook(TrueNtCreateUserProcess) != MH_OK )
             {
-                if ( MH_EnableHook(TrueNtCreateUserProcess) != MH_OK )
-                {
-                #ifdef _LOGDEBUG
-                    logmsg("TrueNtCreateUserProcess hook failed!\n");
-                #endif
-                }
-            }
-        }
-        else
-        {
-            TrueCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateProcessInternalW");
-            if (TrueCreateProcessInternalW && \
-                MH_CreateHook(TrueCreateProcessInternalW, HookCreateProcessInternalW, (LPVOID*)&OrgiCreateProcessInternalW) == MH_OK )
-            {
-                if ( MH_EnableHook(TrueCreateProcessInternalW) != MH_OK )
-                {
-                #ifdef _LOGDEBUG
-                    logmsg("TrueCreateProcessInternalW hook failed!\n");
-                #endif
-                }
+            #ifdef _LOGDEBUG
+                logmsg("TrueNtCreateUserProcess hook failed!\n");
+            #endif
             }
         }
     }
-    if ( MH_CreateHook(&LoadLibraryExW, &HookLoadLibraryExW, (LPVOID*)&TrueLoadLibraryExW) == MH_OK )
+    else
     {
-        if ( MH_EnableHook(&LoadLibraryExW) != MH_OK )
+        TrueCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(\
+                                      hKernel, "CreateProcessInternalW");
+        if (TrueCreateProcessInternalW && MH_CreateHook \
+           (TrueCreateProcessInternalW, HookCreateProcessInternalW, \
+           (LPVOID*)&OrgiCreateProcessInternalW) == MH_OK )
+        {
+            if ( MH_EnableHook(TrueCreateProcessInternalW) != MH_OK )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("TrueCreateProcessInternalW hook failed!\n");
+            #endif
+            }
+        }
+    }
+    TrueLoadLibraryExW	= (_NtLoadLibraryExW)GetProcAddress(hKernel, 
+                          "LoadLibraryExW");
+    if (TrueLoadLibraryExW && MH_CreateHook \
+       (TrueLoadLibraryExW, HookLoadLibraryExW, \
+       (LPVOID*)&OrgiLoadLibraryExW) == MH_OK )
+    {
+        if ( MH_EnableHook(TrueLoadLibraryExW) != MH_OK )
         {
         #ifdef _LOGDEBUG
             logmsg("LoadLibraryExW hook failed!\n");
         #endif
         }
     }
-    if (TrueNtWriteVirtualMemory && \
-        MH_CreateHook(TrueNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&OrgiNtWriteVirtualMemory) == MH_OK )
+    if (TrueNtWriteVirtualMemory && MH_CreateHook \
+       (TrueNtWriteVirtualMemory, HookNtWriteVirtualMemory, \
+       (LPVOID*)&OrgiNtWriteVirtualMemory) == MH_OK )
     {
         if ( MH_EnableHook(TrueNtWriteVirtualMemory) != MH_OK )
         {
@@ -421,9 +435,9 @@ unsigned WINAPI init_safed(void * pParam)
 
 void WINAPI safe_end(void)
 {
-    if (TrueLoadLibraryExW)
+    if (OrgiLoadLibraryExW)
     {
-        MH_DisableHook(&LoadLibraryExW);
+        MH_DisableHook(TrueLoadLibraryExW);
     }
     if (OrgiCreateProcessInternalW)
     {

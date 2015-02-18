@@ -1,4 +1,4 @@
-#define JECT_EXTERN
+﻿#define JECT_EXTERN
 
 #include "inject.h"
 #include "inipara.h"
@@ -112,9 +112,9 @@ static void WINAPI ThreadProc(RemotePara* pRemotePara)
         PUNICODE_STRING DestinationString,
         PCWSTR SourceString
     );
-    UNICODE_STRING			usDllName;
-    HANDLE				DllHandle;
-    _NtLdrLoadDll			pfnLdrLoadDll = (_NtLdrLoadDll)pRemotePara->dwLoadLibraryAddr;
+    UNICODE_STRING                      usDllName;
+    HANDLE                              DllHandle;
+    _NtLdrLoadDll                       pfnLdrLoadDll = (_NtLdrLoadDll)pRemotePara->dwLoadLibraryAddr;
     _NtRtlInitUnicodeString pfnRtlInitUnicodeString   = (_NtRtlInitUnicodeString)pRemotePara->dwRtlInitUnicodeString;
     pfnRtlInitUnicodeString(&usDllName, pRemotePara->strDll);
     pfnLdrLoadDll(NULL, 0, &usDllName, &DllHandle);

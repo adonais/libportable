@@ -7,22 +7,13 @@
 #  define SAFE_EXTERN extern
 #endif
 
-#include <windows.h>
-
-#ifdef _MSC_VER
-extern
-#if defined(__cplusplus)
-"C"
-#endif
-void* _ReturnAddress(void);
-#pragma intrinsic(_ReturnAddress)
-#endif /* _MSC_VER */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-SAFE_EXTERN unsigned WINAPI init_safed(void * pParam);
-SAFE_EXTERN void WINAPI safe_end(void);
+
+SAFE_EXTERN unsigned __stdcall init_safed(void * pParam);
+SAFE_EXTERN void __stdcall safe_end(void);
+
 #ifdef __cplusplus
 }
 #endif 

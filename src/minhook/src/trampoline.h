@@ -30,6 +30,10 @@
 
 #pragma pack(push, 1)
 
+#ifndef ARRAYSIZE
+#  define ARRAYSIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
 // Structs for writing x86/x64 instructions.
 
 // 8-bit relative jump.

@@ -22,7 +22,8 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-	    -fdata-sections -fomit-frame-pointer -finline-functions -fno-stack-protector
+	    -fdata-sections -fomit-frame-pointer -finline-functions -fno-stack-protector \
+	    -DWINVER=0x0501 -D_WIN32_IE=0x0601
 
 MD       = mkdir -p
 CP       = cp
@@ -67,8 +68,9 @@ OBJS     = $(DEP)/*.o
 else
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
+DEPLIBS  = -Wl,-static -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
-LDFLAGS  += -L$(DISTDIR) -lminhook$(BITS) -nodefaultlibs -Wl,-static -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
+LDFLAGS  += -L$(DISTDIR) -nodefaultlibs $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff

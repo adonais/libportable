@@ -26,8 +26,8 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Windows.h>
-#include <intrin.h>
+#include <windows.h>
+#include "intrin_c.h"
 
 #ifdef _M_X64
     #include "hde/hde64.h"

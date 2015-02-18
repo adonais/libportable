@@ -26,7 +26,7 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Windows.h>
+#include <windows.h>
 #include "buffer.h"
 
 // Size of each memory block. (= page size of VirtualAlloc)

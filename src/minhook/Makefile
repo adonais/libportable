@@ -5,7 +5,8 @@ DFLAGS :=
 LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
 AR       =$(CROSS_COMPILING)ar
-CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG -fdata-sections -finline-functions -fomit-frame-pointer -D_LOGDEBUG
+CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG -fdata-sections \
+            -finline-functions -fomit-frame-pointer
 CFLAGSEX =
 
 MD       = mkdir -p

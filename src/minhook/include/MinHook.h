@@ -29,6 +29,10 @@
 #ifndef _MIN_HOOK_H_
 #  define _MIN_HOOK_H
 
+#ifndef WINVER         /* Define WINVER to fix building on MinGW */
+#  define WINVER 0x0501
+#endif
+
 #include <windows.h>
 
 #if !(defined _M_IX86) && !(defined _M_X64)

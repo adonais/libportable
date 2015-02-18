@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <ctype.h>
 #ifdef _MSC_VER
 #include <stdarg.h>
 #endif
@@ -32,15 +33,13 @@ extern void WINAPI gmpservice_check(LPCWSTR app_path, LPCWSTR gmp_path);
 
 static PFNGFVSW	  pfnGetFileVersionInfoSizeW = NULL;
 static PFNGFVIW	  pfnGetFileVersionInfoW = NULL;
-static PFNVQVW	  pfnVerQueryValueW = NULL;
-
+static PFNVQVW	  pfnVerQueryValueW  = NULL;
+_NtLoadLibraryExW OrgiLoadLibraryExW = NULL;
+HMODULE           dll_module         = NULL;
 BOOL WINAPI
 init_parser(LPWSTR inifull_name,DWORD len)
 {
     BOOL ret = FALSE;
-#ifdef LIBPORTABLE_STATIC
-    dll_module = NULL;
-#endif
     GetModuleFileNameW(dll_module,inifull_name,len);
     PathRemoveFileSpecW(inifull_name);
     PathAppendW(inifull_name,L"portable.ini");
@@ -365,8 +364,8 @@ IsGUI(LPCWSTR lpFileName)
     IMAGE_NT_HEADERS pe_header;
     BOOL	ret = FALSE;
     HANDLE	hFile = CreateFileW(lpFileName,GENERIC_READ,
-                                    FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
-                                    FILE_ATTRIBUTE_NORMAL,NULL);
+                                FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL,NULL);
     if( !goodHandle(hFile) )
     {
         return ret;
@@ -686,40 +685,45 @@ int __cdecl write_env(WCHAR* env)
     char*      envA = NULL;
     _PR_setenv moz_put_env = NULL;
     WCHAR      dll_path[MAX_PATH+1] = {0};
-    if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
+    do
     {
-        return ret;
-    }
-    if ( !PathAppendW(dll_path,L"nss3.dll") )
+        if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
+        {
+            break;
+        }
+        if ( !PathAppendW(dll_path,L"nss3.dll") )
+        {
+            break;
+        }
+        hcrt = OrgiLoadLibraryExW?OrgiLoadLibraryExW(dll_path,NULL,0):\
+               LoadLibraryExW(dll_path,NULL,0);
+        if ( hcrt == NULL )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
+        #endif
+            break;
+        }
+        if ( (moz_put_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
+        #endif
+            break;
+        }
+        if ( (envA = unicode_ansi(env)) == NULL )
+        {
+            break;
+        }
+    } while (0);
+    if ( envA )
     {
-        return ret;
+        ret = moz_put_env(envA);
+        SYS_FREE(envA);
     }
-    if ( (hcrt = LoadLibraryExW(dll_path,NULL,0)) == NULL )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
-    #endif
-        return ret;
-    }
-    if ( (moz_put_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
-    #endif
-        return ret;
-    }
-    if ( (envA = unicode_ansi(env)) == NULL )
-    {
-        return ret;
-    }
-    ret = moz_put_env(envA);
-    if (hcrt)
+    if ( hcrt )
     {
         FreeLibrary(hcrt);
-    }
-    if (envA)
-    {
-        SYS_FREE(envA);
     }
     return ret;
 }

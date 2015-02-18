@@ -8,6 +8,7 @@
 #endif
 
 #include <windows.h>
+#include "intrin_c.h"
 
 #define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
 #define   SYS_FREE(x)		 (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
@@ -28,7 +29,10 @@
 #define SHARED
 #endif
 
-INI_EXTERN HMODULE dll_module;                             /* portable module addr */
+typedef HMODULE (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
+
+INI_EXTERN _NtLoadLibraryExW    OrgiLoadLibraryExW;
+INI_EXTERN HMODULE dll_module;  /* portable module addr */
 
 #ifdef _LOGDEBUG
 #define LOG_FILE    "run_hook.log"
@@ -40,7 +44,7 @@ extern
 void __cdecl logmsg(const char * format, ...);
 #endif
 
-#define fzero(b,len) (memset((b),'\0',(len)),(void)0)
+#define fzero(b,len)  (__stosb((LPBYTE)(b), '\0', (len)))
 
 #ifdef __cplusplus
 extern "C" {

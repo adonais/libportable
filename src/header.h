@@ -5,12 +5,18 @@
 #include <shlwapi.h>
 #include <psapi.h>
 
-#if defined(_MSC_VER)
-#define __C89_NAMELESS
+#if defined(__GNUC__) || defined(__GNUG__)
+#  define __MINGW_EXTENSION __extension__
+#else
+#  define __C89_NAMELESS
+#endif
+
+#ifndef __C89_NAMELESS
+#  define __C89_NAMELESS __MINGW_EXTENSION
 #endif
 
 #if !defined (_NTDEF_) && !defined (_NTSTATUS_PSDK)
-#define _NTSTATUS_PSDK
+#  define _NTSTATUS_PSDK
 typedef LONG NTSTATUS, *PNTSTATUS;
 #endif
 
@@ -662,6 +668,7 @@ typedef NTSTATUS (NTAPI *_NtWriteVirtualMemory)(IN HANDLE ProcessHandle,
                                         IN SIZE_T NumberOfBytesToWrite,
                                         OUT PSIZE_T NumberOfBytesWritten);
 typedef NTSTATUS (NTAPI *_NtProtectVirtualMemory) (HANDLE, PVOID, PULONG, ULONG , PULONG);
+typedef DWORD    (WINAPI *PTHREAD_START_ROUTINE) (LPVOID lpThreadParameter);
 typedef NTSTATUS (NTAPI *_NtCreateThreadEx)(OUT PHANDLE ThreadHandle,
                                         IN ACCESS_MASK DesiredAccess,
                                         IN POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL,
@@ -729,7 +736,7 @@ typedef BOOL  (WINAPI *_CreateProcessInternalW)(HANDLE hToken,
                                         PHANDLE hNewToken);
 typedef NTSTATUS (NTAPI *_NtSuspendThread)(IN HANDLE ThreadHandle,OUT PULONG PreviousSuspendCount);
 typedef NTSTATUS (NTAPI *_NtResumeThread)(IN HANDLE ThreadHandle,OUT PULONG SuspendCount);
-typedef HMODULE  (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
+
 typedef NTSTATUS (NTAPI *_NtLdrpProcessImportDirectory)(PLDR_DATA_TABLE_ENTRY Module,
                                         PLDR_DATA_TABLE_ENTRY ImportedModule,
                                         PCHAR ImportedName);

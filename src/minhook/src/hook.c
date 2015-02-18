@@ -26,13 +26,12 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Windows.h>
-#include <TlHelp32.h>
-#include <intrin.h>
-
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
+#include <tlhelp32.h>
+#include <limits.h>
+#include "intrin_c.h"
 
 // Initial capacity of the HOOK_ENTRY buffer.
 #define INITIAL_HOOK_CAPACITY   32
@@ -398,6 +397,7 @@ static MH_STATUS EnableHookLL(UINT pos, BOOL enable)
 static MH_STATUS EnableAllHooksLL(BOOL enable)
 {
     UINT i;
+    MH_STATUS status = MH_OK;
     for (i = 0; i < g_hooks.size; ++i)
     {
         if (g_hooks.pItems[i].isEnabled != enable)
@@ -408,16 +408,16 @@ static MH_STATUS EnableAllHooksLL(BOOL enable)
             {
                 if (g_hooks.pItems[i].isEnabled != enable)
                 {
-                    MH_STATUS status = EnableHookLL(i, enable);
-                    if (status != MH_OK)
-                        return status;
+                    status = EnableHookLL(i, enable);
+                    if (status != MH_OK) break;
                 }
             }
             Unfreeze(&threads);
+            if (status != MH_OK) break;
         }
     }
 
-    return MH_OK;
+    return status;
 }
 
 //-------------------------------------------------------------------------
@@ -458,7 +458,7 @@ MH_STATUS WINAPI MH_Initialize(VOID)
 //-------------------------------------------------------------------------
 MH_STATUS WINAPI MH_Uninitialize(VOID)
 {
-    MH_STATUS status;
+    MH_STATUS status = MH_UNKNOWN;
     if (g_hHeap == NULL)
         return MH_ERROR_NOT_INITIALIZED;
     EnterSpinLock();
@@ -480,7 +480,7 @@ MH_STATUS WINAPI MH_Uninitialize(VOID)
     g_hooks.capacity = 0;
     g_hooks.size     = 0;
     LeaveSpinLock();
-    return MH_OK;
+    return status;
 }
 
 //-------------------------------------------------------------------------
@@ -500,7 +500,7 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
     pos = FindHookEntry(pTarget);
     if (pos != INVALID_HOOK_POS)
     {
-        EnterSpinLock();
+        LeaveSpinLock();
         return MH_ERROR_ALREADY_CREATED;
     }
     pBuffer = AllocateBuffer(pTarget);
@@ -579,11 +579,6 @@ MH_STATUS WINAPI MH_RemoveHook(LPVOID pTarget)
         FROZEN_THREADS threads;
         Freeze(&threads, pos, ACTION_DISABLE);
         status = EnableHookLL(pos, FALSE);
-        if (status != MH_OK) 
-        {
-            LeaveSpinLock();
-            return status;
-        }
         Unfreeze(&threads);
     }
     FreeBuffer(g_hooks.pItems[pos].pTrampoline);
@@ -697,14 +692,11 @@ MH_STATUS WINAPI MH_ApplyQueued(VOID)
                 if (pHook->isEnabled != pHook->queueEnable)
                 {
                     status = EnableHookLL(i, pHook->queueEnable);
-                    if (status != MH_OK)
-                    {
-                        LeaveSpinLock();
-                        return status;
-                    }
+                    if (status != MH_OK) break;
                 }
             }
             Unfreeze(&threads);
+            if (status != MH_OK) break;
         }
     }
     LeaveSpinLock();

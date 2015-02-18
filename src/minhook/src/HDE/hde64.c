@@ -5,9 +5,10 @@
  *
  */
 
-#include <intrin.h>
+#include <windows.h>
 #include "hde64.h"
 #include "table64.h"
+#include "intrin_c.h"
 
 unsigned int hde64_disasm(const void *code, hde64s *hs)
 {

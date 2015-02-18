@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <wchar.h>
+#include <ctype.h>
 
 #define VER_LEN 16
 #define USER_PREF(name, value) { name, value, 0 }
