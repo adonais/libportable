@@ -50,7 +50,7 @@ LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
     }
     ExInfo.ThreadId = GetCurrentThreadId();
     ExInfo.ExceptionPointers = pExceptionInfo;
-    ExInfo.ClientPointers = TRUE;
+    ExInfo.ClientPointers = true;
 
     /* MiniDumpWriteDump输出dump */
     TrueMiniDumpWriteDump(GetCurrentProcess(),

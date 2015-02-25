@@ -2,7 +2,7 @@
 
 #include "safe_ex.h"
 #include "inipara.h"
-#include "header.h"
+#include "winapis.h"
 #include "inject.h"
 #include "MinHook.h"
 #include <process.h>
@@ -23,7 +23,7 @@ static _CreateProcessInternalW     OrgiCreateProcessInternalW,
                                    TrueCreateProcessInternalW;
 static _NtLoadLibraryExW           TrueLoadLibraryExW;
 
-BOOL in_whitelist(LPCWSTR lpfile)
+bool in_whitelist(LPCWSTR lpfile)
 {
     WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
                               L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe",
@@ -33,7 +33,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
     int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);
     LPCWSTR pname = lpfile;
-    BOOL    ret = FALSE;
+    bool    ret = false;
     if (lpfile[0] == L'"')
     {
         pname = &lpfile[1];
@@ -54,7 +54,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
         }
         ret = foreach_section(L"whitelist", &white_list[num], EXCLUDE_NUM-num);
     }
-    if ( (ret = !ret) == FALSE )
+    if ( (ret = !ret) == false )
     {
         /* 核对白名单 */
         for ( i=0; i<EXCLUDE_NUM ; i++ )
@@ -67,7 +67,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
             {
                 if ( PathMatchSpecW(pname,white_list[i]) )
                 {
-                    ret = TRUE;
+                    ret = true;
                     break;
                 }
             }
@@ -77,7 +77,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
             }
             if (_wcsnicmp(white_list[i],pname,wcslen(white_list[i]))==0)
             {
-                ret = TRUE;
+                ret = true;
                 break;
             }
         }
@@ -85,7 +85,7 @@ BOOL in_whitelist(LPCWSTR lpfile)
     return ret;
 }
 
-BOOL ProcessIsCUI(LPCWSTR lpfile)
+bool ProcessIsCUI(LPCWSTR lpfile)
 {
     WCHAR   lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
@@ -107,7 +107,7 @@ BOOL ProcessIsCUI(LPCWSTR lpfile)
     {
         return ( !IsGUI(lpname) );
     }
-    return TRUE;
+    return true;
 }
 
 NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
@@ -144,13 +144,13 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
 {
     RTL_USER_PROCESS_PARAMETERS mY_ProcessParameters;
     NTSTATUS    status;
-    BOOL        tohook	= FALSE;
+    bool        tohook	= false;
     fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
     if ( stristrW(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
          stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe") ||
          stristrW(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
     {
-        tohook = TRUE;
+        tohook = true;
     }
     else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
     {
@@ -200,12 +200,12 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
     return status;
 }
 
-BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
+bool WINAPI HookCreateProcessInternalW (HANDLE hToken,
                                         LPCWSTR lpApplicationName,
                                         LPWSTR lpCommandLine,
                                         LPSECURITY_ATTRIBUTES lpProcessAttributes,
                                         LPSECURITY_ATTRIBUTES lpThreadAttributes,
-                                        BOOL bInheritHandles,
+                                        bool bInheritHandles,
                                         DWORD dwCreationFlags,
                                         LPVOID lpEnvironment,
                                         LPCWSTR lpCurrentDirectory,
@@ -213,9 +213,9 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
                                         LPPROCESS_INFORMATION lpProcessInformation,
                                         PHANDLE hNewToken)
 {
-    BOOL	ret		= FALSE;
+    bool	ret		= false;
     LPWSTR	lpfile	= lpCommandLine;
-    BOOL    tohook	= FALSE;
+    bool    tohook	= false;
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
@@ -234,7 +234,7 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
         /* 静态编译时,不能启用远程注入 */
     #if !defined(LIBPORTABLE_STATIC)
         dwCreationFlags |= CREATE_SUSPENDED;
-        tohook = TRUE;
+        tohook = true;
     #endif
     }
     /* 如果启用白名单制度(严格检查) */
@@ -276,10 +276,10 @@ BOOL WINAPI HookCreateProcessInternalW (HANDLE hToken,
     return ret;
 }
 
-BOOL iSAuthorized(LPCWSTR lpFileName)
+bool iSAuthorized(LPCWSTR lpFileName)
 {
-    BOOL    ret = FALSE;
-    BOOL    wow64 = FALSE;
+    bool    ret = false;
+    int     wow64 = false;
     LPWSTR  filename = NULL;
     wchar_t *szAuthorizedList[] = {L"comctl32.dll", L"uxtheme.dll", L"indicdll.dll",
                                    L"msctf.dll",L"shell32.dll", L"imageres.dll",
@@ -287,7 +287,7 @@ BOOL iSAuthorized(LPCWSTR lpFileName)
                                    L"oleaut32.dll",L"secur32.dll",L"shlwapi.dll",
                                    L"ImSCTip.DLL",L"gdi32.dll",L"dwmapi.dll"
                                   };
-    WORD line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
+    uint16_t line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
     IsWow64Process(NtCurrentProcess(),&wow64);
     if (lpFileName[1] == L':')
     {
@@ -319,12 +319,12 @@ BOOL iSAuthorized(LPCWSTR lpFileName)
     }
     if (filename)
     {
-        WORD  i;
+        uint16_t  i;
         for(i=0; i<line; i++)
         {
             if ( _wcsicmp(filename,szAuthorizedList[i]) == 0 )
             {
-                ret = TRUE;
+                ret = true;
                 break;
             }
         }
@@ -336,12 +336,12 @@ HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {
     do
     {
-        UINT_PTR dwCaller;
+        uintptr_t dwCaller;
         if ( iSAuthorized(lpFileName) ) 
         {
             break;
         }
-        dwCaller = (UINT_PTR)_ReturnAddress();
+        dwCaller = (uintptr_t)_ReturnAddress();
         if ( is_specialdll(dwCaller,L"user32.dll") )
         {
             if ( !in_whitelist(lpFileName) )

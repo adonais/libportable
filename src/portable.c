@@ -1,4 +1,4 @@
-﻿#ifndef LIBPORTABLE_STATIC
+#ifndef LIBPORTABLE_STATIC
 #define TETE_BUILD
 #endif
 
@@ -10,6 +10,7 @@
 #include "ice_error.h"
 #include "bosskey.h"
 #include "new_process.h"
+#include "cpu_info.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -31,10 +32,10 @@ typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
 typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
         int nFolder,
         LPITEMIDLIST *ppidl);
-typedef BOOL (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
+typedef bool (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
         LPWSTR lpszPath,
         int csidl,
-        BOOL fCreate);
+        bool fCreate);
 typedef void (CALLBACK *user_func)(void);
 
 static  WNDINFO ff_info;
@@ -55,19 +56,29 @@ WCHAR   localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #pragma data_seg()
 #endif
 
-/* Asm replacment for memset */
-void * __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count )
+/* AVX memset with non-temporal instructions */
+TETE_EXT_CLASS void * __cdecl 
+memset_nontemporal_tt ( void *dest, int c, unsigned long count )
 {
-    return memset(dest, c, count);
+    return memset_avx(dest, c, count);
+}
+
+
+TETE_EXT_CLASS uint32_t
+GetNonTemporalDataSizeMin_tt( void )
+{
+    return get_level_size();
 }
 
 /* Never used,to be compatible with tete's patch */
-uint32_t GetNonTemporalDataSizeMin_tt( void )
+TETE_EXT_CLASS int
+GetCpuFeature_tt( void )
 {
-    return (VALUE_LEN*2);
+    return 0;
 }
 
-intptr_t GetAppDirHash_tt( void )
+TETE_EXT_CLASS intptr_t 
+GetAppDirHash_tt( void )
 {
     return 0;
 }
@@ -155,15 +166,15 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
 HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
                                     DWORD dwFlags,LPWSTR pszPath)
 {
-    UINT_PTR    dwCaller;
-    BOOL        dwFf = FALSE;
+    uintptr_t   dwCaller;
+    bool        dwFf = false;
     int         folder = nFolder & 0xff;
     HRESULT     ret = E_FAIL;
 #ifndef LIBPORTABLE_STATIC
     WCHAR		dllname[VALUE_LEN+1];
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
 #endif
-    dwCaller = (UINT_PTR)_ReturnAddress();
+    dwCaller = (uintptr_t)_ReturnAddress();
     dwFf = is_specialdll(dwCaller, L"*\\xul.dll") ||
         #ifndef LIBPORTABLE_STATIC
            is_specialdll(dwCaller, dllname)       ||
@@ -203,10 +214,10 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     return ret;
 }
 
-BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,BOOL fCreate)
+bool WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreate)
 {
-    BOOL        internal;
-    UINT_PTR	dwCaller = (UINT_PTR)_ReturnAddress();
+    bool        internal;
+    uintptr_t	dwCaller = (uintptr_t)_ReturnAddress();
     internal = is_specialdll(dwCaller, L"*\\xul.dll") || is_specialdll(dwCaller, L"*\\npswf*.dll");
     if ( !internal )
     {
@@ -217,12 +228,12 @@ BOOL WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
             csidl + (fCreate ? CSIDL_FLAG_CREATE : 0),
             NULL,
             0,
-            lpszPath)) == S_OK ? TRUE : FALSE;
+            lpszPath)) == S_OK ? true : false;
 }
 
-static BOOL init_libshell(void)
+static bool init_libshell(void)
 {
-    BOOL    ret = TRUE;
+    bool    ret = true;
     HMODULE h_module = GetModuleHandleW(L"shell32.dll");
     if (h_module != NULL)
     {
@@ -238,7 +249,7 @@ static BOOL init_libshell(void)
         #ifdef _LOGDEBUG
             logmsg("GetProcAddress() false %s !\n", __FUNCTION__);
         #endif
-            ret = FALSE;
+            ret = false;
         }
     }
     return (ret && h_module);
@@ -410,9 +421,9 @@ int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvRes
     case DLL_THREAD_DETACH:
         break;
     default:
-        return FALSE;
+        return false;
     }
-    return TRUE;
+    return true;
 }
 #endif  /* LIBPORTABLE_EXPORTS */
 

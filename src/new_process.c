@@ -10,11 +10,11 @@
 #include <stdio.h>
 #include <ctype.h>
 
-BOOL parse_shcommand(void)
+bool parse_shcommand(void)
 {
     LPWSTR  *args = NULL;
     int     m_arg = 0;
-    BOOL    ret = FALSE;
+    bool    ret = false;
     args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
     if ( NULL != args )
     {
@@ -23,7 +23,7 @@ BOOL parse_shcommand(void)
         {
             if ( StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") )
             {
-                ret = TRUE;
+                ret = true;
                 break;
             }
         }
@@ -34,7 +34,7 @@ BOOL parse_shcommand(void)
 
 HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
 {
-    BOOL   b_more;
+    bool   b_more;
     PROCESSENTRY32W pe32;
     HANDLE hSnapshot = INVALID_HANDLE_VALUE;
     DWORD  chi_pid[PROCESS_NUM] = {0};
@@ -74,7 +74,7 @@ HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
     {
         for ( i=1 ; i<PROCESS_NUM&&h_num<PROCESS_NUM; ++i )
         {
-            HANDLE tmp = OpenProcess(PROCESS_TERMINATE, FALSE, chi_pid[i]);
+            HANDLE tmp = OpenProcess(PROCESS_TERMINATE, false, chi_pid[i]);
             if ( NULL != tmp )
             {
                 g_handle[h_num++] = tmp;
@@ -180,7 +180,7 @@ unsigned WINAPI run_process(void * pParam)
                            (LPWSTR)wcmd,
                            NULL,
                            NULL,
-                           FALSE,
+                           false,
                            dwCreat,
                            NULL,
                            (LPCWSTR)wdirectory,
@@ -193,7 +193,7 @@ unsigned WINAPI run_process(void * pParam)
         }
         g_handle[0] = pi.hProcess;
         CloseHandle(pi.hThread);
-        if ( pi.dwProcessId >4 && (SleepEx(6000,FALSE) == 0) )
+        if ( pi.dwProcessId >4 && (SleepEx(6000,false) == 0) )
         {
             search_process(NULL, pi.dwProcessId);
         }

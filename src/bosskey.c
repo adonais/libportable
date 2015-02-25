@@ -5,12 +5,12 @@
 #include <string.h>
 #include <shlwapi.h>
 
-BOOL init_bosskey(LPWNDINFO pInfo)
+bool init_bosskey(LPWNDINFO pInfo)
 {
     HWND    hwnd = NULL;
     while ( !pInfo->hFF )                 /* 等待主窗口并获取句柄 */
     {
-        BOOL  m_loop = FALSE;
+        bool  m_loop = false;
         DWORD dwProcessId = 0;
         HWND  hwnd_next = NULL;
         hwnd = FindWindowExW( NULL, hwnd, L"MozillaWindowClass", NULL );
@@ -39,7 +39,7 @@ BOOL init_bosskey(LPWNDINFO pInfo)
     return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
 }
 
-BOOL is_mozclass(HWND hwnd)
+bool is_mozclass(HWND hwnd)
 {
     WCHAR m_temp[VALUE_LEN+1] = {0};
     GetClassNameW(hwnd,m_temp,VALUE_LEN);
@@ -47,7 +47,7 @@ BOOL is_mozclass(HWND hwnd)
              _wcsnicmp(m_temp,L"MozillaDialogClass",VALUE_LEN) ==0 ) ;
 }
 
-BOOL CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
+int CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
 {
     LPWNDINFO pInfo = (LPWNDINFO)lParam;
     DWORD dwPid = 0;
@@ -71,10 +71,10 @@ BOOL CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
             }
         }
     }
-    return TRUE;
+    return true;
 }
 
-BOOL is_modkey(int n)
+bool is_modkey(int n)
 {
     return ( n == MOD_ALT ||
              n == MOD_CONTROL ||

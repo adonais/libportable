@@ -2,7 +2,6 @@
 #define _POR_TABLE_H_
 
 #include <stdint.h>       /* for uint32_t define */
-#include <stddef.h>       /* for size_t define  */
 
 #ifndef TETE_CLASS_EXPORT
 #  define TETE_CLASS_EXPORT __declspec(dllexport)
@@ -28,9 +27,11 @@ extern "C" {
 
 TETE_EXT_CLASS uint32_t GetNonTemporalDataSizeMin_tt ( void );
 
-TETE_EXT_CLASS void *  __cdecl memset_nontemporal_tt ( void *dest, int c, size_t count );
+TETE_EXT_CLASS void *  __cdecl memset_nontemporal_tt ( void *dest, int c, unsigned long );
 
-TETE_EXT_CLASS intptr_t GetAppDirHash_tt ( void );  /* compatibility with older browsers versions */
+/* compatibility with tete's patches */
+TETE_EXT_CLASS int      GetCpuFeature_tt ( void );
+TETE_EXT_CLASS intptr_t GetAppDirHash_tt ( void );
 
 #if defined(LIBPORTABLE_STATIC)
 TETE_EXT_CLASS void __stdcall do_it( void );

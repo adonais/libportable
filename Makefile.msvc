@@ -3,7 +3,7 @@
 CC       = cl.exe
 CPP	 = cl.exe
 TCMALLOC  =
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /GS- /GR- /Gd /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /GS- /GR- /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -46,7 +46,8 @@ RC       = rc.exe
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\prefjs.obj $(DEP)\new_process.obj
+OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
+           $(DEP)\prefjs.obj $(DEP)\new_process.obj $(DEP)\cpu_info.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -98,9 +99,9 @@ $(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
 $(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
 !if "$(DISABLE_SAFE)"!="1"
-$(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\header.h
+$(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\winapis.h
 	$(CC) $(CFLAGS) /c $(SRC)\inject.c /Fo$@
-$(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\header.h
+$(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\winapis.h
 	$(CC) $(CFLAGS) /c $(SRC)\safe_ex.c /Fo$@
 !endif
 $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
@@ -111,6 +112,8 @@ $(DEP)\prefjs.obj       : $(SRC)\prefjs.c $(SRC)\prefjs.h
 	$(CC) $(CFLAGS) /c $(SRC)\prefjs.c /Fo$@
 $(DEP)\new_process.obj  : $(SRC)\new_process.c $(SRC)\new_process.h
 	$(CC) $(CFLAGS) /c $(SRC)\new_process.c /Fo$@
+$(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
+	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
 $(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 

@@ -120,8 +120,10 @@ extern "C" {
     //                    used to call the original target function.
     //                    This parameter can be NULL.
     MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOriginal);
+    MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOriginal);
 
     // Removes an already created hook.
+
     // Parameters:
     //   pTarget [in] A pointer to the target function.
     MH_STATUS WINAPI MH_RemoveHook(LPVOID pTarget);
@@ -161,8 +163,6 @@ extern "C" {
     VOID WINAPI EnterSpinLock(VOID);
 
     VOID WINAPI LeaveSpinLock(VOID);
-
-    VOID WINAPI EnumerateThreads(PFROZEN_THREADS pThreads);
 
     VOID WINAPI Freezex(PFROZEN_THREADS pThreads);
 

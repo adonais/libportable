@@ -159,12 +159,12 @@ void prefs_write(LPCWSTR dist_dir, FILE* stream)
 }
 
 /* 打开目标文件 */
-BOOL open_prefs_file(LPCWSTR dist, FILE** pp_file)
+bool open_prefs_file(LPCWSTR dist, FILE** pp_file)
 {
     WCHAR* user_fs;
     if ( (user_fs = (WCHAR*)SYS_MALLOC((MAX_PATH+1)*sizeof(WCHAR))) == NULL )
     {
-        return FALSE;
+        return false;
     }
     if ( _snwprintf(user_fs,MAX_PATH,L"%ls\\%ls",dist,USER_FILE_TT) > 0 )
     {
@@ -174,7 +174,7 @@ BOOL open_prefs_file(LPCWSTR dist, FILE** pp_file)
     return (*pp_file != NULL);
 }
 
-BOOL get_gmp_version(WCHAR* gmp_info, char* version_str, int len)
+bool get_gmp_version(WCHAR* gmp_info, char* version_str, int len)
 {
     int   ret = 0;
     FILE* p_file = NULL;

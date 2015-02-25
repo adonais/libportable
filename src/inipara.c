@@ -6,7 +6,6 @@
 #include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <ctype.h>
 #ifdef _MSC_VER
@@ -20,12 +19,12 @@
 typedef	int (__cdecl *_PR_setenv)(const char* envA);
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
-typedef BOOL  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
+typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
 
 typedef struct _LANGANDCODEPAGE
 {
-    WORD wLanguage;
-    WORD wCodePage;
+    uint16_t wLanguage;
+    uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
 extern WCHAR  ini_path[MAX_PATH+1];
@@ -36,10 +35,10 @@ static PFNGFVIW	  pfnGetFileVersionInfoW = NULL;
 static PFNVQVW	  pfnVerQueryValueW  = NULL;
 _NtLoadLibraryExW OrgiLoadLibraryExW = NULL;
 HMODULE           dll_module         = NULL;
-BOOL WINAPI
+bool WINAPI
 init_parser(LPWSTR inifull_name,DWORD len)
 {
-    BOOL ret = FALSE;
+    bool ret = false;
     GetModuleFileNameW(dll_module,inifull_name,len);
     PathRemoveFileSpecW(inifull_name);
     PathAppendW(inifull_name,L"portable.ini");
@@ -55,7 +54,7 @@ init_parser(LPWSTR inifull_name,DWORD len)
     return ret;
 }
 
-BOOL WINAPI
+bool WINAPI
 read_appkey(LPCWSTR lpappname,           /* 区段名 */
             LPCWSTR lpkey,               /* 键名  */
             LPWSTR  prefstring,          /* 保存值缓冲区 */
@@ -78,7 +77,7 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
     if (res == 0 && GetLastError() != 0x0)
     {
         SYS_FREE(lpstring);
-        return FALSE;
+        return false;
     }
     wcsncpy(prefstring,lpstring,bufsize/sizeof(WCHAR)-1);
     prefstring[res] = L'\0';
@@ -91,7 +90,7 @@ read_appint(LPCWSTR cat,LPCWSTR name)
     return GetPrivateProfileIntW(cat, name, -1, ini_path);
 }
 
-BOOL WINAPI
+bool WINAPI
 foreach_section(LPCWSTR cat,                     /* ini 区段 */
                 WCHAR (*lpdata)[VALUE_LEN+1],    /* 二维数组首地址,保存多个段值 */
                 int line                         /* 二维数组行数 */
@@ -125,7 +124,7 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
         }
         SYS_FREE(lpstring);
     }
-    return (BOOL)res;
+    return (bool)res;
 }
 
 #ifdef _LOGDEBUG
@@ -170,17 +169,17 @@ HMODULE init_verinfo(void)          /* 初始化version.dll里面的三个函数
     return h_ver;
 }
 
-BOOL get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
+bool get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
 {
-    HMODULE h_ver = NULL;
-    BOOL    ret = FALSE;
-    DWORD   dwHandle = 0;
-    DWORD   dwSize = 0;
-    UINT    i;
-    UINT    cbTranslate = 0;
-    LPWSTR  pBuffer = NULL;
-    PVOID   pTmp = NULL;
-    WCHAR   dwBlock[NAMES_LEN+1] = {0};
+    HMODULE  h_ver = NULL;
+    bool     ret = false;
+    DWORD    dwHandle = 0;
+    DWORD    dwSize = 0;
+    uint16_t i;
+    uint32_t cbTranslate = 0;
+    LPWSTR   pBuffer = NULL;
+    PVOID    pTmp = NULL;
+    WCHAR    dwBlock[NAMES_LEN+1] = {0};
     LANGANDCODEPAGE *lpTranslate = NULL;
     do
     {
@@ -259,8 +258,8 @@ stristrW(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能�
 
 void charTochar(LPWSTR path)
 {
-    LPWSTR	lp = NULL;
-    INT_PTR	pos;
+    LPWSTR	 lp = NULL;
+    intptr_t pos;
     do
     {
         lp =  StrChrW(path,L'/');
@@ -273,7 +272,7 @@ void charTochar(LPWSTR path)
     return;
 }
 
-BOOL WINAPI PathToCombineW(LPWSTR lpfile, int len)
+bool WINAPI PathToCombineW(LPWSTR lpfile, int len)
 {
     int n = 1;
     EnterSpinLock();
@@ -317,7 +316,7 @@ BOOL WINAPI PathToCombineW(LPWSTR lpfile, int len)
     return (n>0 && n<len);
 }
 
-static int GetNumberOfWorkers(void)
+static __inline int GetNumberOfWorkers(void)
 {
     SYSTEM_INFO si;
     GetSystemInfo(&si);
@@ -357,12 +356,12 @@ SetCpuAffinity_tt(void * pParam)
     return (1);
 }
 
-BOOL WINAPI
+bool WINAPI
 IsGUI(LPCWSTR lpFileName)
 {
     IMAGE_DOS_HEADER dos_header;
     IMAGE_NT_HEADERS pe_header;
-    BOOL	ret = FALSE;
+    bool	ret = false;
     HANDLE	hFile = CreateFileW(lpFileName,GENERIC_READ,
                                 FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
                                 FILE_ATTRIBUTE_NORMAL,NULL);
@@ -392,14 +391,14 @@ IsGUI(LPCWSTR lpFileName)
         }
         if(pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI)
         {
-            ret = TRUE;
+            ret = true;
         }
     } while (0);
     CloseHandle(hFile);
     return ret;
 }
 
-BOOL GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
+bool GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 {
     int i = 0;
     WCHAR lpFullPath[MAX_PATH+1]= {0};
@@ -418,7 +417,7 @@ BOOL GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
     return (i>0 && i<(int)wlen);
 }
 
-BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
+bool WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
 {
     int i = 0;
     WCHAR lpFullPath[MAX_PATH+1] = {0};
@@ -440,9 +439,9 @@ BOOL WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
     return (i>0 && i<(int)wlen);
 }
 
-BOOL is_ff_dev(void)
+static bool __inline is_ff_dev(void)
 {
-    BOOL     ret = FALSE;
+    bool     ret = false;
     WCHAR    process_name[VALUE_LEN+1];
     WCHAR    product_name[NAMES_LEN+1] = {0};
     if ( GetCurrentProcessName(process_name,VALUE_LEN) && \
@@ -453,14 +452,14 @@ BOOL is_ff_dev(void)
     return ret;
 }
 
-BOOL WINAPI is_thunderbird(void)
+bool WINAPI is_thunderbird(void)
 {
     WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
     return ( _wcsicmp(process_name, L"thunderbird.exe") == 0 );
 }
 
-BOOL WINAPI is_browser(void)
+bool WINAPI is_browser(void)
 {
     WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
@@ -470,9 +469,9 @@ BOOL WINAPI is_browser(void)
            );
 }
 
-BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
+bool WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
 {
-    BOOL    ret = FALSE;
+    bool    ret = false;
     HMODULE hCallerModule = NULL;
     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCWSTR)callerAddress, &hCallerModule))
     {
@@ -483,12 +482,12 @@ BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
             {
                 if ( PathMatchSpecW(szModuleName, dll_file) )
                 {
-                    ret = TRUE;
+                    ret = true;
                 }
             }
             else if ( stristrW(szModuleName, dll_file) )
             {
-                ret = TRUE;
+                ret = true;
             }
         }
     }
@@ -496,7 +495,8 @@ BOOL WINAPI is_specialdll(UINT_PTR callerAddress,LPCWSTR dll_file)
 }
 
 /* 获取profiles.ini文件绝对路径,保存到in_dir数组 */
-BOOL get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
+static __inline bool 
+get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
 {
     int m = 0;
     if (is_thunderbird())
@@ -512,7 +512,7 @@ BOOL get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
 }
 
 /* 获取配置文件夹所在路径,保存到dist_buf */
-BOOL WINAPI get_mozprofiles_path(LPCWSTR app_path, WCHAR *dist_buf, int len)
+bool WINAPI get_mozprofiles_path(LPCWSTR app_path, WCHAR *dist_buf, int len)
 {
     int ret = 0;
     do
@@ -576,9 +576,9 @@ int search_section_names(LPCWSTR moz_profile, LPCWSTR moz_values, LPWSTR out_nam
     return ret;
 }
 
-BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
+bool WINAPI WaitWriteFile(LPCWSTR app_path)
 {
-    BOOL  ret = FALSE;
+    bool  ret = false;
     WCHAR moz_profile[MAX_PATH+1] = {0};
     FROZEN_THREADS threads;
     if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
@@ -643,7 +643,7 @@ BOOL WINAPI WaitWriteFile(LPCWSTR app_path)
 DWORD WINAPI GetOsVersion(void)
 {
     OSVERSIONINFOEXA    osvi;
-    BOOL                bOs = FALSE;
+    bool                bOs = false;
     DWORD               ver = 0L;
     fzero(&osvi, sizeof(OSVERSIONINFOEXA));
 

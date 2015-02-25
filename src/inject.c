@@ -1,8 +1,8 @@
-﻿#define JECT_EXTERN
+#define JECT_EXTERN
 
 #include "inject.h"
 #include "inipara.h"
-#include "header.h"
+#include "winapis.h"
 
 typedef struct _REMOTE_PARAMETER
 {
@@ -124,14 +124,14 @@ static void WINAPI ThreadProc(RemotePara* pRemotePara)
 static void AfterThreadProc (void) { }
 
 #ifdef _M_IX86
-BOOL inject32(void *mpara,RemotePara* func_param)
+bool inject32(void *mpara,RemotePara* func_param)
 {
     CONTEXT  ctx;
     PVOID    picBuf = NULL;
     LPVOID   funcBuff = NULL;
     DWORD    old_protect;
     SIZE_T   cbSize,tsize;
-    BOOL     exitCode = FALSE;
+    bool     exitCode = false;
     PROCESS_INFORMATION pi = *(LPPROCESS_INFORMATION)mpara;
     ctx.ContextFlags = CONTEXT_CONTROL;
     if ( !GetThreadContext(pi.hThread, &ctx) )
@@ -213,13 +213,13 @@ clear:
 #endif
 
 #if defined(_M_X64)
-BOOL inject64(void *mpara,RemotePara* func_param)
+bool inject64(void *mpara,RemotePara* func_param)
 {
     LPVOID      pRemoteMemDllName = NULL;
     LPVOID      pRemoteMemFunction = NULL;
     SIZE_T      nDllNameBuffSize = 0;
     DWORD_PTR   nFunctionBuffSize;
-    BOOL        exitCode = FALSE;
+    bool        exitCode = false;
     CONTEXT     ctx;
     DWORD_PTR   dwOldIP;
     DWORD_PTR   pfnLoadLibrary;
@@ -318,7 +318,7 @@ unsigned WINAPI InjectDll(void *mpara)
 {
     RemotePara myPara;
     WCHAR      dll_name[VALUE_LEN+1];
-    BOOL       bRet   = FALSE;
+    bool       bRet   = false;
     HMODULE    hNtdll = GetModuleHandleW(L"ntdll.dll");
     if (!hNtdll) return bRet;
 

@@ -23,7 +23,7 @@ endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
 	    -fdata-sections -fomit-frame-pointer -finline-functions -fno-stack-protector \
-	    -DWINVER=0x0501 -D_WIN32_IE=0x0601
+	    -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
 
 MD       = mkdir -p
 CP       = cp
@@ -34,7 +34,8 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/prefjs.o $(DEP)/new_process.o
+           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/prefjs.o $(DEP)/new_process.o \
+	   $(DEP)/cpu_info.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
@@ -81,17 +82,17 @@ endif
 all		      : $(OUT1) $(OUT)
 $(OUT1)		      : $(SUB_DIR)/Makefile
 	$(call SUBMK)
-$(OUT)		      : $(OBJECTS)
+$(OUT)		      : $(OBJECTS) $(OUT1)
 	$(LD) $@ $(OBJS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)
 	-$(CP) $(OUT) $(TETE) 2>/dev/null
-$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h  $(SRC)/header.h
+$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h
 	$(call EXEC)
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/inject.o       : $(SRC)/inject.c $(SRC)/inject.h $(SRC)/header.h
+$(DEP)/inject.o       : $(SRC)/inject.c $(SRC)/inject.h $(SRC)/winapis.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/safe_ex.o      : $(SRC)/safe_ex.c $(SRC)/safe_ex.h $(SRC)/header.h
+$(DEP)/safe_ex.o      : $(SRC)/safe_ex.c $(SRC)/safe_ex.h $(SRC)/winapis.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/ice_error.o    : $(SRC)/ice_error.c $(SRC)/ice_error.h
 	$(CC) $< $(CFLAGS) -o $@
@@ -100,6 +101,8 @@ $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 $(DEP)/prefjs.o       : $(SRC)/prefjs.c $(SRC)/prefjs.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@
