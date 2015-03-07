@@ -95,7 +95,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
     {
         wdir[0] = L'\0';
         lp =  StrChrW(temp,L',');
-        if (isdigit(temp[wcslen(temp)-1])&&lp)
+        if ( (NULL != lp) && isdigit(temp[wcslen(temp)-1]) )
         {
             ret = temp[wcslen(temp)-1] - L'0';
             temp[lp-temp] = L'\0';
@@ -177,7 +177,7 @@ unsigned WINAPI run_process(void * pParam)
             dwCreat |= CREATE_NEW_PROCESS_GROUP;
         }
         if(!CreateProcessW(NULL,
-                           (LPWSTR)wcmd,
+                           wcmd,
                            NULL,
                            NULL,
                            false,
@@ -192,7 +192,7 @@ unsigned WINAPI run_process(void * pParam)
             return (0);
         }
         g_handle[0] = pi.hProcess;
-        CloseHandle(pi.hThread);
+        /* 或者CreateWaitableTimer和SetWaitableTimer函数 */
         if ( pi.dwProcessId >4 && (SleepEx(6000,false) == 0) )
         {
             search_process(NULL, pi.dwProcessId);

@@ -7,8 +7,8 @@
 typedef struct _REMOTE_PARAMETER
 {
     WCHAR     strDll[VALUE_LEN+1];
-    DWORD_PTR dwLoadLibraryAddr;
-    DWORD_PTR dwRtlInitUnicodeString;
+    uintptr_t dwLoadLibraryAddr;
+    uintptr_t dwRtlInitUnicodeString;
 } RemotePara;
 
 static _NtFreeVirtualMemory TrueNtFreeVirtualMemory = NULL;
@@ -103,7 +103,7 @@ static void WINAPI ThreadProc(RemotePara* pRemotePara)
     typedef NTSTATUS (NTAPI *_NtLdrLoadDll)
     (
         PWCHAR PathToFile,
-        ULONG Flags,
+        PULONG Flags,
         PUNICODE_STRING ModuleFileName,
         PHANDLE ModuleHandle
     );
@@ -117,7 +117,7 @@ static void WINAPI ThreadProc(RemotePara* pRemotePara)
     _NtLdrLoadDll                       pfnLdrLoadDll = (_NtLdrLoadDll)pRemotePara->dwLoadLibraryAddr;
     _NtRtlInitUnicodeString pfnRtlInitUnicodeString   = (_NtRtlInitUnicodeString)pRemotePara->dwRtlInitUnicodeString;
     pfnRtlInitUnicodeString(&usDllName, pRemotePara->strDll);
-    pfnLdrLoadDll(NULL, 0, &usDllName, &DllHandle);
+    pfnLdrLoadDll(NULL, NULL, &usDllName, &DllHandle);
     return;
 }
 
@@ -190,7 +190,7 @@ bool inject32(void *mpara,RemotePara* func_param)
     #endif
         goto clear;
     }
-    ctx.Eip = (DWORD_PTR)funcBuff;
+    ctx.Eip = (uintptr_t)funcBuff;
     ctx.ContextFlags = CONTEXT_CONTROL;
     exitCode = SetThreadContext(pi.hThread,&ctx);    
 clear:
@@ -218,11 +218,11 @@ bool inject64(void *mpara,RemotePara* func_param)
     LPVOID      pRemoteMemDllName = NULL;
     LPVOID      pRemoteMemFunction = NULL;
     SIZE_T      nDllNameBuffSize = 0;
-    DWORD_PTR   nFunctionBuffSize;
+    uintptr_t   nFunctionBuffSize;
     bool        exitCode = false;
     CONTEXT     ctx;
-    DWORD_PTR   dwOldIP;
-    DWORD_PTR   pfnLoadLibrary;
+    uintptr_t   dwOldIP;
+    uintptr_t   pfnLoadLibrary;
     PROCESS_INFORMATION  pi = *(LPPROCESS_INFORMATION)mpara;
 
     nFunctionBuffSize = sizeof(codeToInject);
@@ -247,7 +247,7 @@ bool inject64(void *mpara,RemotePara* func_param)
     /* Allocate memory for the stub */
     pRemoteMemFunction = VirtualAllocEx(pi.hProcess, NULL, nFunctionBuffSize, MEM_COMMIT,PAGE_EXECUTE_READWRITE);
  
-    pfnLoadLibrary = (DWORD_PTR)GetProcAddress(GetModuleHandleW(L"Kernel32"), "LoadLibraryW");
+    pfnLoadLibrary = (uintptr_t)GetProcAddress(GetModuleHandleW(L"Kernel32"), "LoadLibraryW");
     if(!pfnLoadLibrary)
     {
     #ifdef _LOGDEBUG
@@ -270,7 +270,7 @@ bool inject64(void *mpara,RemotePara* func_param)
     /* Make sure the stack will be aligned to 16 bytes right at the LoadLibrary call */
     ctx.Rsp = ctx.Rsp & ~15;
     ctx.Rsp -= 8;
-    ctx.Rip = (DWORD_PTR) pRemoteMemFunction;
+    ctx.Rip = (uintptr_t) pRemoteMemFunction;
     ctx.ContextFlags = CONTEXT_FULL;
 
     /* Replace placeholders */
@@ -326,8 +326,8 @@ unsigned WINAPI InjectDll(void *mpara)
     fzero(&myPara, sizeof(RemotePara));
     TrueNtFreeVirtualMemory = (_NtFreeVirtualMemory)GetProcAddress(hNtdll, "NtFreeVirtualMemory");
     TrueNtResumeThread = (_NtResumeThread)GetProcAddress(hNtdll, "NtResumeThread");
-    myPara.dwLoadLibraryAddr = (DWORD_PTR)GetProcAddress(hNtdll, "LdrLoadDll");
-    myPara.dwRtlInitUnicodeString = (DWORD_PTR)GetProcAddress(hNtdll, "RtlInitUnicodeString");
+    myPara.dwLoadLibraryAddr = (uintptr_t)GetProcAddress(hNtdll, "LdrLoadDll");
+    myPara.dwRtlInitUnicodeString = (uintptr_t)GetProcAddress(hNtdll, "RtlInitUnicodeString");
     if ( TrueNtFreeVirtualMemory && TrueNtResumeThread && myPara.dwLoadLibraryAddr && myPara.dwRtlInitUnicodeString && \
          GetModuleFileNameW(dll_module,dll_name,VALUE_LEN) >0 )
     {

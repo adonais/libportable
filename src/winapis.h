@@ -1,5 +1,5 @@
-#ifndef _HEAD_ER_H_
-#  define _HEAD_ER_H_
+#ifndef _WIN_APIS_H_
+#  define _WIN_APIS_H_
 
 #include <windows.h>
 #include <shlwapi.h>
@@ -133,13 +133,120 @@ typedef struct _NT_PROC_THREAD_ATTRIBUTE_LIST {
 typedef NT_PROC_THREAD_ATTRIBUTE_LIST *PNT_PROC_THREAD_ATTRIBUTE_LIST;
 #endif
 
+/* windows-internals-book:"Chapter 5" */
+#ifndef __PS_CREATE_STATE_DEFINED
+#define __PS_CREATE_STATE_DEFINED
+typedef enum _PS_CREATE_STATE
+{
+    PsCreateInitialState,
+    PsCreateFailOnFileOpen,
+    PsCreateFailOnSectionCreate,
+    PsCreateFailExeFormat,
+    PsCreateFailMachineMismatch,
+    PsCreateFailExeName, /* Debugger specified */
+    PsCreateSuccess,
+    PsCreateMaximumStates
+} PS_CREATE_STATE;
+#endif
+
+#ifndef __PS_CREATE_INFO_DEFINED
+#define __PS_CREATE_INFO_DEFINED
+typedef struct _PS_CREATE_INFO
+{
+    SIZE_T Size;
+    PS_CREATE_STATE State;
+    union
+    {
+        /* PsCreateInitialState */
+        struct
+        {
+            union
+            {
+              ULONG InitFlags;
+              struct
+              {
+                  UCHAR WriteOutputOnExit : 1;
+                  UCHAR DetectManifest : 1;
+                  UCHAR SpareBits1 : 6;
+                  UCHAR IFEOKeyState : 2; /* PS_IFEO_KEY_STATE */
+                  UCHAR SpareBits2 : 6;
+                  USHORT ProhibitedImageCharacteristics : 16;
+              };
+            };
+            ACCESS_MASK AdditionalFileAccess;
+        } InitState;
+        /* PsCreateFailOnSectionCreate */
+        struct
+        {
+            HANDLE FileHandle;
+        } FailSection;
+        /* PsCreateFailExeName */
+        struct
+        {
+            HANDLE IFEOKey;
+        } ExeName;
+        /* PsCreateSuccess */
+        struct
+        {
+            union
+            {
+              ULONG OutputFlags;
+              struct
+              {
+                UCHAR ProtectedProcess : 1;
+                UCHAR AddressSpaceOverride : 1;
+                UCHAR DevOverrideEnabled : 1; /* from Image File Execution Options */
+                UCHAR ManifestDetected : 1;
+                UCHAR SpareBits1 : 4;
+                UCHAR SpareBits2 : 8;
+                USHORT SpareBits3 : 16;
+              };
+            };
+            HANDLE FileHandle;
+            HANDLE SectionHandle;
+            ULONGLONG UserProcessParametersNative;
+            ULONG UserProcessParametersWow64;
+            ULONG CurrentParameterFlags;
+            ULONGLONG PebAddressNative;
+            ULONG PebAddressWow64;
+            ULONGLONG ManifestAddress;
+            ULONG ManifestSize;
+        } SuccessState;
+    };
+} PS_CREATE_INFO, *PPS_CREATE_INFO;
+#endif
+
+#ifndef __PS_ATTRIBUTE_DEFINED
+#define __PS_ATTRIBUTE_DEFINED
+typedef struct _PS_ATTRIBUTE
+{
+    ULONG Attribute;
+    SIZE_T Size;
+    union
+    {
+        ULONG Value;
+        PVOID ValuePtr;
+    };
+    PSIZE_T ReturnLength;
+} PS_ATTRIBUTE, *PPS_ATTRIBUTE;
+#endif
+
+#ifndef __PS_ATTRIBUTE_LIST_DEFINED
+#define __PS_ATTRIBUTE_LIST_DEFINED
+typedef struct _PS_ATTRIBUTE_LIST
+{
+    SIZE_T TotalLength;
+    PS_ATTRIBUTE Attributes[1];
+} PS_ATTRIBUTE_LIST, *PPS_ATTRIBUTE_LIST;
+#endif
+
 #ifndef __STRING
 #define __STRING
 typedef struct _STRING
 {
     WORD Length;
     WORD MaximumLength;
-    CHAR * Buffer;
+    CHAR *Buffer;
 } STRING, *PSTRING;
 #endif
 
@@ -647,8 +754,8 @@ typedef  NTSTATUS (NTAPI *_NtCreateUserProcess)(OUT PHANDLE ProcessHandle,
                                         IN ULONG CreateProcessFlags,
                                         IN ULONG CreateThreadFlags,
                                         IN PRTL_USER_PROCESS_PARAMETERS ProcessParameters,
-                                        IN PVOID Parameter9,
-                                        IN NT_PROC_THREAD_ATTRIBUTE_LIST *AttributeList);
+                                        IN PPS_CREATE_INFO CreateInfo,
+                                        IN PPS_ATTRIBUTE_LIST AttributeList);
 typedef NTSTATUS (NTAPI *_NtTerminateProcess)(HANDLE hProcess, NTSTATUS ExitStatus);
 typedef NTSTATUS (NTAPI *_NtUnmapViewOfSection)( HANDLE ProcessHandle, PVOID BaseAddress );
 typedef NTSTATUS (NTAPI *_NtClose) ( HANDLE ); 
@@ -741,7 +848,7 @@ typedef NTSTATUS (NTAPI *_NtLdrpProcessImportDirectory)(PLDR_DATA_TABLE_ENTRY Mo
                                         PLDR_DATA_TABLE_ENTRY ImportedModule,
                                         PCHAR ImportedName);
 typedef NTSTATUS (NTAPI *_NtLdrLoadDll) (PWCHAR PathToFile,
-                                        ULONG Flags,
+                                        PULONG flags,
                                         PUNICODE_STRING ModuleFileName,
                                         PHANDLE ModuleHandle);
 typedef VOID (NTAPI *_RtlInitUnicodeString)(PUNICODE_STRING DestinationString,
@@ -783,4 +890,4 @@ typedef NTSTATUS (NTAPI *_NtWriteFile)(HANDLE FileHandle,
                                         PLARGE_INTEGER ByteOffset,
                                         PULONG Key
                                         );                                       
-#endif  /* _HEAD_ER_H_ */
+#endif  /* _WIN_APIS_H_ */

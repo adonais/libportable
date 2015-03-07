@@ -23,12 +23,21 @@ static _CreateProcessInternalW     OrgiCreateProcessInternalW,
                                    TrueCreateProcessInternalW;
 static _NtLoadLibraryExW           TrueLoadLibraryExW;
 
-bool in_whitelist(LPCWSTR lpfile)
+static bool in_whitelist(LPCWSTR lpfile)
 {
-    WCHAR *moz_processes[] = {L"", L"plugin-container.exe", L"plugin-hang-ui.exe", L"webapprt-stub.exe",
-                              L"webapp-uninstaller.exe",L"WSEnable.exe",L"uninstall\\helper.exe",
-                              L"crashreporter.exe",L"CommandExecuteHandler.exe",L"maintenanceservice.exe",
-                              L"maintenanceservice_installer.exe",L"updater.exe",L"wow_helper.exe"
+    WCHAR *moz_processes[] = {L"", L"%windir%\\system32\\WerFault.exe",
+                              L"plugin-container.exe", 
+                              L"plugin-hang-ui.exe", 
+                              L"webapprt-stub.exe",
+                              L"webapp-uninstaller.exe",
+                              L"WSEnable.exe",
+                              L"uninstall\\helper.exe",
+                              L"crashreporter.exe",
+                              L"CommandExecuteHandler.exe",
+                              L"maintenanceservice.exe",
+                              L"maintenanceservice_installer.exe",
+                              L"updater.exe",
+                              L"wow_helper.exe"
                              };
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
     int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);
@@ -39,16 +48,16 @@ bool in_whitelist(LPCWSTR lpfile)
         pname = &lpfile[1];
     }
     /* 遍历白名单一次,只需遍历一次 */
-    ret = stristrW(white_list[1],L"plugin-container.exe") != NULL;
+    ret = stristrW(white_list[1],L"WerFault.exe") != NULL;
     if ( !ret )
     {
         /* firefox目录下进程的路径 */
-        int num;
+        int   num;
         WCHAR temp[VALUE_LEN+1];
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
         wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
         PathRemoveFileSpecW(temp);
-        for(num=1; num<i; ++num)
+        for(num=2; num<i; ++num)
         {
             _snwprintf(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
         }
@@ -63,6 +72,11 @@ bool in_whitelist(LPCWSTR lpfile)
             {
                 continue;
             }
+            if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && \
+                 white_list[i][1] != L':' )
+            {
+                PathToCombineW(white_list[i],VALUE_LEN);
+            }
             if ( StrChrW(white_list[i],L'*') || StrChrW(white_list[i],L'?') )
             {
                 if ( PathMatchSpecW(pname,white_list[i]) )
@@ -71,11 +85,7 @@ bool in_whitelist(LPCWSTR lpfile)
                     break;
                 }
             }
-            else if (white_list[i][1] != L':')
-            {
-                PathToCombineW(white_list[i],VALUE_LEN);
-            }
-            if (_wcsnicmp(white_list[i],pname,wcslen(white_list[i]))==0)
+            else if (_wcsnicmp(white_list[i],pname,wcslen(white_list[i]))==0)
             {
                 ret = true;
                 break;
@@ -85,7 +95,8 @@ bool in_whitelist(LPCWSTR lpfile)
     return ret;
 }
 
-bool ProcessIsCUI(LPCWSTR lpfile)
+static bool 
+ProcessIsCUI(LPCWSTR lpfile)
 {
     WCHAR   lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
@@ -110,11 +121,12 @@ bool ProcessIsCUI(LPCWSTR lpfile)
     return true;
 }
 
-NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
-        IN PVOID BaseAddress,
-        IN PVOID Buffer,
-        IN SIZE_T NumberOfBytesToWrite,
-        OUT PSIZE_T NumberOfBytesWritten)
+static NTSTATUS WINAPI 
+HookNtWriteVirtualMemory(HANDLE ProcessHandle,
+                         PVOID BaseAddress,
+                         PVOID Buffer,
+                         SIZE_T NumberOfBytesToWrite,
+                         PSIZE_T NumberOfBytesWritten)
 {
     if ( GetCurrentProcessId() == GetProcessId(ProcessHandle) )
     {
@@ -130,17 +142,17 @@ NTSTATUS WINAPI HookNtWriteVirtualMemory(IN HANDLE ProcessHandle,
                                     NumberOfBytesWritten);
 }
 
-
-NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
-                                        ACCESS_MASK ProcessDesiredAccess,
-                                        ACCESS_MASK ThreadDesiredAccess,
-                                        POBJECT_ATTRIBUTES ProcessObjectAttributes,
-                                        POBJECT_ATTRIBUTES ThreadObjectAttributes,
-                                        ULONG CreateProcessFlags,
-                                        ULONG CreateThreadFlags,
-                                        PRTL_USER_PROCESS_PARAMETERS ProcessParameters,
-                                        PVOID CreateInfo,
-                                        PNT_PROC_THREAD_ATTRIBUTE_LIST AttributeList)
+static NTSTATUS WINAPI 
+HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
+                        ACCESS_MASK ProcessDesiredAccess,
+                        ACCESS_MASK ThreadDesiredAccess,
+                        POBJECT_ATTRIBUTES ProcessObjectAttributes,
+                        POBJECT_ATTRIBUTES ThreadObjectAttributes,
+                        ULONG CreateProcessFlags,
+                        ULONG CreateThreadFlags,
+                        PRTL_USER_PROCESS_PARAMETERS ProcessParameters,
+                        PPS_CREATE_INFO CreateInfo,
+                        PPS_ATTRIBUTE_LIST AttributeList)
 {
     RTL_USER_PROCESS_PARAMETERS mY_ProcessParameters;
     NTSTATUS    status;
@@ -155,7 +167,7 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
     else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
     {
         if ( ProcessParameters->ImagePathName.Length > 0 &&
-                in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+             in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
         {
         #ifdef _LOGDEBUG
             logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
@@ -184,7 +196,7 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
                                      CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                      CreateInfo, AttributeList);
 #if !defined(LIBPORTABLE_STATIC)
-    if ( NT_SUCCESS(status)&&tohook )
+    if ( NT_SUCCESS(status) && tohook )
     {
         PROCESS_INFORMATION ProcessInformation;
         ULONG Suspend = 0;
@@ -200,18 +212,19 @@ NTSTATUS WINAPI HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHand
     return status;
 }
 
-bool WINAPI HookCreateProcessInternalW (HANDLE hToken,
-                                        LPCWSTR lpApplicationName,
-                                        LPWSTR lpCommandLine,
-                                        LPSECURITY_ATTRIBUTES lpProcessAttributes,
-                                        LPSECURITY_ATTRIBUTES lpThreadAttributes,
-                                        bool bInheritHandles,
-                                        DWORD dwCreationFlags,
-                                        LPVOID lpEnvironment,
-                                        LPCWSTR lpCurrentDirectory,
-                                        LPSTARTUPINFOW lpStartupInfo,
-                                        LPPROCESS_INFORMATION lpProcessInformation,
-                                        PHANDLE hNewToken)
+static bool WINAPI 
+HookCreateProcessInternalW (HANDLE hToken,
+                            LPCWSTR lpApplicationName,
+                            LPWSTR lpCommandLine,
+                            LPSECURITY_ATTRIBUTES lpProcessAttributes,
+                            LPSECURITY_ATTRIBUTES lpThreadAttributes,
+                            bool bInheritHandles,
+                            DWORD dwCreationFlags,
+                            LPVOID lpEnvironment,
+                            LPCWSTR lpCurrentDirectory,
+                            LPSTARTUPINFOW lpStartupInfo,
+                            LPPROCESS_INFORMATION lpProcessInformation,
+                            PHANDLE hNewToken)
 {
     bool	ret		= false;
     LPWSTR	lpfile	= lpCommandLine;
@@ -276,16 +289,28 @@ bool WINAPI HookCreateProcessInternalW (HANDLE hToken,
     return ret;
 }
 
-bool iSAuthorized(LPCWSTR lpFileName)
+static bool 
+is_authorized(LPCWSTR lpFileName)
 {
-    bool    ret = false;
-    int     wow64 = false;
+    bool    ret   = false;
+    int     wow64 = 0;
     LPWSTR  filename = NULL;
-    wchar_t *szAuthorizedList[] = {L"comctl32.dll", L"uxtheme.dll", L"indicdll.dll",
-                                   L"msctf.dll",L"shell32.dll", L"imageres.dll",
-                                   L"winmm.dll",L"ole32.dll", L"oleacc.dll", L"version.dll"
-                                   L"oleaut32.dll",L"secur32.dll",L"shlwapi.dll",
-                                   L"ImSCTip.DLL",L"gdi32.dll",L"dwmapi.dll"
+    WCHAR   *szAuthorizedList[] = { L"comctl32.dll", 
+                                    L"uxtheme.dll", 
+                                    L"indicdll.dll",
+                                    L"msctf.dll",
+                                    L"shell32.dll", 
+                                    L"imageres.dll",
+                                    L"winmm.dll",
+                                    L"ole32.dll", 
+                                    L"oleacc.dll", 
+                                    L"version.dll",
+                                    L"oleaut32.dll",
+                                    L"secur32.dll",
+                                    L"shlwapi.dll",
+                                    L"ImSCTip.DLL",
+                                    L"gdi32.dll",
+                                    L"dwmapi.dll"
                                   };
     uint16_t line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
     IsWow64Process(NtCurrentProcess(),&wow64);
@@ -332,30 +357,26 @@ bool iSAuthorized(LPCWSTR lpFileName)
     return ret;
 }
 
-HMODULE WINAPI HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
+static HMODULE WINAPI 
+HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {
-    do
+    uintptr_t dwCaller = (uintptr_t)_ReturnAddress();
+    if ( is_authorized(lpFileName) ) 
     {
-        uintptr_t dwCaller;
-        if ( iSAuthorized(lpFileName) ) 
+        return OrgiLoadLibraryExW(lpFileName, hFile, dwFlags);
+    }
+    if ( is_specialdll(dwCaller,L"user32.dll") )
+    {
+        if ( !in_whitelist(lpFileName) )
         {
-            break;
+        #ifdef _LOGDEBUG
+            logmsg("disable loading %ls!\n", lpFileName);
+        #endif
+            lpFileName = NULL;
         }
-        dwCaller = (uintptr_t)_ReturnAddress();
-        if ( is_specialdll(dwCaller,L"user32.dll") )
-        {
-            if ( !in_whitelist(lpFileName) )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("disable loading %ls!\n", lpFileName);
-            #endif
-                lpFileName = NULL;
-            }
-        }
-    }while (0);
+    }
     return OrgiLoadLibraryExW(lpFileName, hFile, dwFlags);
 }
-
 
 unsigned WINAPI init_safed(void * pParam)
 {
@@ -406,8 +427,11 @@ unsigned WINAPI init_safed(void * pParam)
             }
         }
     }
-    TrueLoadLibraryExW	= (_NtLoadLibraryExW)GetProcAddress(hKernel, 
-                          "LoadLibraryExW");
+    if ( ver<503 )  /* winxp-2003 */
+    {
+        TrueLoadLibraryExW	= (_NtLoadLibraryExW)GetProcAddress(\
+                              hKernel, "LoadLibraryExW");
+    }
     if (TrueLoadLibraryExW && MH_CreateHook \
        (TrueLoadLibraryExW, HookLoadLibraryExW, \
        (LPVOID*)&OrgiLoadLibraryExW) == MH_OK )

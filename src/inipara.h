@@ -14,7 +14,7 @@
 #define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
 #define   SYS_FREE(x)		 (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
 
-#define	  EXCLUDE_NUM 26                    /* 白名单个数(数组最大行数) */
+#define	  EXCLUDE_NUM 32                    /* 白名单个数(数组最大行数) */
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
 #define   BUFSIZE   (MAX_PATH*2)
 #define	  LOCK_SPIN_COUNT 1500
@@ -22,7 +22,7 @@
 #define   CRT_LEN               100
 #define   NAMES_LEN             64
 #define	  MAX_ENV_SIZE          32767
-#define   goodHandle(m_handle) ( (m_handle != INVALID_HANDLE_VALUE) && (m_handle != NULL) )
+#define   goodHandle(m_handle) ( (m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE) )
 
 #if defined(__GNUC__)
 #define SHARED __attribute__((section(".shrd"), shared))

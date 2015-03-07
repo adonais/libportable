@@ -16,7 +16,7 @@
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
 
-typedef	int (__cdecl *_PR_setenv)(const char* envA);
+typedef	int   (__cdecl *_PR_setenv)(const char* envA);
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
@@ -28,13 +28,13 @@ typedef struct _LANGANDCODEPAGE
 } LANGANDCODEPAGE;
 
 extern WCHAR  ini_path[MAX_PATH+1];
-extern void WINAPI gmpservice_check(LPCWSTR app_path, LPCWSTR gmp_path);
 
 static PFNGFVSW	  pfnGetFileVersionInfoSizeW = NULL;
 static PFNGFVIW	  pfnGetFileVersionInfoW = NULL;
 static PFNVQVW	  pfnVerQueryValueW  = NULL;
 _NtLoadLibraryExW OrgiLoadLibraryExW = NULL;
 HMODULE           dll_module         = NULL;
+
 bool WINAPI
 init_parser(LPWSTR inifull_name,DWORD len)
 {
@@ -124,7 +124,7 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
         }
         SYS_FREE(lpstring);
     }
-    return (bool)res;
+    return ( res>0 );
 }
 
 #ifdef _LOGDEBUG
@@ -152,7 +152,8 @@ void __cdecl logmsg(const char * format, ...)
 }
 #endif
 
-HMODULE init_verinfo(void)          /* 初始化version.dll里面的三个函数 */
+static HMODULE 
+init_verinfo(void)          /* 初始化version.dll里面的三个函数 */
 {
     HMODULE h_ver = LoadLibraryW(L"version.dll");
     if (h_ver != NULL)
@@ -169,7 +170,8 @@ HMODULE init_verinfo(void)          /* 初始化version.dll里面的三个函数
     return h_ver;
 }
 
-bool get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
+static bool 
+get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
 {
     HMODULE  h_ver = NULL;
     bool     ret = false;
@@ -258,7 +260,7 @@ stristrW(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能�
 
 void charTochar(LPWSTR path)
 {
-    LPWSTR	 lp = NULL;
+    LPWSTR   lp = NULL;
     intptr_t pos;
     do
     {
@@ -363,7 +365,7 @@ IsGUI(LPCWSTR lpFileName)
     IMAGE_NT_HEADERS pe_header;
     bool	ret = false;
     HANDLE	hFile = CreateFileW(lpFileName,GENERIC_READ,
-                                FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
+                                FILE_SHARE_READ,NULL,OPEN_EXISTING,
                                 FILE_ATTRIBUTE_NORMAL,NULL);
     if( !goodHandle(hFile) )
     {
@@ -371,36 +373,38 @@ IsGUI(LPCWSTR lpFileName)
     }
     do
     {
-        DWORD readed;
-        SetFilePointer(hFile,0,0,FILE_BEGIN);
-        ReadFile(hFile,&dos_header,sizeof(IMAGE_DOS_HEADER),&readed,NULL);
-        if(readed != sizeof(IMAGE_DOS_HEADER))
+        DWORD readed = 0;
+        DWORD m_ptr  = SetFilePointer( hFile,0,NULL,FILE_BEGIN );
+        if ( INVALID_SET_FILE_POINTER == m_ptr )
         {
             break;
         }
-        if(dos_header.e_magic != 0x5a4d)
+        ret = ReadFile( hFile,&dos_header,sizeof(IMAGE_DOS_HEADER),&readed,NULL );
+        if( ret && readed != sizeof(IMAGE_DOS_HEADER) && \
+            dos_header.e_magic != 0x5a4d )
         {
             break;
         }
-        SetFilePointer(hFile,dos_header.e_lfanew,NULL,FILE_BEGIN);
-        ReadFile(hFile,&pe_header,sizeof(IMAGE_NT_HEADERS),&readed,NULL);
-        if(readed != sizeof(IMAGE_NT_HEADERS))
+        m_ptr = SetFilePointer( hFile,dos_header.e_lfanew,NULL,FILE_BEGIN );
+        if ( INVALID_SET_FILE_POINTER == m_ptr )
         {
-
             break;
         }
-        if(pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI)
+        ret = ReadFile( hFile,&pe_header,sizeof(IMAGE_NT_HEADERS),&readed,NULL );
+        if( ret && readed != sizeof(IMAGE_NT_HEADERS) )
         {
-            ret = true;
+            break;
         }
+        ret = pe_header.OptionalHeader.Subsystem == IMAGE_SUBSYSTEM_WINDOWS_GUI;
     } while (0);
     CloseHandle(hFile);
     return ret;
 }
 
-bool GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
+static bool 
+GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 {
-    int i = 0;
+    int   i = 0;
     WCHAR lpFullPath[MAX_PATH+1]= {0};
     if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
     {
@@ -419,7 +423,7 @@ bool GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 
 bool WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
 {
-    int i = 0;
+    int   i = 0;
     WCHAR lpFullPath[MAX_PATH+1] = {0};
     if ( GetModuleFileNameW(NULL,lpFullPath,MAX_PATH)>0 )
     {
@@ -468,7 +472,7 @@ bool WINAPI is_browser(void)
                _wcsicmp(process_name, L"lawlietfox.exe") )
            );
 }
-
+ 
 bool WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
 {
     bool    ret = false;
@@ -490,6 +494,10 @@ bool WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
                 ret = true;
             }
         }
+    }
+    if ( hCallerModule )
+    {
+        FreeLibrary(hCallerModule);
     }
     return ret;
 }
@@ -776,17 +784,6 @@ unsigned WINAPI SetPluginPath(void * pParam)   /* 使用nspr库里面的PR_SetEn
                     SHCreateDirectoryExW(NULL,value_str,NULL);
                 }
 
-            }
-            /* 支持MOZ_OPENH264_PATH变量 */
-            else if ( _wcsnicmp(strKey, L"MOZ_OPENH264_PATH", wcslen(L"MOZ_OPENH264_PATH")) == 0 && \
-                      read_appkey(L"Env",L"MOZ_OPENH264_PATH",value_str,sizeof(value_str),NULL) )
-            {
-                PathToCombineW(value_str, VALUE_LEN);
-                if ( _snwprintf(env_string,VALUE_LEN,L"%ls%ls",L"MOZ_GMP_PATH=",value_str) > 0 )
-                {
-                    ret = write_env( env_string );
-                    gmpservice_check(pParam, value_str);
-                }
             }
             else if ( _wcsnicmp(strKey, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
             {
