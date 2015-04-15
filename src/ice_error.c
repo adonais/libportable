@@ -14,7 +14,8 @@ static  _NtSetUnhandledExceptionFilter TrueSetUnhandledExceptionFilter;
 static  _NtMiniDumpWriteDump TrueMiniDumpWriteDump;
 static  HMODULE m_dbg;
 
-LONG WINAPI ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
+static LONG WINAPI 
+ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
 {
     /* 异常信息结构体 */
     MINIDUMP_EXCEPTION_INFORMATION  ExInfo;
@@ -74,11 +75,11 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
 unsigned WINAPI init_exeception(void * pParam)
 {
     unsigned ret = 0;
-    HMODULE  m_dbg, m_kernel;
+    HMODULE  m_kernel;
     m_dbg = OrgiLoadLibraryExW?OrgiLoadLibraryExW(L"dbghelp.dll",NULL,0):\
             LoadLibraryExW(L"dbghelp.dll",NULL,0);
     m_kernel =  GetModuleHandleW(L"kernel32.dll");
-    if ( !(m_dbg&&m_kernel) ) return ret;
+    if ( !(m_dbg && m_kernel) ) return ret;
     TrueMiniDumpWriteDump           = (_NtMiniDumpWriteDump)GetProcAddress(\
                                       m_dbg, "MiniDumpWriteDump");
     if ( !TrueMiniDumpWriteDump )

@@ -11,6 +11,7 @@
 #include "bosskey.h"
 #include "new_process.h"
 #include "cpu_info.h"
+#include "balance.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -25,7 +26,7 @@ typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 SHSTDAPI SHILCreateFromPath (PCWSTR pszPath, PIDLIST_ABSOLUTE *ppidl, DWORD *rgfInOut);
 
 typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
-        int nFolder,
+        int nFolder, 
         HANDLE hToken,
         DWORD dwFlags,
         LPWSTR pszPath);
@@ -135,24 +136,24 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
         HRESULT result = S_FALSE;
         switch (folder)
         {
-        case CSIDL_APPDATA:
-        {
-            if ( appdata_path[0] != L'\0' )
+            case CSIDL_APPDATA:
             {
-                result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
+                if ( appdata_path[0] != L'\0' )
+                {
+                    result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
+                }
+                break;
             }
-            break;
-        }
-        case CSIDL_LOCAL_APPDATA:
-        {
-            if (localdata_path[0] != L'\0' )
+            case CSIDL_LOCAL_APPDATA:
             {
-                result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
+                if (localdata_path[0] != L'\0' )
+                {
+                    result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
+                }
+                break;
             }
-            break;
-        }
-        default:
-            break;
+            default:
+                break;
         }
         if (result == S_OK)
         {
@@ -185,26 +186,26 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         switch (folder)
         {
             int	 num = 0;
-        case CSIDL_APPDATA:
-        {
-            if ( PathIsDirectoryW(appdata_path) )
+            case CSIDL_APPDATA:
             {
-                num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-                ret = S_OK;
+                if ( PathIsDirectoryW(appdata_path) )
+                {
+                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
+                    ret = S_OK;
+                }
+                break;
             }
-            break;
-        }
-        case CSIDL_LOCAL_APPDATA:
-        {
-            if ( PathIsDirectoryW(localdata_path) )
+            case CSIDL_LOCAL_APPDATA:
             {
-                num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-                ret = S_OK;
+                if ( PathIsDirectoryW(localdata_path) )
+                {
+                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
+                    ret = S_OK;
+                }
+                break;
             }
-            break;
-        }
-        default:
-            break;
+            default:
+                break;
         }
     }
     if (S_OK != ret)
@@ -362,33 +363,30 @@ void WINAPI do_it(void)
         init_safed(NULL);
     }
 #endif
-    if ( !RunPart && is_browser() )
+    if ( true )
     {
-        HANDLE  h_thread;
-        if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,NULL,0,NULL));
-        }
+        fzero(&ff_info, sizeof(WNDINFO));
+        ff_info.hPid = GetCurrentProcessId();
+    }
+    if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,&ff_info,0,NULL));
+    }
+    if ( !RunPart && (is_browser() || is_specialapp(L"thunderbird.exe")) )
+    {
         if ( read_appint(L"General",L"CreateCrashDump") )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
         }
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
-            ZeroMemory(&ff_info, sizeof(WNDINFO));
-            ff_info.hPid = GetCurrentProcessId();
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
-        }
-        h_thread = (HANDLE)_beginthreadex(NULL,0,&SetPluginPath,appdata_path,0,NULL);
-        if (h_thread)
-        {
-            SetThreadPriority(h_thread,THREAD_PRIORITY_HIGHEST);
-            CloseHandle(h_thread);
         }
         if ( read_appint(L"General", L"ProxyExe") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
         }
+        SetPluginPath(NULL);
         RunPart=1;
     }
 }

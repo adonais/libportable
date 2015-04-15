@@ -35,7 +35,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o \
-	   $(DEP)/cpu_info.o
+	   $(DEP)/cpu_info.o $(DEP)/balance.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
 DISTDIR  = Release
@@ -74,7 +74,7 @@ LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
 LDFLAGS  += -L$(DISTDIR) -nodefaultlibs $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
 RC       = $(CROSS_COMPILING)windres
-RCFLAGS  = -l "LANGUAGE 4,2" -J rc -O coff
+RCFLAGS  = --define UNICODE -J rc -O coff
 OBJECTS  += $(DEP)/resource.o
 OBJS     = $(OBJECTS)
 endif
@@ -101,6 +101,8 @@ $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

@@ -2,12 +2,11 @@
 
 CC       = cl.exe
 CPP	 = cl.exe
-TCMALLOC  =
+TCMALLOC =
 CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /GS- /GR- /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
-YASM     = msrt\yasm.exe
 
 LIBPORTABLE_STATIC =
 
@@ -15,7 +14,7 @@ LIBPORTABLE_STATIC =
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
 !else
-CRTFLAGS = /LIBPATH:msrt msvcrt-light-$(PLATFORM).lib
+#CRTFLAGS = /LIBPATH:msrt ntdll-1.lib
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
@@ -47,7 +46,7 @@ RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
-           $(DEP)\new_process.obj $(DEP)\cpu_info.obj
+           $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -70,6 +69,7 @@ CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
 !if "$(TCMALLOC)"=="1"
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
+OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-1.lib
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
@@ -87,7 +87,7 @@ EXEC		= \
 	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
 	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
 
-all				: $(OUT1) $(OUT)
+all                     : $(OUT1) $(OUT)
 $(OUT1)			: $(SUB_DIR)/Makefile.msvc
 	$(SUBMK)
 $(OUT)			: $(OBJDLL)
@@ -112,6 +112,16 @@ $(DEP)\new_process.obj  : $(SRC)\new_process.c $(SRC)\new_process.h
 	$(CC) $(CFLAGS) /c $(SRC)\new_process.c /Fo$@
 $(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
 	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
+$(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
+	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
+!if "$(TCMALLOC)"==""
+$(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
+	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
+	        /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
+$(DEP)\ntdll-1.lib                  : msrt\ntdll-1.def
+	lib.exe /DEF:msrt\ntdll-1.def /OUT:$(DEP)\ntdll-1.lib /NOLOGO /NODEFAULTLIB \
+	        /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll
+!endif
 $(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 

@@ -106,16 +106,6 @@ typedef struct _tagSTACKFRAME64 {
 #define LPSTACKFRAME LPSTACKFRAME64
 #endif
 
-/*
-typedef BOOL (WINAPI* PREAD_PROCESS_MEMORY_ROUTINE64) (HANDLE hProcess,
-  uint64 qwBaseAddress, PVOID lpBuffer, DWORD nSize, LPDWORD lpNumberOfBytesRead);
-typedef PVOID (WINAPI* PFUNCTION_TABLE_ACCESS_ROUTINE64) (HANDLE hProcess,
-  uint64 AddrBase);
-typedef uint64 (WINAPI* PGET_MODULE_BASE_ROUTINE64) (HANDLE  hProcess, 
-  uint64 Address);
-typedef uint64 (WINAPI* PTRANSLATE_ADDRESS_ROUTINE64) (HANDLE hProcess,
-  HANDLE hThread, LPADDRESS64 lpaddr);
-*/
 typedef struct _SYMBOL_INFO {
   ULONG   SizeOfStruct;
   ULONG   TypeIndex;
@@ -247,16 +237,7 @@ typedef struct _IMAGEHLP_LINEW {
     DWORD64  Address; 
 } IMAGEHLP_LINEW, *PIMAGEHLP_LINEW;
 #endif
-/*
-typedef BOOL (CALLBACK* PSYM_ENUMERATESYMBOLS_CALLBACK) (PSYMBOL_INFO pSymInfo,
-  ULONG SymbolSize, PVOID UserContext);
-typedef BOOL (CALLBACK* PSYM_ENUMERATESYMBOLS_CALLBACKW) (PSYMBOL_INFOW pSymInfo,
-  ULONG SymbolSize, PVOID UserContext);
-typedef BOOL (CALLBACK* PSYM_ENUMMODULES_CALLBACK64) (PSTR ModuleName,
-  uint64 BaseOfDll, PVOID UserContext);
-typedef BOOL (CALLBACK* PSYM_ENUMMODULES_CALLBACKW64) (PWSTR ModuleName,
-  uint64 BaseOfDll, PVOID UserContext);
-*/
+
 typedef struct _IMAGEHLP_STACK_FRAME {
   ULONG64 InstructionOffset;
   ULONG64 ReturnOffset;

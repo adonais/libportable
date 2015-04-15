@@ -192,7 +192,6 @@ unsigned WINAPI run_process(void * pParam)
             return (0);
         }
         g_handle[0] = pi.hProcess;
-        /* 或者CreateWaitableTimer和SetWaitableTimer函数 */
         if ( pi.dwProcessId >4 && (SleepEx(6000,false) == 0) )
         {
             search_process(NULL, pi.dwProcessId);

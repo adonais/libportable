@@ -31,6 +31,14 @@
 #endif
 
 typedef HMODULE (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
+typedef struct tagWNDINFO
+{
+    int   atom_str;
+    int   key_mod;
+    int   key_vk;
+    DWORD hPid;
+    HWND  hFF;
+} WNDINFO, *LPWNDINFO;
 
 INI_EXTERN _NtLoadLibraryExW    OrgiLoadLibraryExW;
 INI_EXTERN HMODULE dll_module;  /* portable module addr */
@@ -67,13 +75,13 @@ INI_EXTERN bool     WINAPI foreach_section(LPCWSTR cat,                     /* i
                                            wchar_t(*lpdata)[VALUE_LEN+1],   /* 二维数组首地址,保存多个段值 */
                                            int line                         /* 二维数组行数 */
                                            );
-INI_EXTERN bool     WINAPI is_thunderbird(void);
+INI_EXTERN bool     WINAPI is_specialapp(LPCWSTR appname);
 INI_EXTERN bool     WINAPI is_browser(void);
 INI_EXTERN bool     WINAPI get_mozprofiles_path(LPCWSTR, wchar_t*, int);
 INI_EXTERN bool     WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen);
 INI_EXTERN bool     WINAPI WaitWriteFile(LPCWSTR app_path);
 INI_EXTERN bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
-INI_EXTERN unsigned WINAPI SetCpuAffinity_tt(void * pParam);
+INI_EXTERN HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
 INI_EXTERN unsigned WINAPI SetPluginPath(void * pParam);
 INI_EXTERN bool     WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN char*    WINAPI unicode_ansi(LPCWSTR pwszUnicode);

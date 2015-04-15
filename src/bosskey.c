@@ -7,35 +7,10 @@
 
 bool init_bosskey(LPWNDINFO pInfo)
 {
-    HWND    hwnd = NULL;
-    while ( !pInfo->hFF )                 /* 等待主窗口并获取句柄 */
-    {
-        bool  m_loop = false;
-        DWORD dwProcessId = 0;
-        HWND  hwnd_next = NULL;
-        hwnd = FindWindowExW( NULL, hwnd, L"MozillaWindowClass", NULL );
-        GetWindowThreadProcessId(hwnd, &dwProcessId);
-        m_loop = (dwProcessId>0 &&dwProcessId == pInfo->hPid);
-        if ( !m_loop )
-        {
-            pInfo->hFF = NULL;
-        }
-        if (NULL != hwnd && m_loop)
-        {
-            pInfo->hFF = hwnd;
-            break;
-        }
-        Sleep(800);
-    }
-    if ( 1 )
-    {
-        WCHAR atom[8+1] = {0};
-        _ui64tow(pInfo->hPid,atom,10);
-    #ifdef _LOGDEBUG
-       logmsg("atom = %ls\n",atom);
-    #endif
-        pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;
-    }
+    WCHAR atom[8+1] = {0};
+    get_moz_hwnd(pInfo);
+    _ui64tow(pInfo->hPid,atom,10);
+    pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;    
     return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
 }
 
@@ -132,7 +107,7 @@ unsigned WINAPI bosskey_thread(void * lparam)
     MSG msg;
     LPWNDINFO lpInfo = (LPWNDINFO)lparam;
     set_hotkey(lpInfo);
-    if ( is_browser()  || is_thunderbird() )
+    if ( is_browser()  || is_specialapp(L"thunderbird.exe") )
     {
         if ( init_bosskey(lpInfo) )
         {

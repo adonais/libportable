@@ -7,23 +7,10 @@
 #  define BOSS_EXTERN extern
 #endif
 
-#include <windows.h>
-
-typedef struct tagWNDINFO
-{
-    int   atom_str;
-    int   key_mod;
-    int   key_vk;
-    DWORD hPid;
-    HWND  hFF;
-} WNDINFO;
-
-typedef WNDINFO *LPWNDINFO;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-BOSS_EXTERN unsigned WINAPI bosskey_thread(void * lparam);
+BOSS_EXTERN unsigned __stdcall bosskey_thread(void * lparam);
 #ifdef __cplusplus
 }
 #endif 
