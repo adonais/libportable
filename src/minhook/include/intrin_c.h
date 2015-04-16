@@ -19,7 +19,8 @@ typedef unsigned char _Bool;
 #define _AddressOfReturnAddress() (&(((void **)(__builtin_frame_address(0)))[1]))
 #if defined(__AVX__)
 #include <x86intrin.h>
-extern __inline__ __attribute__((always_inline)) unsigned long long _xgetbv(unsigned int __xcr_no)
+extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
+unsigned long long _xgetbv(unsigned int __xcr_no)
 {
     unsigned int __eax, __edx;
     __asm__ ("xgetbv" : "=a" (__eax), "=d" (__edx) : "c" (__xcr_no));
@@ -34,8 +35,8 @@ extern __inline__ __attribute__((always_inline)) unsigned long long _xgetbv(unsi
 #if defined(_MSC_VER) && (_MSC_VER >= 1600)
 #include <intrin.h>
 #pragma intrinsic(_InterlockedCompareExchange, _InterlockedExchange, \
-                  __stosb, __movsb, _ReturnAddress, strlen, wcslen, \
-                  wcscpy, wcscmp, memcpy, memset)
+                  __stosb, __movsb, _ReturnAddress, _mm_pause, _ReadWriteBarrier, \
+                  strlen, wcslen, wcscpy, wcscmp, memcpy, memset)
 #elif defined(__GNUC__)
 #include "intrin_gcc.h"
 #else

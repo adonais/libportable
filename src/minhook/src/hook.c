@@ -70,7 +70,7 @@ typedef struct _HOOK_ENTRY
 //-------------------------------------------------------------------------
 
 // Spin lock flag for EnterSpinLock()/LeaveSpinLock().
-volatile LONG g_isLocked = false;
+volatile LONG g_isLocked = 0;
 
 // Private heap handle. If not NULL, this library is initialized.
 HANDLE g_hHeap = NULL;
@@ -434,18 +434,33 @@ static MH_STATUS EnableAllHooksLL(bool enable)
 //-------------------------------------------------------------------------
 VOID WINAPI EnterSpinLock(VOID)
 {
+    SIZE_T spinCount = 0;
     // Wait until the flag is false.
-    while (_InterlockedCompareExchange(&g_isLocked, true, false) != false)
+    while (_InterlockedCompareExchange(&g_isLocked, 1, 0) != 0)
     {
+        _ReadWriteBarrier();
         // Prevent the loop from being too busy.
-        Sleep(1);
+        if (spinCount < 16)
+        {
+            _mm_pause();
+        }
+        else if (spinCount < 32)
+        {
+            Sleep(0);
+        }
+        else
+        {
+            Sleep(1);
+        }
+        spinCount++;
     }
 }
 
 //-------------------------------------------------------------------------
 VOID WINAPI LeaveSpinLock(VOID)
 {
-    _InterlockedExchange(&g_isLocked, false);
+    _ReadWriteBarrier();
+    *(long volatile*)&g_isLocked = 0;    /* not use _InterlockedExchange() */
 }
 
 //-------------------------------------------------------------------------
