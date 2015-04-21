@@ -31,7 +31,7 @@
 #include "trampoline.h"
 #include <tlhelp32.h>
 #include <limits.h>
-#include "intrin_c.h"
+#include <intrin_c.h>
 
 // Initial capacity of the HOOK_ENTRY buffer.
 #define INITIAL_HOOK_CAPACITY   32
@@ -65,23 +65,24 @@ typedef struct _HOOK_ENTRY
     UINT8  newIPs[8];           // Instruction boundaries of the trampoline function.
 } HOOK_ENTRY, *PHOOK_ENTRY;
 
-//-------------------------------------------------------------------------
-// Global Variables:
-//-------------------------------------------------------------------------
-
-// Spin lock flag for EnterSpinLock()/LeaveSpinLock().
-volatile LONG g_isLocked = 0;
-
-// Private heap handle. If not NULL, this library is initialized.
-HANDLE g_hHeap = NULL;
-
 // Hook entries.
-struct
+typedef struct _global
 {
     PHOOK_ENTRY pItems;     // Data heap
     UINT        capacity;   // Size of allocated data heap, items
     UINT        size;       // Actual number of data items
-} g_hooks;
+} global_hooks;
+
+//-------------------------------------------------------------------------
+// Global Variables:
+//-------------------------------------------------------------------------
+// Spin lock flag for EnterSpinLock()/LeaveSpinLock().
+volatile LONG g_isLocked = 0;
+
+// Private heap handle. If not NULL, this library is initialized.
+volatile HANDLE g_hHeap = NULL;
+
+global_hooks g_hooks;
 
 //-------------------------------------------------------------------------
 // Returns INVALID_HOOK_POS if not found.
@@ -286,29 +287,6 @@ static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
 }
 
 //-------------------------------------------------------------------------
-VOID WINAPI Freezex(PFROZEN_THREADS pThreads)
-{
-    pThreads->pItems   = NULL;
-    pThreads->capacity = 0;
-    pThreads->size     = 0;
-    EnumerateThreads(pThreads);
-
-    if (pThreads->pItems != NULL)
-    {
-        UINT i;
-        for (i = 0; i < pThreads->size; ++i)
-        {
-            HANDLE hThread = OpenThread(THREAD_ACCESS, false, pThreads->pItems[i]);
-            if (hThread != NULL)
-            {
-                SuspendThread(hThread);
-                CloseHandle(hThread);
-            }
-        }
-    }
-}
-
-//-------------------------------------------------------------------------
 static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 {
     pThreads->pItems   = NULL;
@@ -333,7 +311,7 @@ static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 }
 
 //-------------------------------------------------------------------------
-VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads)
+static VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads)
 {
     if (pThreads->pItems != NULL)
     {

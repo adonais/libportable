@@ -45,20 +45,18 @@ INI_EXTERN HMODULE dll_module;  /* portable module addr */
 
 #ifdef _LOGDEBUG
 #define LOG_FILE    "run_hook.log"
-INI_EXTERN  char    logfile_buf[VALUE_LEN+1];
-
-#ifdef __cplusplus
-"extern C"
 #endif
-INI_EXTERN void __cdecl logmsg(const char * format, ...);
-
-#endif  /* _LOGDEBUG */
 
 #define fzero(b,len)  (__stosb((LPBYTE)(b), '\0', (len)))
 
 #ifdef __cplusplus
 extern "C" {
 #endif 
+
+#ifdef _LOGDEBUG
+INI_EXTERN char    logfile_buf[VALUE_LEN+1];
+INI_EXTERN void     __cdecl logmsg(const char * format, ...);
+#endif
 
 INI_EXTERN DWORD    WINAPI GetOsVersion(void);
 INI_EXTERN bool     WINAPI PathToCombineW(LPWSTR lpfile, int str_len);

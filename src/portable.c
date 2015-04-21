@@ -48,11 +48,13 @@ static _NtSHGetSpecialFolderPathW    OrgiSHGetSpecialFolderPathW,TrueSHGetSpecia
 #ifdef _MSC_VER
 #pragma data_seg(".shrd")
 #endif
-int     RunOnce SHARED = 0;
-int     RunPart SHARED = 0;
-WCHAR   ini_path[MAX_PATH+1] SHARED = {0};
-WCHAR   appdata_path[VALUE_LEN+1] SHARED = {0};
-WCHAR   localdata_path[VALUE_LEN+1] SHARED = {0} ;
+volatile long nRunOnce SHARED = 0;
+volatile long nProCout SHARED = -1;
+volatile uint32_t nMainPid SHARED = 0;
+WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
+WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
+WCHAR    localdata_path[VALUE_LEN+1] SHARED = {0} ;
+char     logfile_buf[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
 #pragma data_seg()
 #endif
@@ -85,12 +87,9 @@ GetAppDirHash_tt( void )
 }
 
 /* 初始化全局变量 */
-void CALLBACK init_global_env(void)
+static void init_global_env(void)
 {
-    if ( RunOnce )
-    {
-        return;
-    }
+
     /* 如果ini文件里的appdata设置路径为相对路径 */
     if (appdata_path[1] != L':')
     {
@@ -108,6 +107,7 @@ void CALLBACK init_global_env(void)
     {
         wcsncpy(localdata_path,appdata_path,VALUE_LEN);
     }
+    
     if ( appdata_path[0] != L'\0' )
     {
         /* 为appdata建立目录 */
@@ -119,9 +119,8 @@ void CALLBACK init_global_env(void)
         /* 为localdata建立目录 */
         wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
         SHCreateDirectoryExW(NULL,localdata_path,NULL);
-    }
+    }   
     WaitWriteFile(appdata_path);
-    RunOnce = 1;
     return;
 }
 
@@ -256,11 +255,12 @@ static bool init_libshell(void)
     return (ret && h_module);
 }
 
-void init_portable(user_func init_env)
+static void init_portable(void)
 {
-    /* 回调函数运行,初始化全局变量 */
-    (*init_env)();
-    if ( !init_libshell() ) return;
+    if ( !init_libshell() )
+    {
+        return;
+    }
     /* hook 下面几个函数 */
     if ( MH_CreateHook(TrueSHGetSpecialFolderLocation, HookSHGetSpecialFolderLocation, \
         (LPVOID*)&OrgiSHGetSpecialFolderLocation) == MH_OK )
@@ -298,7 +298,15 @@ void init_portable(user_func init_env)
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
-    RunPart = 0;
+    if ( --nProCout == -1 || nMainPid == ff_info.hPid )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("nRunOnce reseting.!\n", __FUNCTION__);
+    #endif
+        _ReadWriteBarrier();
+        _InterlockedExchange(&nRunOnce, 0);
+        *(long volatile*)&nProCout = -1;
+    }
     if (ff_info.atom_str)
     {
         UnregisterHotKey(NULL, ff_info.atom_str);
@@ -314,6 +322,7 @@ void WINAPI undo_it(void)
         }
         refresh_tray();
     }
+
     if (OrgiSHGetFolderPathW)
     {
         MH_DisableHook(TrueSHGetFolderPathW);
@@ -331,53 +340,106 @@ void WINAPI undo_it(void)
     safe_end();
 #endif
     MH_Uninitialize();
+    
+#ifdef _LOGDEBUG
+    logmsg("Process[%lu] uninstall hooked ,[nProCout=%ld]!\n", GetCurrentProcessId(),nProCout);
+#endif    
     return;
 }
 
 void WINAPI do_it(void)
 {
-    if ( !RunPart )
+    bool      m_restart = false;
+    bool      m_first = ( nRunOnce == 0 && nProCout == -1 );
+    uintptr_t m_parent  = 0;
+    if ( ++nProCout>2048 || m_first )
     {
         if ( !init_parser(ini_path, MAX_PATH) )
         {
             return;
         }
+        if ( (nMainPid = GetCurrentProcessId()) < 0x4 )
+        {
+            return;
+        }
+    #ifdef _LOGDEBUG         /* 初始化日志记录文件 */
+        if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
+        {
+            strncat(logfile_buf,"\\",1);
+            strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
+        }
+    #endif
+        if ( read_appint(L"General", L"Portable") > 0 && 
+             read_appkey(L"General",
+                         L"PortableDataPath",
+                         appdata_path,
+                         sizeof(appdata_path),
+                         NULL) 
+           )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("init_global_env() runing...!\n");
+        #endif                
+            init_global_env(); 
+        }
     }
-    /* 初始化日志记录文件 */
-#ifdef _LOGDEBUG
-    if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
-    {
-        strncat(logfile_buf,"\\",1);
-        strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
-    }
-#endif
-    if (MH_Initialize() != MH_OK) return;
-    if ( read_appint(L"General", L"Portable") > 0 && (appdata_path[1] == L':' ||
-         read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL)) )
-    {
-        init_portable(&init_global_env);
-    }
-#ifndef DISABLE_SAFE
-    if ( read_appint(L"General",L"SafeEx") > 0 )
-    {
-        init_safed(NULL);
-    }
-#endif
     if ( true )
     {
         fzero(&ff_info, sizeof(WNDINFO));
         ff_info.hPid = GetCurrentProcessId();
+        m_parent = getid_parental(ff_info.hPid);
+        if ( !m_parent )
+        {
+            return;
+        }
+        if (MH_Initialize() != MH_OK)
+        {
+            return;
+        }
+        m_restart = m_parent == (uintptr_t)nMainPid;
     }
-    if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+#ifdef _LOGDEBUG
+    logmsg("nProCout = %ld, nRunOnce = %ld, m_parent = %lu.\n", nProCout, nRunOnce, m_parent);
+#endif
+    /* 确认是主进程 或者 插件进程 */
+    if ( m_first || 
+         is_specialapp(L"plugin-container.exe") ||
+         m_restart
+       )
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,&ff_info,0,NULL));
-    }
-    if ( !RunPart && (is_browser() || is_specialapp(L"thunderbird.exe")) )
-    {
+        if ( appdata_path[1] == L':' )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("init_portable() runing...!\n");
+        #endif    
+            init_portable();
+        }
+    #ifndef DISABLE_SAFE
+        if ( read_appint(L"General",L"SafeEx") > 0 )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("init_safed() runing...!\n");
+        #endif    
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_safed,NULL,0,NULL));
+        }
+    #endif
         if ( read_appint(L"General",L"CreateCrashDump") )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
         }
+        if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,&ff_info,0,NULL));
+        }
+    }
+    /* 浏览器重启时需要再次运行 */
+    if ( m_first || (m_restart && is_browser()) )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("all ready runing...!\n");
+    #endif
+        nMainPid = ff_info.hPid;
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
@@ -386,9 +448,9 @@ void WINAPI do_it(void)
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
         }
-        SetPluginPath(NULL);
-        RunPart=1;
     }
+    _ReadWriteBarrier();
+    _InterlockedExchange(&nRunOnce, 1);
 }
 
 /* This is standard DllMain function. */

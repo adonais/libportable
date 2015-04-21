@@ -164,10 +164,6 @@ extern "C" {
 
     VOID WINAPI LeaveSpinLock(VOID);
 
-    VOID WINAPI Freezex(PFROZEN_THREADS pThreads);
-
-    VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads);
-
 #ifdef __cplusplus
 }
 #endif

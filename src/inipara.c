@@ -16,7 +16,7 @@
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
 
-typedef	int   (__cdecl *_PR_setenv)(const char *envA);
+typedef	int   (__cdecl *MOZ_SETENV)(const char *envA);
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
@@ -27,8 +27,9 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
-extern WCHAR  ini_path[MAX_PATH+1];
+extern WCHAR ini_path[MAX_PATH+1];
 
+static MOZ_SETENV moz_put_env;
 static PFNGFVSW	  pfnGetFileVersionInfoSizeW;
 static PFNGFVIW	  pfnGetFileVersionInfoW;
 static PFNVQVW	  pfnVerQueryValueW;
@@ -662,12 +663,10 @@ WaitWriteFile(LPCWSTR app_path)
 {
     bool  ret = false;
     WCHAR moz_profile[MAX_PATH+1] = {0};
-    FROZEN_THREADS threads;
     if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
     {
         return ret;
     }
-    Freezex(&threads);
     if ( PathFileExistsW(moz_profile) )
     {
         WCHAR app_names[MAX_PATH+1] = {0};
@@ -741,7 +740,6 @@ WaitWriteFile(LPCWSTR app_path)
             }
         }
     }
-    Unfreeze(&threads);
     return ret;
 }
 
@@ -785,57 +783,56 @@ unicode_ansi(LPCWSTR pwszUnicode)
     return pszByte;
 }
 
-static int __cdecl 
-write_env(WCHAR* env)
+static HMODULE init_nss3(void)          /* 加载firefox目录下的nss3.dll */
 {
-    int     ret = -1;
     HMODULE hcrt = NULL;
-    char*   envA = NULL;
     WCHAR   dll_path[MAX_PATH+1] = {0};
-    static  _PR_setenv moz_put_env;
     do
     {
-        if ( NULL == moz_put_env )
-        {   
-            if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
-            {
-                break;
-            }
-            if ( !PathAppendW(dll_path,L"nss3.dll") )
-            {
-                break;
-            }
-            hcrt = OrgiLoadLibraryExW?OrgiLoadLibraryExW(dll_path,NULL,0):\
-                   LoadLibraryExW(dll_path,NULL,0);
-            if ( hcrt == NULL )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
-            #endif
-                break;
-            }
-            if ( (moz_put_env = (_PR_setenv)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
-            #endif
-                break;
-            }
-        }
-        if ( (envA = unicode_ansi(env)) == NULL )
+        if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
         {
             break;
         }
-    } while (0);
-    if ( envA )
-    {
-        ret = moz_put_env(envA);
-        SYS_FREE(envA);
+        if ( !PathAppendW(dll_path,L"nss3.dll") )
+        {
+            break;
+        }
+        hcrt = OrgiLoadLibraryExW?OrgiLoadLibraryExW(dll_path,NULL,0):\
+               LoadLibraryExW(dll_path,NULL,0);
+        if ( hcrt == NULL )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
+        #endif
+            break;
+        }
+        if ( (moz_put_env = (MOZ_SETENV)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
+        #endif
+            FreeLibrary(hcrt);
+            hcrt = NULL;
+            break;
+        }
+    }while(0);
+    return hcrt;
+}
+
+static int __cdecl write_env(WCHAR* env)
+{
+    int     ret = -1;
+    char*   envA = NULL;
+    if ( NULL == moz_put_env )
+    {   
+        return ret;
     }
-    if ( hcrt )
+    if ( (envA = unicode_ansi(env)) == NULL )
     {
-        FreeLibrary(hcrt);
+        return ret;
     }
+    ret = moz_put_env(envA);
+    SYS_FREE(envA);
     return ret;
 }
 
@@ -897,9 +894,9 @@ pentadactyl_fixed(WCHAR* m_value, size_t m_size)
     return;
 }
 
-static void 
-foreach_env(LPWSTR m_key)
+static unsigned WINAPI foreach_env(void * pParam)
 {
+    LPWSTR m_key = (LPWSTR)pParam;
     while(*m_key != L'\0')
     {
         WCHAR val_str[VALUE_LEN+1] = {0};
@@ -949,13 +946,15 @@ foreach_env(LPWSTR m_key)
         }
         m_key += wcslen(m_key)+1;
     }
+    return (1);
 }
 
 unsigned WINAPI 
 SetPluginPath(void * pParam)
 {
-    int    ret = 0;
-    LPWSTR lpstring = NULL;
+    int     ret = 0;
+    LPWSTR  lpstring = NULL;
+    HMODULE h_nss = NULL;
     do
     {
         if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
@@ -967,8 +966,19 @@ SetPluginPath(void * pParam)
         {
             break;
         }
+        if ( (h_nss = init_nss3()) == NULL )
+        {
+            break;
+        }
         foreach_env(lpstring);
     }while (0);
-    SYS_FREE(lpstring);
+    if ( lpstring )
+    {
+        SYS_FREE(lpstring);
+    }
+    if ( h_nss )
+    {
+        FreeLibrary(h_nss);
+    }
     return (ret);
 }
