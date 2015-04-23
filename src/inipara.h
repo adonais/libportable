@@ -19,9 +19,7 @@
 #define   BUFSIZE   (MAX_PATH*2)
 #define	  LOCK_SPIN_COUNT 1500
 #define   SIZE_OF_NT_SIGNATURE  sizeof (DWORD)
-#define   CRT_LEN               100
 #define   NAMES_LEN             64
-#define	  MAX_ENV_SIZE          32767
 #define   goodHandle(m_handle) ( (m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE) )
 
 #if defined(__GNUC__)
@@ -54,9 +52,9 @@ extern "C" {
 #endif 
 
 #ifdef _LOGDEBUG
-INI_EXTERN char    logfile_buf[VALUE_LEN+1];
-INI_EXTERN void     __cdecl logmsg(const char * format, ...);
-#endif
+INI_EXTERN  char    logfile_buf[VALUE_LEN+1];
+INI_EXTERN  void    __cdecl logmsg(const char * format, ...);
+#endif  /* _LOGDEBUG */
 
 INI_EXTERN DWORD    WINAPI GetOsVersion(void);
 INI_EXTERN bool     WINAPI PathToCombineW(LPWSTR lpfile, int str_len);
@@ -80,7 +78,6 @@ INI_EXTERN bool     WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen);
 INI_EXTERN bool     WINAPI WaitWriteFile(LPCWSTR app_path);
 INI_EXTERN bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 INI_EXTERN HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
-INI_EXTERN unsigned WINAPI SetPluginPath(void * pParam);
 INI_EXTERN bool     WINAPI IsGUI(LPCWSTR lpFileName);
 INI_EXTERN char*    WINAPI unicode_ansi(LPCWSTR pwszUnicode);
 

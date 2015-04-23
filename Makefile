@@ -34,7 +34,7 @@ DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
-           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o \
+           $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
 	   $(DEP)/cpu_info.o $(DEP)/balance.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC)
@@ -85,7 +85,7 @@ $(OUT1)		      : $(SUB_DIR)/Makefile
 $(OUT)		      : $(OBJECTS) $(OUT1)
 	$(LD) $@ $(OBJS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)
 	-$(CP) $(OUT) $(TETE) 2>/dev/null
-$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h
+$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/inipara.h
 	$(call EXEC)
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h
@@ -103,6 +103,8 @@ $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/resource.o                 : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@

@@ -12,6 +12,7 @@
 #include "new_process.h"
 #include "cpu_info.h"
 #include "balance.h"
+#include "set_env.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -300,9 +301,6 @@ void WINAPI undo_it(void)
 {
     if ( --nProCout == -1 || nMainPid == ff_info.hPid )
     {
-    #ifdef _LOGDEBUG
-        logmsg("nRunOnce reseting.!\n", __FUNCTION__);
-    #endif
         _ReadWriteBarrier();
         _InterlockedExchange(&nRunOnce, 0);
         *(long volatile*)&nProCout = -1;
@@ -340,20 +338,17 @@ void WINAPI undo_it(void)
     safe_end();
 #endif
     MH_Uninitialize();
-    
-#ifdef _LOGDEBUG
-    logmsg("Process[%lu] uninstall hooked ,[nProCout=%ld]!\n", GetCurrentProcessId(),nProCout);
-#endif    
     return;
 }
 
 void WINAPI do_it(void)
 {
     bool      m_restart = false;
-    bool      m_first = ( nRunOnce == 0 && nProCout == -1 );
+    bool      m_first   = ( nRunOnce == 0 && nProCout == -1 );
     uintptr_t m_parent  = 0;
     if ( ++nProCout>2048 || m_first )
     {
+        *(long volatile*)&nRunOnce = 1;
         if ( !init_parser(ini_path, MAX_PATH) )
         {
             return;
@@ -377,9 +372,6 @@ void WINAPI do_it(void)
                          NULL) 
            )
         {
-        #ifdef _LOGDEBUG
-            logmsg("init_global_env() runing...!\n");
-        #endif                
             init_global_env(); 
         }
     }
@@ -391,36 +383,27 @@ void WINAPI do_it(void)
         if ( !m_parent )
         {
             return;
-        }
+        }  
         if (MH_Initialize() != MH_OK)
         {
             return;
         }
         m_restart = m_parent == (uintptr_t)nMainPid;
     }
-#ifdef _LOGDEBUG
-    logmsg("nProCout = %ld, nRunOnce = %ld, m_parent = %lu.\n", nProCout, nRunOnce, m_parent);
-#endif
-    /* 确认是主进程 或者 插件进程 */
+    /* 确认是主进程首次启动 或者 插件进程 */
     if ( m_first || 
-         is_specialapp(L"plugin-container.exe") ||
+         !(is_browser() || is_specialapp(L"thunderbird.exe")) ||
          m_restart
        )
     {
         if ( appdata_path[1] == L':' )
         {
-        #ifdef _LOGDEBUG
-            logmsg("init_portable() runing...!\n");
-        #endif    
             init_portable();
         }
     #ifndef DISABLE_SAFE
         if ( read_appint(L"General",L"SafeEx") > 0 )
         {
-        #ifdef _LOGDEBUG
-            logmsg("init_safed() runing...!\n");
-        #endif    
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_safed,NULL,0,NULL));
+            init_safed(NULL);
         }
     #endif
         if ( read_appint(L"General",L"CreateCrashDump") )
@@ -429,17 +412,15 @@ void WINAPI do_it(void)
         }
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetCpuAffinity_tt,&ff_info,0,NULL));
-        }
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL));
+        } 
+        
     }
     /* 浏览器重启时需要再次运行 */
     if ( m_first || (m_restart && is_browser()) )
     {
-    #ifdef _LOGDEBUG
-        logmsg("all ready runing...!\n");
-    #endif
         nMainPid = ff_info.hPid;
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&SetPluginPath,NULL,0,NULL));
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_envp,NULL,0,NULL));
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
@@ -449,8 +430,6 @@ void WINAPI do_it(void)
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
         }
     }
-    _ReadWriteBarrier();
-    _InterlockedExchange(&nRunOnce, 1);
 }
 
 /* This is standard DllMain function. */

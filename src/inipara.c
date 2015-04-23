@@ -3,6 +3,7 @@
 #include "inipara.h"
 #include "MinHook.h"
 #include <shlwapi.h>
+#include <tlhelp32.h>
 #include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,6 @@
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
 
-typedef	int   (__cdecl *MOZ_SETENV)(const char *envA);
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
@@ -27,9 +27,8 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
-extern WCHAR ini_path[MAX_PATH+1];
+extern WCHAR      ini_path[MAX_PATH+1];
 
-static MOZ_SETENV moz_put_env;
 static PFNGFVSW	  pfnGetFileVersionInfoSizeW;
 static PFNGFVIW	  pfnGetFileVersionInfoW;
 static PFNVQVW	  pfnVerQueryValueW;
@@ -308,33 +307,6 @@ replace_separator(LPWSTR path)        /* 替换unix风格的路径符号 */
     return;
 }
 
-/* c风格的unicode字符串替换函数 */
-static WCHAR* 
-dull_replace(WCHAR *in, size_t in_size, const WCHAR *pattern, const WCHAR *by)
-{
-    WCHAR* in_ptr = in;
-    WCHAR  res[MAX_PATH+1] = {0};
-    size_t resoffset = 0;
-    WCHAR  *needle;
-    while ( (needle = StrStrW(in, pattern)) && 
-            resoffset < in_size ) 
-    {
-        /* copy everything up to the pattern */
-        wcsncpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
-
-        /* skip the pattern in the input-string */
-        in = needle + wcslen(pattern);
-        /* copy the pattern */
-        wcsncpy(res + resoffset, by, wcslen(by));
-        resoffset += wcslen(by);
-    }
-    /* copy the remaining input */
-    wcscpy(res + resoffset, in);
-    _snwprintf(in_ptr, in_size, L"%ls", res);
-    return in_ptr;
-}
-
 bool WINAPI 
 PathToCombineW(LPWSTR lpfile, int len)
 {
@@ -387,7 +359,7 @@ get_moz_hwnd(LPWNDINFO pInfo)
 {
     HWND hwnd = NULL;
     EnterSpinLock();
-    while ( !pInfo->hFF )                 /* 等待主窗口并获取句柄 */
+    while ( !pInfo->hFF )           /* 等待主窗口并获取句柄 */
     {
         bool  m_loop = false;
         DWORD dwProcessId = 0;
@@ -781,204 +753,4 @@ unicode_ansi(LPCWSTR pwszUnicode)
         SYS_FREE(pszByte);
     }
     return pszByte;
-}
-
-static HMODULE init_nss3(void)          /* 加载firefox目录下的nss3.dll */
-{
-    HMODULE hcrt = NULL;
-    WCHAR   dll_path[MAX_PATH+1] = {0};
-    do
-    {
-        if ( !GetCurrentWorkDir(dll_path, MAX_PATH) )
-        {
-            break;
-        }
-        if ( !PathAppendW(dll_path,L"nss3.dll") )
-        {
-            break;
-        }
-        hcrt = OrgiLoadLibraryExW?OrgiLoadLibraryExW(dll_path,NULL,0):\
-               LoadLibraryExW(dll_path,NULL,0);
-        if ( hcrt == NULL )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("LoadLibraryW in %s return false\n", __FUNCTION__);
-        #endif
-            break;
-        }
-        if ( (moz_put_env = (MOZ_SETENV)GetProcAddress(hcrt,"PR_SetEnv")) == NULL )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("GetProcAddress in %s return false\n", __FUNCTION__);
-        #endif
-            FreeLibrary(hcrt);
-            hcrt = NULL;
-            break;
-        }
-    }while(0);
-    return hcrt;
-}
-
-static int __cdecl write_env(WCHAR* env)
-{
-    int     ret = -1;
-    char*   envA = NULL;
-    if ( NULL == moz_put_env )
-    {   
-        return ret;
-    }
-    if ( (envA = unicode_ansi(env)) == NULL )
-    {
-        return ret;
-    }
-    ret = moz_put_env(envA);
-    SYS_FREE(envA);
-    return ret;
-}
-
-static void 
-pentadactyl_fixed(WCHAR* m_value, size_t m_size)
-{
-    WCHAR *rc_path = NULL;
-    WCHAR env_str[VALUE_LEN+1] = {0};
-    if ( (rc_path = (WCHAR *)SYS_MALLOC(VALUE_LEN+1)) == NULL )
-    {
-        return;
-    }
-    dull_replace(m_value, m_size, L"\\", L"\\\\");
-    if ( _snwprintf(env_str,
-                    m_size,
-                    L"%ls%ls",
-                    L"PENTADACTYL_RUNTIME=",
-                    m_value
-                   ) > 0
-        )
-    {
-        write_env( env_str );
-    }
-    _snwprintf(rc_path,
-               VALUE_LEN, 
-               L"%ls\\\\_pentadactylrc",
-               m_value
-              );
-    if ( !PathFileExistsW(rc_path) )
-    {
-        DWORD  m_bytes;
-        const  char* desc = "\" File created by libportable.\r\n";
-        HANDLE h_file = CreateFileW(rc_path,
-                        GENERIC_WRITE,
-                        FILE_SHARE_WRITE,
-                        NULL,
-                        OPEN_ALWAYS,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL);
-        if ( goodHandle(h_file) )
-        {
-            WriteFile(h_file, desc, (DWORD)strlen(desc), &m_bytes, NULL);
-            CloseHandle(h_file);
-        }
-    }
-    
-    if ( wcslen(rc_path) > 1 && \
-        _snwprintf( env_str,
-                    m_size,
-                    L"%ls%ls",
-                    L"PENTADACTYL_INIT=:source ",
-                    rc_path
-                   ) > 0
-        )
-    {
-        write_env( env_str );
-    }
-    SYS_FREE(rc_path);
-    return;
-}
-
-static unsigned WINAPI foreach_env(void * pParam)
-{
-    LPWSTR m_key = (LPWSTR)pParam;
-    while(*m_key != L'\0')
-    {
-        WCHAR val_str[VALUE_LEN+1] = {0};
-        WCHAR env_str[VALUE_LEN+1] = {0};
-        if ( _wcsnicmp( m_key, L"NpluginPath", wcslen(L"NpluginPath") ) == 0 && \
-             read_appkey( L"Env",L"NpluginPath", val_str, sizeof(val_str), NULL )
-           )
-        {
-            PathToCombineW( val_str, VALUE_LEN );
-            if ( _snwprintf(env_str,
-                            VALUE_LEN,
-                            L"%ls%ls",
-                            L"MOZ_PLUGIN_PATH=",
-                            val_str
-                           ) > 0
-               )
-            {
-                write_env( env_str );
-            }
-        }
-        else if ( _wcsnicmp( m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome") ) == 0 && \
-                  read_appkey( L"Env", L"VimpPentaHome", val_str, sizeof(val_str), NULL)
-                )
-        {
-            PathToCombineW( val_str, VALUE_LEN );
-            if ( _snwprintf(env_str,
-                            VALUE_LEN,
-                            L"%ls%ls",
-                            L"HOME=",
-                            val_str
-                           ) > 0
-                )
-            {
-                write_env( env_str );
-                SHCreateDirectoryExW( NULL, val_str, NULL );
-                pentadactyl_fixed( val_str, VALUE_LEN );
-            }
-
-        }
-        else if ( _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0 )
-        {
-            /* ignore the variables can result in init_global_env function */
-        }
-        else
-        {
-            write_env( m_key );
-        }
-        m_key += wcslen(m_key)+1;
-    }
-    return (1);
-}
-
-unsigned WINAPI 
-SetPluginPath(void * pParam)
-{
-    int     ret = 0;
-    LPWSTR  lpstring = NULL;
-    HMODULE h_nss = NULL;
-    do
-    {
-        if ( (lpstring = (LPWSTR)SYS_MALLOC(MAX_ENV_SIZE)) == NULL )
-        {
-            break;
-        }
-        ret = GetPrivateProfileSectionW(L"Env", lpstring, MAX_ENV_SIZE-1, ini_path);
-        if ( ret < 4 )
-        {
-            break;
-        }
-        if ( (h_nss = init_nss3()) == NULL )
-        {
-            break;
-        }
-        foreach_env(lpstring);
-    }while (0);
-    if ( lpstring )
-    {
-        SYS_FREE(lpstring);
-    }
-    if ( h_nss )
-    {
-        FreeLibrary(h_nss);
-    }
-    return (ret);
 }

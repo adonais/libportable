@@ -10,7 +10,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-BAL_EXTERN unsigned __stdcall SetCpuAffinity_tt(void * pParam);
+BAL_EXTERN unsigned __stdcall set_cpu_balance(void *fx_info);
 #ifdef __cplusplus
 }
 #endif 

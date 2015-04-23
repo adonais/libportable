@@ -1,6 +1,6 @@
 LIBRARY	NTDLL.DLL
 EXPORTS
-	__chkstk
+	_chkstk
 	_alldiv
 	_allmul
 	_allshr

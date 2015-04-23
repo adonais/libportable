@@ -46,7 +46,7 @@ RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
-           $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj
+           $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj $(DEP)\set_env.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -114,6 +114,8 @@ $(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
 	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
 $(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
 	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
+$(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
+	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
 !if "$(TCMALLOC)"==""
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \

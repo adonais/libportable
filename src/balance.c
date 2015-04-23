@@ -3,9 +3,10 @@
 #include "balance.h"
 #include "inipara.h"
 #include <string.h>
+#include <stdio.h>
 #include <windows.h>
 
-static __inline int 
+static __inline int
 get_cpu_works(void)
 {
     SYSTEM_INFO si;
@@ -71,41 +72,58 @@ getfx_usage(void)
     return cpu;
 }
 
-
-static int                         /* cpu利用率 = (sys-idl)/sys */    
-get_cpu_usage(void) 
+/* 使用apc调用,消除SleepEx函数可能对界面的影响 
+/* 通过apc的连续调用,计算出cpu系统使用率.
+/* cpu利用率 = (sys-idl)/sys
+ */ 
+static void CALLBACK                          
+get_cpu_usage(LPVOID lpArg,                /* 用户apc回调参数 */
+              DWORD  dwTimerLowValue,      /* 定时器低位值 */
+              DWORD  dwTimerHighValue)     /* 定时器高位值 */
 {
-    FILETIME idle, prev_idle;
-    FILETIME kernel, prev_kernel;
-    FILETIME user, prev_user;
+    FILETIME idle, kernel, user;
+    static FILETIME prev_idle, prev_kernel, prev_user;
+    static int first = 1;
     uint64_t sys;
-    int      cpu;
-    GetSystemTimes(&prev_idle, &prev_kernel, &prev_user);
-    SleepEx(1000, false);
-    GetSystemTimes(&idle, &kernel, &user);
+    int*     cpu = (int *)lpArg;
+    if ( GetSystemTimes(&idle, &kernel, &user) && first )
+    {
+        prev_idle   = idle;
+        prev_kernel = kernel;
+        prev_user   = user;
+        first = 0;
+        return;
+    }
     sys = (ft2ull(&user) - ft2ull(&prev_user)) + \
           (ft2ull(&kernel) - ft2ull(&prev_kernel));
-    cpu = (int)((sys - ft2ull(&idle) + ft2ull(&prev_idle)) * 100 / sys);
-    return cpu;
+    *cpu= (int)((sys - ft2ull(&idle) + ft2ull(&prev_idle)) * 100 / sys);
+    prev_idle   = idle;
+    prev_kernel = kernel;
+    prev_user   = user;
+#ifdef _LOGDEBUG
+    if ( !first )
+    {
+       logmsg("CpuUse: %d%%\n", *cpu);
+    }
+#endif
 }
 
 static __inline bool 
 is_foreground_window(HWND hwnd)
 {
-    return ( GetWindowThreadProcessId(hwnd, NULL) == \
-             GetWindowThreadProcessId(GetForegroundWindow(), NULL) 
-           );
+    return ( GetWindowThreadProcessId(hwnd, NULL) ==
+             GetWindowThreadProcessId(GetForegroundWindow(), NULL) );
 }
 
 static bool 
-set_cpu_priority(HWND hwnd, int val)
+set_cpu_priority(HWND hwnd, int val, int m_rate)
 {
     bool  ret    = false;
     DWORD m_pri  = GetPriorityClass( GetCurrentProcess() );
-    int   m_rate = get_cpu_usage();
-    if ( hwnd != NULL ? \
-         is_foreground_window(hwnd) != true && m_rate > val : \
-         m_rate > val              /* cpu usage above val */    
+    if ( hwnd != NULL ?
+         is_foreground_window(hwnd) != true &&   /* browser not brought to foreground  */
+         m_rate > val :
+         m_rate > val                            /* cpu usage above val */  
        )
     {
         ret = m_pri != BELOW_NORMAL_PRIORITY_CLASS ? \
@@ -122,44 +140,42 @@ set_cpu_priority(HWND hwnd, int val)
 }
 
 unsigned WINAPI
-SetCpuAffinity_tt(void * lparam)
+set_cpu_balance(void *fx_info)
 {
     LARGE_INTEGER m_duetime;
     HANDLE        m_timer = NULL;
-    LPWNDINFO     m_info  = (LPWNDINFO)lparam;
+    LPWNDINFO     m_info  = (LPWNDINFO)fx_info;
     HWND          m_hwnd  = NULL;
+    LPCWSTR       m_pref  = L"cpu_pri_timer";
+    WCHAR         m_name[32] = {0};
+    int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
-    if ( is_specialapp(L"plugin-container.exe") )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("plugin-container[%ld]!\n", m_info->hPid);
-    #endif 
-    }
-    else if ( (m_hwnd = get_moz_hwnd(m_info)) == NULL )
+    /* 修复非mozclass窗体无限循环的bug */
+    if ( is_browser() ? (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
     {
         return (0);
     }
-    m_timer = CreateWaitableTimerW(NULL, true, L"cpu_pri_timer");
+    _snwprintf(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());
+    m_timer = CreateWaitableTimerW(NULL, false, m_name);
     if ( !m_timer )
     {
         return (0);
     }
     m_duetime.QuadPart = -10000000;  /* 1 seconds pass */
-    if ( !SetWaitableTimer(m_timer, &m_duetime, 0, NULL, NULL, false) )
+    if ( !SetWaitableTimer(m_timer, &m_duetime,2000, get_cpu_usage, (LPVOID)&m_cpu, false) )
     {
         CloseHandle(m_timer);
         return (0);
     }
     if ( value < 0 || value > 99 )
     {
-        value = 25;   /* default cpu usage 25% */
+        value = 25;                 /* default cpu usage 25% */
     }
     while ( true )
     {
-        if ( WaitForSingleObject(m_timer, INFINITE) == WAIT_OBJECT_0 )
+        if ( WaitForSingleObjectEx(m_timer, INFINITE, true) == WAIT_OBJECT_0 )
         {
-            SetWaitableTimer(m_timer, &m_duetime, 0, NULL, NULL, false);
-            set_cpu_priority(m_hwnd, value);
+            set_cpu_priority(m_hwnd, value, m_cpu);
         }
     }
     CloseHandle(m_timer);
