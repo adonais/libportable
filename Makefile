@@ -1,6 +1,6 @@
 CC       = $(CROSS_COMPILING)gcc -c 
 CFLAGS   = -O2
-AR       = $(CROSS_COMPILING)gcc-ar
+AR       = $(CROSS_COMPILING)ar
 LD       = $(CROSS_COMPILING)gcc -o
 BITS	 := 32
 DFLAGS   :=
@@ -82,6 +82,7 @@ OBJS     = $(OBJECTS)
 endif
 
 ifeq ($(LTO), 1)
+AR       := $(filter-out ar,$(AR )) gcc-ar
 CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
 #warning is only during the LTO link, debug(--verbose --save-temps )
 DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -fuse-linker-plugin -flto

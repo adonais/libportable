@@ -4,7 +4,7 @@ BITS	 := 32
 DFLAGS :=
 LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
-AR       =$(CROSS_COMPILING)gcc-ar
+AR       =$(CROSS_COMPILING)ar
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG \
             -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
             -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
@@ -37,6 +37,7 @@ else
 endif
 
 ifeq ($(LTO), 1)
+AR       := $(filter-out ar,$(AR )) gcc-ar
 CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
 endif
 
