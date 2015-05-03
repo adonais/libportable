@@ -1,5 +1,3 @@
-#define BOSS_EXTERN
-
 #include "bosskey.h"
 #include "inipara.h"
 #include <string.h>

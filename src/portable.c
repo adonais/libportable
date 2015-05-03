@@ -19,6 +19,11 @@
 #include <process.h>
 #include <stdio.h>
 
+#if defined(VC12_CRT)
+#undef _DllMainCRTStartup
+#define _DllMainCRTStartup DllMain
+#endif
+
 #ifndef SHSTDAPI
 #define SHSTDAPI STDAPI
 #endif
@@ -53,9 +58,9 @@ volatile long nRunOnce SHARED = 0;
 volatile long nProCout SHARED = -1;
 volatile uint32_t nMainPid SHARED = 0;
 WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
-WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
-WCHAR    localdata_path[VALUE_LEN+1] SHARED = {0} ;
-char     logfile_buf[VALUE_LEN+1] SHARED = {0} ;
+char     logfile_buf[VALUE_LEN+1] SHARED = {0};
+static   WCHAR appdata_path[VALUE_LEN+1] SHARED = {0};
+static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
 #pragma data_seg()
 #endif
@@ -296,6 +301,11 @@ static void init_portable(void)
     return;
 }
 
+#if defined(__GNUC__) && defined(__LTO__)
+#pragma GCC push_options
+#pragma GCC optimize ("O3")
+#endif
+
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
@@ -343,9 +353,9 @@ void WINAPI undo_it(void)
 
 void WINAPI do_it(void)
 {
-    bool      m_restart = false;
-    bool      m_first   = ( nRunOnce == 0 && nProCout == -1 );
-    uintptr_t m_parent  = 0;
+    bool m_restart = false;
+    bool m_first   = ( nRunOnce == 0 && nProCout == -1 );
+    char m_crt[CRT_LEN+1] = {0};
     if ( ++nProCout>2048 || m_first )
     {
         *(long volatile*)&nRunOnce = 1;
@@ -357,13 +367,11 @@ void WINAPI do_it(void)
         {
             return;
         }
-    #ifdef _LOGDEBUG         /* 初始化日志记录文件 */
-        if ( GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
-        {
-            strncat(logfile_buf,"\\",1);
-            strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
-        }
-    #endif
+        #ifdef _LOGDEBUG
+            logmsg("%s runing!\n", __FUNCTION__);
+        #endif
+        /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
+        set_envp(m_crt, CRT_LEN);
         if ( read_appint(L"General", L"Portable") > 0 && 
              read_appkey(L"General",
                          L"PortableDataPath",
@@ -374,28 +382,20 @@ void WINAPI do_it(void)
         {
             init_global_env(); 
         }
+        if ( strlen(m_crt) > 1 )
+        {
+            /* 在专门的线程中设置vim home变量,它不需要太快加载 */
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed, m_crt,0,NULL));
+        }
     }
     if ( true )
     {
         fzero(&ff_info, sizeof(WNDINFO));
         ff_info.hPid = GetCurrentProcessId();
-        m_parent = getid_parental(ff_info.hPid);
-        if ( !m_parent )
-        {
-            return;
-        }  
         if (MH_Initialize() != MH_OK)
         {
             return;
         }
-        m_restart = m_parent == (uintptr_t)nMainPid;
-    }
-    /* 确认是主进程首次启动 或者 插件进程 */
-    if ( m_first || 
-         !(is_browser() || is_specialapp(L"thunderbird.exe")) ||
-         m_restart
-       )
-    {
         if ( appdata_path[1] == L':' )
         {
             init_portable();
@@ -412,15 +412,18 @@ void WINAPI do_it(void)
         }
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL));
-        } 
-        
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+        }
+        /* 如果当前进程的父进程是浏览器的pid,可以判断是fiefox重启 */
+        if ( getid_parental(ff_info.hPid) == (uintptr_t)nMainPid )
+        {
+            m_restart = true;
+            nMainPid = ff_info.hPid;
+        }
     }
-    /* 浏览器重启时需要再次运行 */
+    /* 当浏览器初次运行与重启时需要加载下面的线程 */
     if ( m_first || (m_restart && is_browser()) )
     {
-        nMainPid = ff_info.hPid;
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_envp,NULL,0,NULL));
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
@@ -432,14 +435,13 @@ void WINAPI do_it(void)
     }
 }
 
+#if defined(__GNUC__) && defined(__LTO__)
+#pragma GCC pop_options
+#endif
+
 /* This is standard DllMain function. */
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if defined(VC12_CRT)
-#undef _DllMainCRTStartup
-#define _DllMainCRTStartup DllMain
 #endif
 
 #if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
@@ -450,6 +452,14 @@ int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvRes
     case DLL_PROCESS_ATTACH:
         dll_module = (HMODULE)hModule;
         DisableThreadLibraryCalls(hModule);
+    #ifdef _LOGDEBUG          /* 初始化日志记录文件 */
+        if ( *logfile_buf == '\0' && \
+             GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
+        {
+            strncat(logfile_buf,"\\",1);
+            strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
+        }
+    #endif
         do_it();
         break;
     case DLL_PROCESS_DETACH:

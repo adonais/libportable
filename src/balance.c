@@ -1,5 +1,3 @@
-#define BAL_EXTERN
-
 #include "balance.h"
 #include "inipara.h"
 #include <string.h>
@@ -72,14 +70,15 @@ getfx_usage(void)
     return cpu;
 }
 
-/* 使用apc调用,消除SleepEx函数可能对界面的影响 
-/* 通过apc的连续调用,计算出cpu系统使用率.
-/* cpu利用率 = (sys-idl)/sys
- */ 
+/************************************************/
+/* 使用apc调用,消除SleepEx函数可能对界面的影响  */ 
+/* 通过apc的连续调用,计算出cpu系统使用率.       */ 
+/* cpu利用率 = (sys-idl)/sys                    */ 
+/************************************************/ 
 static void CALLBACK                          
 get_cpu_usage(LPVOID lpArg,                /* 用户apc回调参数 */
-              DWORD  dwTimerLowValue,      /* 定时器低位值 */
-              DWORD  dwTimerHighValue)     /* 定时器高位值 */
+              DWORD  dwTimerLowValue,      /* 定时器低位值    */
+              DWORD  dwTimerHighValue)     /* 定时器高位值    */
 {
     FILETIME idle, kernel, user;
     static FILETIME prev_idle, prev_kernel, prev_user;
@@ -151,7 +150,9 @@ set_cpu_balance(void *fx_info)
     int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
     /* 修复非mozclass窗体无限循环的bug */
-    if ( is_browser() ? (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
+    if ( (is_browser() ||
+          is_specialapp(L"thunderbird.exe")) ? 
+         (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
     {
         return (0);
     }

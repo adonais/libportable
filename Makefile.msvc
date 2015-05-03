@@ -14,7 +14,7 @@ LIBPORTABLE_STATIC =
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
 !else
-#CRTFLAGS = /LIBPATH:msrt ntdll-1.lib
+#CRTFLAGS = /LIBPATH:.dep ntdll-$(PLATFORM).lib
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
@@ -69,7 +69,7 @@ CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
 !if "$(TCMALLOC)"=="1"
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
-OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-1.lib
+OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
 LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
@@ -120,9 +120,9 @@ $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
 	        /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
-$(DEP)\ntdll-1.lib                  : msrt\ntdll-1.def
-	lib.exe /DEF:msrt\ntdll-1.def /OUT:$(DEP)\ntdll-1.lib /NOLOGO /NODEFAULTLIB \
-	        /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll
+$(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
+	lib.exe /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
+	        /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll
 !endif
 $(DEP)\resource.res                 : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc

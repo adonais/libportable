@@ -4,10 +4,11 @@ BITS	 := 32
 DFLAGS :=
 LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
-AR       =$(CROSS_COMPILING)ar
-CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG -fdata-sections \
-            -finline-functions -fomit-frame-pointer -mavx
-CFLAGSEX =
+AR       =$(CROSS_COMPILING)gcc-ar
+CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG \
+            -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
+            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
+LTO      :=
 
 MD       = mkdir -p
 SRC      = src
@@ -17,7 +18,7 @@ X64FLAG  = -m64
 MIN_INC  = include
 OBJECTS  = $(DEP)/buffer.o $(DEP)/hde$(BITS).o $(DEP)/hook.o $(DEP)/trampoline.o
 DISTDIR  = ../../Release
-CFLAGS   += -I$(MIN_INC)
+CFLAGS   += -I$(MIN_INC) -I$(SRC)
 OUT      = libminhook$(BITS).a
 EXEC     = \
     @echo coming to minhook subdir... \
@@ -35,6 +36,10 @@ else
     endif
 endif
 
+ifeq ($(LTO), 1)
+CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
+endif
+
 $(DISTDIR)/$(OUT)      : $(OBJECTS) 
 	$(AR) rcs $@ $^
 $(DEP)/buffer.o        : $(SRC)/buffer.c $(SRC)/buffer.h
@@ -43,7 +48,7 @@ $(DEP)/buffer.o        : $(SRC)/buffer.c $(SRC)/buffer.h
 $(DEP)/hde$(BITS).o    : $(SRC)/HDE/hde$(BITS).c $(SRC)/HDE/hde$(BITS).h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/hook.o          : $(SRC)/hook.c $(MIN_INC)/MinHook.h
-	$(CC) -c $< $(CFLAGS) $(CFLAGSEX) -o $@
+	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/trampoline.o    : $(SRC)/trampoline.c $(SRC)/trampoline.h
 	$(CC) -c $< $(CFLAGS) -o $@
 

@@ -25,7 +25,6 @@
  *  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
@@ -311,7 +310,7 @@ static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 }
 
 //-------------------------------------------------------------------------
-static VOID WINAPI Unfreeze(PFROZEN_THREADS pThreads)
+static VOID Unfreeze(PFROZEN_THREADS pThreads)
 {
     if (pThreads->pItems != NULL)
     {
@@ -410,7 +409,7 @@ static MH_STATUS EnableAllHooksLL(bool enable)
 
 
 //-------------------------------------------------------------------------
-VOID WINAPI EnterSpinLock(VOID)
+static VOID EnterSpinLock(VOID)
 {
     SIZE_T spinCount = 0;
     // Wait until the flag is false.
@@ -435,7 +434,7 @@ VOID WINAPI EnterSpinLock(VOID)
 }
 
 //-------------------------------------------------------------------------
-VOID WINAPI LeaveSpinLock(VOID)
+static __inline VOID LeaveSpinLock(VOID)
 {
     _ReadWriteBarrier();
     *(long volatile*)&g_isLocked = 0;    /* not use _InterlockedExchange() */

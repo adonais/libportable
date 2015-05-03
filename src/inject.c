@@ -1,5 +1,3 @@
-#define JECT_EXTERN
-
 #include "inject.h"
 #include "inipara.h"
 #include "winapis.h"
@@ -127,7 +125,7 @@ static void AfterThreadProc (void) { }
 bool inject32(void *mpara,RemotePara* func_param)
 {
     CONTEXT  ctx;
-    PVOID    picBuf = NULL;
+    LPVOID   picBuf = NULL;
     LPVOID   funcBuff = NULL;
     DWORD    old_protect;
     SIZE_T   cbSize,tsize;
@@ -142,6 +140,13 @@ bool inject32(void *mpara,RemotePara* func_param)
         goto clear;
     }
     cbSize = ((LPBYTE)&AfterThreadProc - (LPBYTE)&remote32_asm + 0x0F) & ~0x0F;    /* 函数代码尺寸按16bits对齐 */
+    if ( cbSize < 1 || cbSize > 16384) /* 16kb */
+    {
+    #ifdef _LOGDEBUG
+        logmsg("size error , cbSize = %lu\n",cbSize);
+    #endif
+        goto clear;
+    }
     tsize  = cbSize+sizeof(RemotePara);
     /* Create a code funcBuff in the target process. */
     if ( (funcBuff = VirtualAllocEx(pi.hProcess, 0, tsize, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE)) == NULL )
@@ -162,7 +167,7 @@ bool inject32(void *mpara,RemotePara* func_param)
     *(DWORD*)((DWORD)picBuf + 1)  = ctx.Eip;
     *(DWORD*)((DWORD)picBuf + 8)  = (DWORD)funcBuff + cbSize;
     *(DWORD*)((DWORD)picBuf + 13) = (DWORD)funcBuff + ((DWORD)ThreadProc - (DWORD)remote32_asm);
-    if ( !WriteProcessMemory(pi.hProcess, funcBuff, picBuf, cbSize, NULL) )
+    if ( !WriteProcessMemory(pi.hProcess, funcBuff, (LPCVOID)picBuf, cbSize, NULL) )
     {
     #ifdef _LOGDEBUG
         logmsg("WriteProcessMemory(picBuf) in %s return false,error:[%lu]\n", __FUNCTION__, GetLastError());
@@ -205,9 +210,6 @@ clear:
         tsize = 0;
         TrueNtFreeVirtualMemory(pi.hProcess,funcBuff,&tsize,MEM_RELEASE);
     }
-#ifdef _LOGDEBUG
-    logmsg("%s return(%lu).\n", __FUNCTION__, exitCode);
-#endif
     return exitCode;
 }
 #endif
@@ -306,14 +308,10 @@ cleanup:
         nFunctionBuffSize = 0 ;
         TrueNtFreeVirtualMemory(pi.hProcess,pRemoteMemFunction,&nFunctionBuffSize,MEM_RELEASE);
     }
-#ifdef _LOGDEBUG
-    logmsg("%s return(%lu).\n", __FUNCTION__, exitCode);
-#endif
     return exitCode;
 }
 #endif
 
-JECT_EXTERN
 unsigned WINAPI InjectDll(void *mpara)
 {
     RemotePara myPara;

@@ -1,7 +1,4 @@
-#define INI_EXTERN
-
 #include "inipara.h"
-#include "MinHook.h"
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -28,10 +25,12 @@ typedef struct _LANGANDCODEPAGE
 } LANGANDCODEPAGE;
 
 extern WCHAR      ini_path[MAX_PATH+1];
+extern volatile   long nRunOnce;
+extern char       logfile_buf[VALUE_LEN+1];
 
-static PFNGFVSW	  pfnGetFileVersionInfoSizeW;
-static PFNGFVIW	  pfnGetFileVersionInfoW;
-static PFNVQVW	  pfnVerQueryValueW;
+static PFNGFVSW   pfnGetFileVersionInfoSizeW;
+static PFNGFVIW   pfnGetFileVersionInfoW;
+static PFNVQVW    pfnVerQueryValueW;
 _NtLoadLibraryExW OrgiLoadLibraryExW = NULL;
 HMODULE           dll_module         = NULL;
 
@@ -311,7 +310,6 @@ bool WINAPI
 PathToCombineW(LPWSTR lpfile, int len)
 {
     int n = 1;
-    EnterSpinLock();
     if ( lpfile[0] == L'%' )
     {
         WCHAR buf_env[VALUE_LEN+1] = {0};
@@ -350,16 +348,14 @@ PathToCombineW(LPWSTR lpfile, int len)
             }
         }
     }
-    LeaveSpinLock();
     return (n>0 && n<len);
 }
 
-HWND WINAPI 
+HWND WINAPI
 get_moz_hwnd(LPWNDINFO pInfo)
 {
     HWND hwnd = NULL;
-    EnterSpinLock();
-    while ( !pInfo->hFF )           /* 等待主窗口并获取句柄 */
+    while ( !pInfo->hFF )    /* 等待主窗口并获取句柄 */
     {
         bool  m_loop = false;
         DWORD dwProcessId = 0;
@@ -375,9 +371,8 @@ get_moz_hwnd(LPWNDINFO pInfo)
             pInfo->hFF = hwnd;
             break;
         }
-        Sleep(800);
+        SleepEx(800,false);
     }
-    LeaveSpinLock();
     return (hwnd!=NULL?hwnd:pInfo->hFF);
 }
 
@@ -467,8 +462,7 @@ GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
     return (i>0 && i<(int)wlen);
 }
 
-static bool __inline 
-is_ff_dev(void)
+static __inline bool is_ff_dev(void)
 {
     bool     ret = false;
     WCHAR    process_name[VALUE_LEN+1];
@@ -481,8 +475,7 @@ is_ff_dev(void)
     return ret;
 }
 
-bool WINAPI 
-is_browser(void)
+bool WINAPI is_browser(void)
 {
     WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
@@ -594,39 +587,40 @@ search_section_names(LPCWSTR moz_profile,
 {
     int    ret = -1;
     LPWSTR m_section,str_section = NULL;
-    if ( (m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) != NULL )
+    if ( (m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) == NULL )
     {
-        if ( GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0 )
-        {
-            int     i = 0;
-            LPCWSTR pf = L"Profile";
-            size_t  j  = wcslen(pf);
-            str_section = m_section;
-            while ( *str_section != L'\0' &&  i < MAX_SECTION )
-            {
-                WCHAR values[SECTION_NAMES] = {0};
-
-                if ( wcsncmp(str_section,pf,j) == 0 && \
-                     read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
-                {
-                    if ( wcscmp(values, moz_values)==0 && \
-                         _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
-                    {
-                        ret = 0;
-                        break;
-                    }
-                    else
-                    {
-                        ret = StrToIntW(&str_section[j]);
-                        if ( ret>=0 ) ++ret;
-                    }
-                }
-                str_section += wcslen(str_section)+1;
-                ++i;
-            }
-        }
-        SYS_FREE(m_section);
+        return ret;
     }
+    if ( GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0 )
+    {
+        int     i = 0;
+        LPCWSTR pf = L"Profile";
+        size_t  j  = wcslen(pf);
+        str_section = m_section;
+        while ( *str_section != L'\0' &&  i < MAX_SECTION )
+        {
+            WCHAR values[SECTION_NAMES] = {0};
+
+            if ( wcsncmp(str_section,pf,j) == 0 && \
+                 read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
+            {
+                if ( wcscmp(values, moz_values)==0 && \
+                     _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
+                {
+                    ret = 0;
+                    break;
+                }
+                else
+                {
+                    ret = StrToIntW(&str_section[j]);
+                    if ( ret>=0 ) ++ret;
+                }
+            }
+            str_section += wcslen(str_section)+1;
+            ++i;
+        }
+    }
+    SYS_FREE(m_section);
     return ret;
 }
 
@@ -735,22 +729,4 @@ GetOsVersion(void)
         }
     }
     return ver;
-}
-
-char* WINAPI 
-unicode_ansi(LPCWSTR pwszUnicode)
-{
-    int   iSize;
-    char* pszByte = NULL;
-    iSize = WideCharToMultiByte(CP_ACP, 0, pwszUnicode, -1, NULL, 0, NULL, NULL);
-    pszByte = (char*)SYS_MALLOC( iSize+sizeof(char) );
-    if ( !pszByte )
-    {
-        return NULL;
-    }
-    if ( !WideCharToMultiByte(CP_ACP, 0, pwszUnicode, -1, pszByte, iSize, NULL, NULL) )
-    {
-        SYS_FREE(pszByte);
-    }
-    return pszByte;
 }

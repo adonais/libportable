@@ -1,5 +1,3 @@
-#define SAFE_EXTERN
-
 #include "safe_ex.h"
 #include "inipara.h"
 #include "winapis.h"
@@ -240,7 +238,8 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                                      ProcessObjectAttributes, ThreadObjectAttributes,
                                      CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                      CreateInfo, AttributeList);
-#if !defined(LIBPORTABLE_STATIC)
+    /* 静态编译或者启用GCC lto时,不能启用远程注入 */
+#if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) )
     if ( NT_SUCCESS(status) && tohook )
     {
         PROCESS_INFORMATION ProcessInformation;
@@ -289,8 +288,8 @@ HookCreateProcessInternalW (HANDLE hToken,
          stristrW(lpfile, L"java.exe")       ||
          stristrW(lpfile, L"jp2launcher.exe"))
     {
-        /* 静态编译时,不能启用远程注入 */
-    #if !defined(LIBPORTABLE_STATIC)
+        /* 静态编译或者启用GCC lto时,不能启用远程注入 */
+    #if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) )
         dwCreationFlags |= CREATE_SUSPENDED;
         tohook = true;
     #endif

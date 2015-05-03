@@ -1,10 +1,11 @@
 CC       = $(CROSS_COMPILING)gcc -c 
 CFLAGS   = -O2
-AR       = $(CROSS_COMPILING)ar
+AR       = $(CROSS_COMPILING)gcc-ar
 LD       = $(CROSS_COMPILING)gcc -o
 BITS	 := 32
 DFLAGS   :=
 MSCRT    := -lmsvcrt
+LTO      :=
 DLL_MAIN_STDCALL_NAME =
 LIBPORTABLE_STATIC :=
 
@@ -22,8 +23,8 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-	    -fdata-sections -fomit-frame-pointer -finline-functions -fno-stack-protector \
-	    -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
+            -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
+            -DWINVER=0x0501 -D_WIN32_IE=0x0601  -mavx
 
 MD       = mkdir -p
 CP       = cp
@@ -35,9 +36,9 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-	   $(DEP)/cpu_info.o $(DEP)/balance.o
+           $(DEP)/cpu_info.o $(DEP)/balance.o
 MIN_INC  = $(SRC)/minhook/include
-CFLAGS   += -I$(MIN_INC)
+CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libminhook$(BITS).a
 
@@ -49,7 +50,7 @@ EXEC     = \
 ifeq ($(BITS),32)
     CFLAGS  += $(X86FLAG)
     LDFLAGS := -m32
-    ASMFLAGS = -fwin32 -DWINDOWS -O2 -D__i386__ -DWIN32 -Worphan-labels
+    ASMFLAGS = -fwin32 -DWINDOWS -D__i386__ -DWIN32 -Worphan-labels
 else
     ifeq ($(BITS),64)
         CFLAGS	+= $(X64FLAG)
@@ -71,18 +72,25 @@ OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
 DEPLIBS  = -Wl,-static -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
-LDFLAGS  += -L$(DISTDIR) -nodefaultlibs $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 -Wl,-s
-DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a --entry=$(DLL_MAIN_STDCALL_NAME)
+LDFLAGS  += -L$(DISTDIR) -nostdlib $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 \
+            -static-libgcc --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,--gc-sections -Wl,-s
+DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = --define UNICODE -J rc -O coff
 OBJECTS  += $(DEP)/resource.o
 OBJS     = $(OBJECTS)
 endif
 
-all		      : $(OUT1) $(OUT)
-$(OUT1)		      : $(SUB_DIR)/Makefile
+ifeq ($(LTO), 1)
+CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
+#warning is only during the LTO link, debug(--verbose --save-temps )
+DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -fuse-linker-plugin -flto
+endif
+
+all                   : $(OUT1) $(OUT)
+$(OUT1)               : $(SUB_DIR)/Makefile
 	$(call SUBMK)
-$(OUT)		      : $(OBJECTS) $(OUT1)
+$(OUT)                : $(OBJECTS) $(OUT1)
 	$(LD) $@ $(OBJS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)
 	-$(CP) $(OUT) $(TETE) 2>/dev/null
 $(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/inipara.h
@@ -106,10 +114,10 @@ $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/resource.o                 : $(SRC)/resource.rc
+$(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@
 
-.PHONY		                  : clean
-clean                             : 
+.PHONY                : clean
+clean                 : 
 	-rm -rf $(DISTDIR) $(DEP)
 

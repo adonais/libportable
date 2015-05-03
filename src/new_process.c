@@ -1,5 +1,3 @@
-#define PROCESS_EXTERN
-
 #include "new_process.h"
 #include "inipara.h"
 #include <shlwapi.h>
@@ -9,6 +7,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+
+void*  g_handle[PROCESS_NUM] = { NULL, };
 
 bool parse_shcommand(void)
 {
@@ -129,7 +129,6 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
     return ret;
 }
 
-PROCESS_EXTERN
 void WINAPI refresh_tray(void)
 {
     HWND hwnd ;          /* tray hwnd */
@@ -147,7 +146,6 @@ void WINAPI refresh_tray(void)
     }
 }
 
-PROCESS_EXTERN
 unsigned WINAPI run_process(void * pParam)
 {
     PROCESS_INFORMATION pi;
@@ -192,8 +190,9 @@ unsigned WINAPI run_process(void * pParam)
             return (0);
         }
         g_handle[0] = pi.hProcess;
-        if ( pi.dwProcessId >4 && (SleepEx(6000,false) == 0) )
+        if ( pi.dwProcessId >4 && (SleepEx(3000,false) == 0) )
         {
+            /* 外部进程运行3秒完成,不然无法结束进程树 */
             search_process(NULL, pi.dwProcessId);
         }
     }

@@ -1,5 +1,3 @@
-#define ENV_EXTERN
-
 #include "inipara.h"
 #include "set_env.h"
 #include "MinHook.h"
@@ -9,17 +7,17 @@
 #include <process.h>
 #include <stdio.h>
 
-#define	  MAX_ENV_SIZE 8192
-#define   CRT_LEN      16
-
+#define	MAX_ENV_SIZE 8192
 typedef	int (__cdecl *MOZ_SETENV)(const wchar_t *env);
-
-extern WCHAR ini_path[MAX_PATH+1];
-static MOZ_SETENV moz_put_env;
+extern  WCHAR ini_path[MAX_PATH+1];
 
 /* c风格的unicode字符串替换函数 */
 static WCHAR* 
-dull_replace(WCHAR *in, size_t in_size, const WCHAR *pattern, const WCHAR *by)
+dull_replace( WCHAR *in,              /* 目标字符串 */      
+              size_t in_size,         /* 字符串长度 */
+              const WCHAR *pattern,
+              const WCHAR *by
+            )
 {
     WCHAR* in_ptr = in;
     WCHAR  res[MAX_PATH+1] = {0};
@@ -28,17 +26,12 @@ dull_replace(WCHAR *in, size_t in_size, const WCHAR *pattern, const WCHAR *by)
     while ( (needle = StrStrW(in, pattern)) && 
             resoffset < in_size ) 
     {
-        /* copy everything up to the pattern */
         wcsncpy(res + resoffset, in, needle - in);
         resoffset += needle - in;
-
-        /* skip the pattern in the input-string */
         in = needle + wcslen(pattern);
-        /* copy the pattern */
         wcsncpy(res + resoffset, by, wcslen(by));
         resoffset += wcslen(by);
     }
-    /* copy the remaining input */
     wcscpy(res + resoffset, in);
     _snwprintf(in_ptr, in_size, L"%ls", res);
     return in_ptr;
@@ -75,9 +68,6 @@ static bool find_msvcrt(char *crt_buf, int len)
         IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
         if(pThunk == 0 && pThunkIAT == 0) break;
         pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-#ifdef _LOGDEBUG
-        logmsg("dllname:  [%s]\n",(const char *)pszDllName);
-#endif
         if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
         {
             strncpy(name,pszDllName,CRT_LEN);
@@ -93,20 +83,16 @@ static bool find_msvcrt(char *crt_buf, int len)
 
 /* 加载 msvcrt */
 static HMODULE 
-init_mscrt(const char* crt_name)
+init_mscrt(const char* crt_name, MOZ_SETENV *wput_env)
 {
     HMODULE hcrt = NULL;
     do
     {
-        if ( NULL != moz_put_env )
-        {
-            break;
-        }
         if ( (hcrt = LoadLibraryExA(crt_name ,NULL, 0)) == NULL )
         {
             break;
         }
-        if ( (moz_put_env = (MOZ_SETENV)GetProcAddress(hcrt,"_wputenv")) == NULL )
+        if ( (*wput_env = (MOZ_SETENV)GetProcAddress(hcrt,"_wputenv")) == NULL )
         {
             hcrt = NULL;
             break;
@@ -118,9 +104,12 @@ init_mscrt(const char* crt_name)
 unsigned WINAPI 
 pentadactyl_fixed(void * pParam)
 {
-    WCHAR *rc_path = NULL;
-    WCHAR m_env[VALUE_LEN+1] = {0};
-    WCHAR m_value[VALUE_LEN+1] = {0};
+    HMODULE    m_crt  = NULL;
+    WCHAR      *rc_path = NULL;
+    WCHAR      m_env[VALUE_LEN+1] = {0};
+    WCHAR      m_value[VALUE_LEN+1] = {0};
+    const char *crt_names = (const char *)pParam;
+    MOZ_SETENV my_putenv = NULL;
     if ( !read_appkey( L"Env",L"VimpPentaHome", m_value, sizeof(m_value), NULL ) )
     {
         return (0);
@@ -129,21 +118,26 @@ pentadactyl_fixed(void * pParam)
     {
         return (0);
     }
+    if ( (m_crt = init_mscrt(crt_names, &my_putenv)) == NULL )
+    {
+        return (0);
+    }
     if ( true )
     {
         PathToCombineW( m_value, VALUE_LEN );
         _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
-        moz_put_env( m_env );
+        my_putenv( m_env );
         SHCreateDirectoryExW( NULL, m_value, NULL );
         dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
         _snwprintf(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
-        moz_put_env( m_env );
+        my_putenv( m_env );
         _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
     }
     if ( !PathFileExistsW(rc_path) )
     {
         DWORD  m_bytes;
-        const  char* desc = "\" File created by libportable.\r\n";
+        const  char* desc = "\" File created by libportable.\r\n"
+                            "loadplugins \'\\.(js|penta)$\'\r\n";
         HANDLE h_file = CreateFileW(rc_path,
                         GENERIC_WRITE,
                         FILE_SHARE_WRITE,
@@ -167,50 +161,44 @@ pentadactyl_fixed(void * pParam)
                    ) > 0
         )
     {
-        moz_put_env( m_env );
+        my_putenv( m_env );
     }
     SYS_FREE(rc_path);
+    FreeLibrary(m_crt);
     return (1);
 }
 
-unsigned WINAPI 
+static void 
 foreach_env(void *pParam)
 {
-    LPWSTR env_buf = NULL;
-    LPWSTR m_key;
-    if ( (env_buf = (LPWSTR)SYS_MALLOC((MAX_ENV_SIZE+1)*sizeof(WCHAR))) == NULL )
-    {
-        return (0);
-    }
+    LPWSTR     m_key;
+    /* 使用栈空间, 节省申请堆的时间 */
+    WCHAR      env_buf[MAX_ENV_SIZE+1];
+    MOZ_SETENV my_putenv = (MOZ_SETENV)pParam;
     if ( GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini_path) < 4 )
     {
-        SYS_FREE(env_buf);
-        return (0);
+        return;
     }
     m_key = env_buf;
     while(*m_key != L'\0')
     {
-        if ( _wcsnicmp( m_key, L"NpluginPath", wcslen(L"NpluginPath") ) == 0 ||
-             _wcsnicmp( m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome") ) == 0 || 
-             _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath")) == 0
+        if ( _wcsnicmp( m_key, L"NpluginPath", wcslen(L"NpluginPath") ) != 0 ||
+             _wcsnicmp( m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome") ) != 0 || 
+             _wcsnicmp( m_key, L"TmpDataPath", wcslen(L"TmpDataPath") ) != 0
            )
         {
-            ;
-        }
-        else
-        {
-            moz_put_env( m_key );
+            my_putenv( m_key );
         }
         m_key += wcslen(m_key)+1;
     }
-    SYS_FREE(env_buf);
-    return (1);
+    return;
 }
 
-unsigned WINAPI 
+static void 
 set_plugins(void *pParam)
 {
-    WCHAR   val_str[VALUE_LEN+1] = {0};
+    WCHAR      val_str[VALUE_LEN+1] = {0};
+    MOZ_SETENV my_putenv = (MOZ_SETENV)pParam;
     if ( read_appkey( L"Env",L"NpluginPath", val_str, sizeof(val_str), NULL ) )
     {
         WCHAR env_str[VALUE_LEN+1] = {0};
@@ -223,45 +211,33 @@ set_plugins(void *pParam)
                       ) > 0
           )
         {
-            if ( moz_put_env( env_str ) == -1 )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("_wputenv(%ls) return false!\n", env_str);
-            #endif
-            }
+            my_putenv( env_str );
         }
     }
-    return (1);
+    return;
 }
 
-unsigned WINAPI set_envp(void *pParam)
+void WINAPI set_envp(char *crt_names, int len)
 {
-    char    crt[CRT_LEN+1] = {0};
-    HMODULE m_crt = NULL;
-    HANDLE  m_tsk[3] = { NULL, NULL, NULL };
+    HMODULE    m_crt = NULL;
+    MOZ_SETENV moz_put_env = NULL;
     do
     {
-        if ( !find_msvcrt(crt,CRT_LEN) )
+        if ( !find_msvcrt(crt_names, len) )
         {
             break;
         }
-        if ( (m_crt = init_mscrt(crt)) == NULL )
+        if ( (m_crt = init_mscrt(crt_names, &moz_put_env)) 
+              == NULL )
         {
             break;
         }
-        m_tsk[0] = (HANDLE)_beginthreadex(NULL,0,&set_plugins,NULL,0,NULL);
-        m_tsk[1] = (HANDLE)_beginthreadex(NULL,0,&foreach_env,NULL,0,NULL);
-        m_tsk[2] = (HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed,NULL,0,NULL);
-        if ( MsgWaitForMultipleObjects(3, m_tsk, true, INFINITE, QS_ALLINPUT) == WAIT_OBJECT_0 )
-        {
-            CloseHandle(m_tsk[0]);
-            CloseHandle(m_tsk[1]);
-            CloseHandle(m_tsk[2]);
-        }
+        foreach_env(moz_put_env);
+        set_plugins(moz_put_env);
     }while(0);
     if ( m_crt )
     {
         FreeLibrary(m_crt);
     }
-    return (1);
+    return;
 }

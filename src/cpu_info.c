@@ -1,5 +1,3 @@
-#define CPU_INFO
-
 #include "cpu_info.h"
 #include <stdio.h>
 
@@ -52,7 +50,7 @@ get_cache_size(void)
 }
 
 /* using non-temporal avx */
-CPU_INFO void* __cdecl 
+void* __cdecl 
 memset_avx(void* dest, int c, unsigned long count)
 {
     uint32_t i;
@@ -80,7 +78,7 @@ memset_avx(void* dest, int c, unsigned long count)
     return dest;
 }
 
-CPU_INFO uint32_t __stdcall 
+uint32_t __stdcall 
 get_level_size(void)
 {
     return cpu_has_avx()?get_cache_size():0;

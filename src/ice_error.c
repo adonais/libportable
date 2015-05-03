@@ -1,5 +1,3 @@
-#define ERROR_EXTERN
-
 #include <shlwapi.h>
 #include "inipara.h"
 #include "ice_error.h"

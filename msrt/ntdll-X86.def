@@ -8,4 +8,4 @@ EXPORTS
 	_aulldvrm
 	_aulldiv
 	_allshl
-	_fltused
+	_fltused DATA
