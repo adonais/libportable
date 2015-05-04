@@ -163,6 +163,7 @@ unsigned WINAPI run_process(void * pParam)
     {
         return (0);
     }
+    Sleep(1000);  /* 重启外部进程需要延迟一下 */
     if ( wcslen(wcmd)>0 && !search_process(wcmd,0) )
     {
         fzero(&si,sizeof(si));

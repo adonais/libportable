@@ -353,12 +353,9 @@ void WINAPI undo_it(void)
 
 void WINAPI do_it(void)
 {
-    bool m_restart = false;
-    bool m_first   = ( nRunOnce == 0 && nProCout == -1 );
     char m_crt[CRT_LEN+1] = {0};
-    if ( ++nProCout>2048 || m_first )
+    if ( ++nProCout>2048 || !nRunOnce )
     {
-        *(long volatile*)&nRunOnce = 1;
         if ( !init_parser(ini_path, MAX_PATH) )
         {
             return;
@@ -367,9 +364,6 @@ void WINAPI do_it(void)
         {
             return;
         }
-        #ifdef _LOGDEBUG
-            logmsg("%s runing!\n", __FUNCTION__);
-        #endif
         /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
         set_envp(m_crt, CRT_LEN);
         if ( read_appint(L"General", L"Portable") > 0 && 
@@ -414,15 +408,9 @@ void WINAPI do_it(void)
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
         }
-        /* 如果当前进程的父进程是浏览器的pid,可以判断是fiefox重启 */
-        if ( getid_parental(ff_info.hPid) == (uintptr_t)nMainPid )
-        {
-            m_restart = true;
-            nMainPid = ff_info.hPid;
-        }
     }
-    /* 当浏览器初次运行与重启时需要加载下面的线程 */
-    if ( m_first || (m_restart && is_browser()) )
+    /* 使用计数器方式判断是否浏览器重启? */
+    if ( !nRunOnce )
     {
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
@@ -433,6 +421,7 @@ void WINAPI do_it(void)
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
         }
     }
+    *(long volatile*)&nRunOnce = 1;
 }
 
 #if defined(__GNUC__) && defined(__LTO__)
