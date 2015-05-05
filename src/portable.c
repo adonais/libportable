@@ -353,7 +353,7 @@ void WINAPI undo_it(void)
 
 void WINAPI do_it(void)
 {
-    char m_crt[CRT_LEN+1] = {0};
+    static char m_crt[CRT_LEN+1];
     if ( ++nProCout>2048 || !nRunOnce )
     {
         if ( !init_parser(ini_path, MAX_PATH) )
@@ -376,10 +376,10 @@ void WINAPI do_it(void)
         {
             init_global_env(); 
         }
-        if ( strlen(m_crt) > 1 )
+        if ( *m_crt == 'm' )
         {
             /* 在专门的线程中设置vim home变量,它不需要太快加载 */
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed, m_crt,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed,m_crt,0,NULL));
         }
     }
     if ( true )

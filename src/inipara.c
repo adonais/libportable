@@ -25,7 +25,6 @@ typedef struct _LANGANDCODEPAGE
 } LANGANDCODEPAGE;
 
 extern WCHAR      ini_path[MAX_PATH+1];
-extern volatile   long nRunOnce;
 extern char       logfile_buf[VALUE_LEN+1];
 
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;

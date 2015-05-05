@@ -150,8 +150,7 @@ set_cpu_balance(void *fx_info)
     int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
     /* 修复非mozclass窗体无限循环的bug */
-    if ( (is_browser() ||
-          is_specialapp(L"thunderbird.exe")) ? 
+    if ( (is_browser() || is_specialapp(L"thunderbird.exe")) ? 
          (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
     {
         return (0);
@@ -162,7 +161,7 @@ set_cpu_balance(void *fx_info)
     {
         return (0);
     }
-    m_duetime.QuadPart = -10000000;  /* 1 seconds pass */
+    m_duetime.QuadPart = -20000000;  /* 2 seconds pass */
     if ( !SetWaitableTimer(m_timer, &m_duetime,2000, get_cpu_usage, (LPVOID)&m_cpu, false) )
     {
         CloseHandle(m_timer);
