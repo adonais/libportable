@@ -46,6 +46,7 @@ typedef bool (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
 typedef void (CALLBACK *user_func)(void);
 
 static  WNDINFO  ff_info;
+static  intptr_t m_target[EXCLUDE_NUM];
 static _NtSHGetFolderPathW           OrgiSHGetFolderPathW, TrueSHGetFolderPathW;
 static _NtSHGetSpecialFolderLocation OrgiSHGetSpecialFolderLocation,TrueSHGetSpecialFolderLocation;
 static _NtSHGetSpecialFolderPathW    OrgiSHGetSpecialFolderPathW,TrueSHGetSpecialFolderPathW;
@@ -90,6 +91,43 @@ TETE_EXT_CLASS intptr_t
 GetAppDirHash_tt( void )
 {
     return 0;
+}
+
+TETE_EXT_CLASS int
+apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void** m_original)
+{
+    static  int  m = 0;
+    HMODULE module = GetModuleHandleA(m_module);
+    int     ret = 0;
+
+    do
+    {
+        if ( module == NULL )
+        {
+            break;
+        }
+        if ( m >= EXCLUDE_NUM )
+        {
+            break;
+        }
+        if ( (m_target[m] = (intptr_t)GetProcAddress(module, names)) == 0 )
+        {
+            break;
+        }
+        if ( MH_CreateHook((void*)m_target[m], (void *)m_detour, m_original) != MH_OK )
+        {
+            m_target[m] = 0;
+            break;
+        }
+        if ( MH_EnableHook((void*)m_target[m]) != MH_OK )
+        {
+            m_target[m] = 0;
+            break;
+        }
+        ret=1; ++m;
+    }while(0);
+
+    return ret;
 }
 
 /* 初始化全局变量 */
@@ -312,6 +350,7 @@ static void init_portable(void)
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
+    int i;
     if ( --nProCout == -1 || nMainPid == ff_info.hPid )
     {
         _ReadWriteBarrier();
@@ -325,13 +364,20 @@ void WINAPI undo_it(void)
     }
     if (g_handle[0]>0)
     {
-        int i;
         for ( i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i )
         {
             TerminateProcess(g_handle[i], (DWORD)-1);
             CloseHandle(g_handle[i]);
         }
         refresh_tray();
+    }
+    for ( i = 0 ; i < 8; ++i )
+    {
+        if ( m_target[i] > 0 )
+        {
+            MH_DisableHook((void *)m_target[i]);
+            m_target[i] = 0;
+        }
     }
     if (OrgiSHGetFolderPathW)
     {
