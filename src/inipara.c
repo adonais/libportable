@@ -603,7 +603,7 @@ search_section_names(LPCWSTR moz_profile,
             if ( wcsncmp(str_section,pf,j) == 0 && \
                  read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
             {
-                if ( wcscmp(values, moz_values)==0 && \
+                if ( wcsncmp(values, moz_values, wcslen(moz_values))==0 && \
                      _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
                 {
                     ret = 0;
@@ -672,16 +672,22 @@ WaitWriteFile(LPCWSTR app_path)
     else
     {
         LPWSTR szDir;
-        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL )
+        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) == NULL )
         {
-            wcsncpy (szDir, moz_profile, MAX_PATH);
-            PathRemoveFileSpecW( szDir );
-            SHCreateDirectoryExW(NULL,szDir,NULL);
+            return ret;
+        }
+        wcsncpy (szDir, moz_profile, MAX_PATH);
+        if ( PathRemoveFileSpecW( szDir ) &&
+             SHCreateDirectoryExW(NULL,szDir,NULL) == ERROR_SUCCESS )
+        {
             SYS_FREE(szDir);
-            WritePrivateProfileSectionW(\
-            L"General",
-            L"StartWithLastProfile=1\r\n\0",
-            moz_profile);
+            if ( !WritePrivateProfileSectionW(\
+                 L"General",
+                 L"StartWithLastProfile=1\r\n\0",
+                 moz_profile))
+            {
+                return ret;
+            }
             if ( is_specialapp(L"thunderbird.exe") )
             {
                 ret = WritePrivateProfileSectionW(\

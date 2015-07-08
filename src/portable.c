@@ -45,7 +45,7 @@ typedef bool (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
         bool fCreate);
 typedef void (CALLBACK *user_func)(void);
 
-static  WNDINFO ff_info;
+static  WNDINFO  ff_info;
 static _NtSHGetFolderPathW           OrgiSHGetFolderPathW, TrueSHGetFolderPathW;
 static _NtSHGetSpecialFolderLocation OrgiSHGetSpecialFolderLocation,TrueSHGetSpecialFolderLocation;
 static _NtSHGetSpecialFolderPathW    OrgiSHGetSpecialFolderPathW,TrueSHGetSpecialFolderPathW;
@@ -93,9 +93,9 @@ GetAppDirHash_tt( void )
 }
 
 /* 初始化全局变量 */
-static void init_global_env(void)
+static bool
+init_global_env(void)
 {
-
     /* 如果ini文件里的appdata设置路径为相对路径 */
     if (appdata_path[1] != L':')
     {
@@ -116,18 +116,14 @@ static void init_global_env(void)
     
     if ( appdata_path[0] != L'\0' )
     {
-        /* 为appdata建立目录 */
         wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
-        SHCreateDirectoryExW(NULL,appdata_path,NULL);
     }
     if ( localdata_path[0] != L'\0' )
     {
-        /* 为localdata建立目录 */
         wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
-        SHCreateDirectoryExW(NULL,localdata_path,NULL);
     }   
-    WaitWriteFile(appdata_path);
-    return;
+    
+    return WaitWriteFile(appdata_path);
 }
 
 HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
@@ -153,6 +149,8 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
             {
                 if (localdata_path[0] != L'\0' )
                 {
+                    if ( !PathFileExistsW(localdata_path) )
+                        SHCreateDirectoryExW(NULL,localdata_path,NULL);
                     result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
                 }
                 break;
@@ -186,33 +184,38 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
            is_specialdll(dwCaller, dllname)       ||
         #endif
            is_specialdll(dwCaller, L"*\\npswf*.dll");
-    if ( dwFf )
+    if ( !dwFf )
     {
-        switch (folder)
-        {
-            int	 num = 0;
-            case CSIDL_APPDATA:
-            {
-                if ( PathIsDirectoryW(appdata_path) )
-                {
-                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-                    ret = S_OK;
-                }
-                break;
-            }
-            case CSIDL_LOCAL_APPDATA:
-            {
-                if ( PathIsDirectoryW(localdata_path) )
-                {
-                    num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-                    ret = S_OK;
-                }
-                break;
-            }
-            default:
-                break;
-        }
+        return OrgiSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
     }
+
+    switch (folder)
+    {
+        int	 num = 0;
+        case CSIDL_APPDATA:
+        {
+            if ( appdata_path[0] != L'\0' )
+            {
+                num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
+                ret = S_OK;
+            }
+            break;
+        }
+        case CSIDL_LOCAL_APPDATA:
+        {
+            if ( localdata_path[0] != L'\0' )
+            {
+                if ( !PathFileExistsW(localdata_path) )
+                    SHCreateDirectoryExW(NULL,localdata_path,NULL);
+                num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
+                ret = S_OK;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    
     if (S_OK != ret)
     {
         ret = OrgiSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
@@ -330,18 +333,20 @@ void WINAPI undo_it(void)
         }
         refresh_tray();
     }
-
     if (OrgiSHGetFolderPathW)
     {
         MH_DisableHook(TrueSHGetFolderPathW);
+        OrgiSHGetFolderPathW = NULL;
     }
     if (OrgiSHGetSpecialFolderPathW)
     {
         MH_DisableHook(TrueSHGetSpecialFolderPathW);
+        OrgiSHGetSpecialFolderPathW = NULL;
     }
     if (OrgiSHGetSpecialFolderLocation)
     {
         MH_DisableHook(TrueSHGetSpecialFolderLocation);
+        OrgiSHGetSpecialFolderLocation = NULL;
     }
     jmp_end();
 #ifndef DISABLE_SAFE
@@ -366,15 +371,17 @@ void WINAPI do_it(void)
         }
         /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
         set_envp(m_crt, CRT_LEN);
-        if ( read_appint(L"General", L"Portable") > 0 && 
-             read_appkey(L"General",
-                         L"PortableDataPath",
-                         appdata_path,
-                         sizeof(appdata_path),
-                         NULL) 
-           )
+        if ( read_appint(L"General", L"Portable") <= 0 )
         {
-            init_global_env(); 
+            return;
+        }
+        if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
+        {
+            return;
+        }
+        if ( !init_global_env() )
+        {
+            return;
         }
         if ( *m_crt == 'm' )
         {
