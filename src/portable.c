@@ -353,7 +353,6 @@ void WINAPI undo_it(void)
     int i;
     if ( --nProCout == -1 || nMainPid == ff_info.hPid )
     {
-        _ReadWriteBarrier();
         _InterlockedExchange(&nRunOnce, 0);
         *(long volatile*)&nProCout = -1;
     }

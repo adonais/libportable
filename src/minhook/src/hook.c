@@ -65,7 +65,7 @@ typedef struct _HOOK_ENTRY
 } HOOK_ENTRY, *PHOOK_ENTRY;
 
 // Hook entries.
-typedef struct _global
+typedef struct _global_hooks
 {
     PHOOK_ENTRY pItems;     // Data heap
     UINT        capacity;   // Size of allocated data heap, items
@@ -382,26 +382,33 @@ static MH_STATUS EnableHookLL(UINT pos, bool enable)
 //-------------------------------------------------------------------------
 static MH_STATUS EnableAllHooksLL(bool enable)
 {
-    UINT i;
     MH_STATUS status = MH_OK;
+    UINT i, first = INVALID_HOOK_POS;
+
     for (i = 0; i < g_hooks.size; ++i)
     {
         if (g_hooks.pItems[i].isEnabled != enable)
         {
-            FROZEN_THREADS threads;
-            Freeze(&threads, ALL_HOOKS_POS, enable ? ACTION_ENABLE : ACTION_DISABLE);
-            for (; i < g_hooks.size; ++i)
-            {
-                if (g_hooks.pItems[i].isEnabled != enable)
-                {
-                    status = EnableHookLL(i, enable);
-                    if (status != MH_OK) break;
-                }
-            }
-            
-            Unfreeze(&threads);
-            if (status != MH_OK) break;
+            first = i;
+            break;
         }
+    }
+
+    if (first != INVALID_HOOK_POS)
+    {
+        FROZEN_THREADS threads;
+        Freeze(&threads, ALL_HOOKS_POS, enable ? ACTION_ENABLE : ACTION_DISABLE);
+
+        for (i = first; i < g_hooks.size; ++i)
+        {
+            if (g_hooks.pItems[i].isEnabled != enable)
+            {
+                status = EnableHookLL(i, enable);
+                if (status != MH_OK) break;
+            }
+        }
+
+        Unfreeze(&threads);
     }
 
     return status;
@@ -415,13 +422,8 @@ static VOID EnterSpinLock(VOID)
     // Wait until the flag is false.
     while (_InterlockedCompareExchange(&g_isLocked, 1, 0) != 0)
     {
-        _ReadWriteBarrier();
         // Prevent the loop from being too busy.
-        if (spinCount < 16)
-        {
-            _mm_pause();
-        }
-        else if (spinCount < 32)
+        if (spinCount < 32)
         {
             Sleep(0);
         }
@@ -436,7 +438,6 @@ static VOID EnterSpinLock(VOID)
 //-------------------------------------------------------------------------
 static __inline VOID LeaveSpinLock(VOID)
 {
-    _ReadWriteBarrier();
     *(long volatile*)&g_isLocked = 0;    /* not use _InterlockedExchange() */
 }
 
@@ -729,32 +730,47 @@ MH_STATUS WINAPI MH_QueueDisableHook(LPVOID pTarget)
 //-------------------------------------------------------------------------
 MH_STATUS WINAPI MH_ApplyQueued(VOID)
 {
-    UINT i;
     MH_STATUS status = MH_OK;
-    if (g_hHeap == NULL)
-    {
-        return MH_ERROR_NOT_INITIALIZED;
-    }
+    UINT i, first = INVALID_HOOK_POS;
+
     EnterSpinLock();
-    for (i = 0; i < g_hooks.size; ++i)
+
+    if (g_hHeap != NULL)
     {
-        if (g_hooks.pItems[i].isEnabled != g_hooks.pItems[i].queueEnable)
+        for (i = 0; i < g_hooks.size; ++i)
+        {
+            if (g_hooks.pItems[i].isEnabled != g_hooks.pItems[i].queueEnable)
+            {
+                first = i;
+                break;
+            }
+        }
+
+        if (first != INVALID_HOOK_POS)
         {
             FROZEN_THREADS threads;
             Freeze(&threads, ALL_HOOKS_POS, ACTION_APPLY_QUEUED);
-            for (; i < g_hooks.size; ++i)
+
+            for (i = first; i < g_hooks.size; ++i)
             {
                 PHOOK_ENTRY pHook = &g_hooks.pItems[i];
                 if (pHook->isEnabled != pHook->queueEnable)
                 {
                     status = EnableHookLL(i, pHook->queueEnable);
-                    if (status != MH_OK) break;
+                    if (status != MH_OK)
+                        break;
                 }
             }
+
             Unfreeze(&threads);
-            if (status != MH_OK) break;
         }
     }
+    else
+    {
+        status = MH_ERROR_NOT_INITIALIZED;
+    }
+
     LeaveSpinLock();
+
     return status;
 }

@@ -35,8 +35,8 @@ unsigned long long _xgetbv(unsigned int __xcr_no)
 #if defined(_MSC_VER) && (_MSC_VER >= 1600)
 #include <intrin.h>
 #pragma intrinsic(_InterlockedCompareExchange, _InterlockedExchange, \
-                  __stosb, __movsb, _ReturnAddress, _mm_pause, _ReadWriteBarrier, \
-                  strlen, wcslen, wcscpy, wcscmp, memcpy, memset)
+                  __stosb, __movsb, _ReturnAddress, strlen, wcslen, \
+                  wcscpy, wcscmp, memcpy, memset)
 #elif defined(__GNUC__)
 #include "intrin_gcc.h"
 #else
