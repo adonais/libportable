@@ -185,11 +185,9 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
             }
             case CSIDL_LOCAL_APPDATA:
             {
-                if (localdata_path[0] != L'\0' )
+                if ( localdata_path[0] != L'\0' && create_dir(localdata_path) )
                 {
-                    if ( !PathFileExistsW(localdata_path) )
-                        SHCreateDirectoryExW(NULL,localdata_path,NULL);
-                    result = SHILCreateFromPath( localdata_path, &pidlnew, NULL);
+                    result = SHILCreateFromPath(localdata_path, &pidlnew, NULL);
                 }
                 break;
             }
@@ -241,10 +239,8 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         }
         case CSIDL_LOCAL_APPDATA:
         {
-            if ( localdata_path[0] != L'\0' )
+            if ( localdata_path[0] != L'\0' && create_dir(localdata_path) )
             {
-                if ( !PathFileExistsW(localdata_path) )
-                    SHCreateDirectoryExW(NULL,localdata_path,NULL);
                 num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
                 ret = S_OK;
             }

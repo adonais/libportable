@@ -114,55 +114,60 @@ pentadactyl_fixed(void * pParam)
     {
         return (0);
     }
-    if ( (rc_path = (WCHAR *)SYS_MALLOC(VALUE_LEN+1)) == NULL )
-    {
-        return (0);
-    }
     if ( (m_crt = init_mscrt(crt_names, &my_putenv)) == NULL )
     {
         return (0);
     }
-    if ( true )
+    if ( !(PathToCombineW(m_value, VALUE_LEN) && create_dir(m_value)) )
     {
-        PathToCombineW( m_value, VALUE_LEN );
-        _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
-        my_putenv( m_env );
-        SHCreateDirectoryExW( NULL, m_value, NULL );
-        dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
-        _snwprintf(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
-        my_putenv( m_env );
-        _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
+        return (0);
     }
-    if ( !PathFileExistsW(rc_path) )
+    if ( (rc_path = (WCHAR *)SYS_MALLOC(VALUE_LEN+1)) == NULL )
     {
-        DWORD  m_bytes;
-        const  char* desc = "\" File created by libportable.\r\n"
-                            "loadplugins \'\\.(js|penta)$\'\r\n";
-        HANDLE h_file = CreateFileW(rc_path,
-                        GENERIC_WRITE,
-                        FILE_SHARE_WRITE,
-                        NULL,
-                        OPEN_ALWAYS,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL);
-        if ( goodHandle(h_file) )
+        return 0;
+    }
+    do
+    {
+        int m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
+        if ( m > 0 &&  m < VALUE_LEN )
         {
-            WriteFile(h_file, desc, (DWORD)strlen(desc), &m_bytes, NULL);
-            CloseHandle(h_file);
+            my_putenv( m_env );
         }
-    }
-    
-    if ( wcslen(rc_path) > 1 && \
-        _snwprintf( m_env,
-                    VALUE_LEN,
-                    L"%ls%ls",
-                    L"PENTADACTYL_INIT=:source ",
-                    rc_path
-                   ) > 0
-        )
-    {
-        my_putenv( m_env );
-    }
+        dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
+        m = _snwprintf(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
+        if ( m > 0 &&  m < VALUE_LEN )
+        {
+            my_putenv( m_env );
+        }
+        m = _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
+        if ( !(m > 0 &&  m < VALUE_LEN) )
+        {
+            break;
+        }
+        m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_INIT=:source ", rc_path);
+        if ( m > 0 &&  m < VALUE_LEN )
+        {
+            my_putenv( m_env );
+        }
+        if ( rc_path[1] == L':' && !exists_dir(rc_path) )
+        {
+            DWORD  m_bytes;
+            const  char* desc = "\" File created by libportable.\r\n"
+                                "loadplugins \'\\.(js|penta)$\'\r\n";
+            HANDLE h_file = CreateFileW(rc_path,
+                            GENERIC_WRITE,
+                            FILE_SHARE_WRITE,
+                            NULL,
+                            OPEN_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL,
+                            NULL);
+            if ( goodHandle(h_file) )
+            {
+                WriteFile(h_file, desc, (DWORD)strlen(desc), &m_bytes, NULL);
+                CloseHandle(h_file);
+            }
+        }
+    }while (0);
     SYS_FREE(rc_path);
     FreeLibrary(m_crt);
     return (1);

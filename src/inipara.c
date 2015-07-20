@@ -306,9 +306,36 @@ replace_separator(LPWSTR path)        /* 替换unix风格的路径符号 */
 }
 
 bool WINAPI 
+exists_dir(LPCWSTR path) 
+{
+    DWORD fileattr = GetFileAttributesW(path);
+    if (fileattr != INVALID_FILE_ATTRIBUTES)
+    {
+        return (fileattr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+    return false;
+}
+
+bool WINAPI 
+create_dir(LPCWSTR full_path) 
+{
+    int err;
+    if (exists_dir(full_path))
+    {
+        return true;
+    }
+    err = SHCreateDirectoryExW(NULL, full_path, NULL);
+    return err == ERROR_SUCCESS;
+}
+
+bool WINAPI 
 PathToCombineW(LPWSTR lpfile, int len)
 {
     int n = 1;
+    if ( NULL == lpfile || *lpfile == L' ' )
+    {
+        return false;
+    }
     if ( lpfile[0] == L'%' )
     {
         WCHAR buf_env[VALUE_LEN+1] = {0};
@@ -340,8 +367,8 @@ PathToCombineW(LPWSTR lpfile, int len)
         if ( GetModuleFileNameW( dll_module, buf_modname, VALUE_LEN) > 0)
         {
             WCHAR tmp_path[MAX_PATH] = {0};
-            PathRemoveFileSpecW(buf_modname);
-            if ( PathCombineW(tmp_path,buf_modname,lpfile) )
+            if ( PathRemoveFileSpecW(buf_modname) && 
+                 PathCombineW(tmp_path,buf_modname,lpfile) )
             {
                 n = _snwprintf(lpfile,len,L"%ls",tmp_path);
             }
@@ -626,13 +653,14 @@ search_section_names(LPCWSTR moz_profile,
 bool WINAPI 
 WaitWriteFile(LPCWSTR app_path)
 {
-    bool  ret = false;
-    WCHAR moz_profile[MAX_PATH+1] = {0};
+    bool   ret   = false;
+    LPWSTR szDir = NULL;
+    WCHAR  moz_profile[MAX_PATH+1] = {0};
     if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
     {
         return ret;
     }
-    if ( PathFileExistsW(moz_profile) )
+    if ( exists_dir(moz_profile) )
     {
         WCHAR app_names[MAX_PATH+1] = {0};
         WCHAR m_profile[10] = {L'P',L'r',L'o',L'f',L'i',L'l',L'e',};
@@ -671,22 +699,18 @@ WaitWriteFile(LPCWSTR app_path)
     }
     else
     {
-        LPWSTR szDir;
-        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) == NULL )
+        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL )
         {
-            return ret;
+            wcsncpy(szDir, moz_profile, MAX_PATH);
         }
-        wcsncpy (szDir, moz_profile, MAX_PATH);
-        if ( PathRemoveFileSpecW( szDir ) &&
-             SHCreateDirectoryExW(NULL,szDir,NULL) == ERROR_SUCCESS )
+        if ( szDir && PathRemoveFileSpecW( szDir ) && create_dir( szDir ) )
         {
-            SYS_FREE(szDir);
             if ( !WritePrivateProfileSectionW(\
                  L"General",
                  L"StartWithLastProfile=1\r\n\0",
                  moz_profile))
             {
-                return ret;
+                SYS_FREE(szDir); return ret;
             }
             if ( is_specialapp(L"thunderbird.exe") )
             {
@@ -711,6 +735,7 @@ WaitWriteFile(LPCWSTR app_path)
             }
         }
     }
+    if ( szDir ) SYS_FREE(szDir);
     return ret;
 }
 

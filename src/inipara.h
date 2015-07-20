@@ -72,6 +72,8 @@ extern bool     WINAPI WaitWriteFile(LPCWSTR app_path);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
 extern bool     WINAPI IsGUI(LPCWSTR lpFileName);
+extern bool     WINAPI exists_dir(LPCWSTR path);
+extern bool     WINAPI create_dir(LPCWSTR full_path);
 
 #ifdef __cplusplus
 }
