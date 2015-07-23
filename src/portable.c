@@ -51,7 +51,7 @@ static _NtSHGetFolderPathW           OrgiSHGetFolderPathW, TrueSHGetFolderPathW;
 static _NtSHGetSpecialFolderLocation OrgiSHGetSpecialFolderLocation,TrueSHGetSpecialFolderLocation;
 static _NtSHGetSpecialFolderPathW    OrgiSHGetSpecialFolderPathW,TrueSHGetSpecialFolderPathW;
 
-/* 数据段共享锁,保证进程生存周期内只运行一次 */
+/* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
 #pragma data_seg(".shrd")
 #endif
@@ -93,6 +93,7 @@ GetAppDirHash_tt( void )
     return 0;
 }
 
+/* Note: This function is not thread safe */
 TETE_EXT_CLASS int
 apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void** m_original)
 {
@@ -366,7 +367,7 @@ void WINAPI undo_it(void)
         }
         refresh_tray();
     }
-    for ( i = 0 ; i < 8; ++i )
+    for ( i = 0 ; i < EXCLUDE_NUM; ++i )
     {
         if ( m_target[i] > 0 )
         {
