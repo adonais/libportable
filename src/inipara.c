@@ -742,20 +742,20 @@ WaitWriteFile(LPCWSTR app_path)
 DWORD WINAPI 
 GetOsVersion(void)
 {
-    OSVERSIONINFOEXA    osvi;
+    OSVERSIONINFOEXW    osvi;
     bool                bOs = false;
     DWORD               ver = 0L;
-    fzero(&osvi, sizeof(OSVERSIONINFOEXA));
+    fzero(&osvi, sizeof(OSVERSIONINFOEXW));
 
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXA);
-    if( GetVersionExA((OSVERSIONINFOA*)&osvi) )
+    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
+    if( GetVersionExW((OSVERSIONINFOW*)&osvi) )
     {
         if ( VER_PLATFORM_WIN32_NT==osvi.dwPlatformId &&
              osvi.dwMajorVersion > 4 )
         {
-            char pszOS[4] = {0};
-            _snprintf(pszOS, 3, "%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
-            ver = strtol(pszOS, NULL, 10);
+            WCHAR pszOS[5] = {0};
+            _snwprintf(pszOS, 4, L"%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
+            ver = wcstol(pszOS, NULL, 10);
         }
     }
     return ver;
