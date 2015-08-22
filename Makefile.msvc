@@ -3,7 +3,7 @@
 CC       = cl.exe
 CPP	 = cl.exe
 TCMALLOC =
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /GS- /GR- /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -14,7 +14,7 @@ LIBPORTABLE_STATIC =
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
 !else
-#CRTFLAGS = /LIBPATH:.dep ntdll-$(PLATFORM).lib
+CFLAGS   = $(CFLAGS) /GS- /GR- 
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"

@@ -92,10 +92,19 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
     return ( res>0 );
 }
 
-int  WINAPI 
+int WINAPI 
 read_appint(LPCWSTR cat,LPCWSTR name)
 {
-    return GetPrivateProfileIntW(cat, name, -1, ini_path);
+    int ret = -1;
+    if ( ini_path[1] != L':' )
+    {
+        if (!init_parser(ini_path,MAX_PATH))
+        {
+            return ret;
+        }
+    }
+    ret = GetPrivateProfileIntW(cat, name, -1, ini_path);
+    return ret;
 }
 
 bool WINAPI
