@@ -411,15 +411,19 @@ void WINAPI do_it(void)
         {
             return;
         }
-        /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
-        set_envp(m_crt, CRT_LEN);
+        if ( true )
+        {
+            /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
+            set_envp(m_crt, CRT_LEN);
+        }
         if ( read_appint(L"General", L"Portable") <= 0 )
         {
             return;
         }
         if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
         {
-            return;
+            /* 预设默认的配置文件所在路径 */
+            _snwprintf(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
         }
         if ( !init_global_env() )
         {
