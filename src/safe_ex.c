@@ -25,7 +25,9 @@ static bool in_whitelist(LPCWSTR lpfile)
 {
     WCHAR *moz_processes[] = {L"", L"%windir%\\system32\\WerFault.exe",
                               L"plugin-container.exe", 
-                              L"plugin-hang-ui.exe", 
+                              L"plugin-hang-ui.exe",
+                              L"firefox-webcontent.exe",
+                              L"Iceweasel-webcontent.exe",
                               L"webapprt-stub.exe",
                               L"webapp-uninstaller.exe",
                               L"WSEnable.exe",
