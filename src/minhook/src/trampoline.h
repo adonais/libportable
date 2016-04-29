@@ -26,7 +26,8 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#ifndef _TRAMP_ONLINE_H_
+#  define _TRAMP_ONLINE_H_
 
 #pragma pack(push, 1)
 
@@ -106,4 +107,12 @@ typedef struct _TRAMPOLINE
     UINT8  newIPs[8];       // [Out] Instruction boundaries of the trampoline function.
 } TRAMPOLINE, *PTRAMPOLINE;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 BOOL CreateTrampolineFunction(PTRAMPOLINE ct);
+#ifdef __cplusplus
+}
+#endif
+
+#endif

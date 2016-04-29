@@ -30,7 +30,7 @@
 
 #define fzero(b,len)  (__stosb((LPBYTE)(b), '\0', (len)))
 
-typedef HMODULE (WINAPI *_NtLoadLibraryExW)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
+typedef HMODULE (WINAPI *LoadLibraryExWPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
 typedef struct tagWNDINFO
 {
     int   atom_str;
@@ -44,7 +44,7 @@ typedef struct tagWNDINFO
 extern "C" {
 #endif 
 
-extern _NtLoadLibraryExW OrgiLoadLibraryExW;
+extern LoadLibraryExWPtr sLoadLibraryExWStub;
 extern HMODULE           dll_module; 
 #ifdef _LOGDEBUG
 extern void     __cdecl logmsg(const char * format, ...);

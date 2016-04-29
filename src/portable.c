@@ -31,25 +31,25 @@
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 SHSTDAPI SHILCreateFromPath (PCWSTR pszPath, PIDLIST_ABSOLUTE *ppidl, DWORD *rgfInOut);
 
-typedef HRESULT (WINAPI *_NtSHGetFolderPathW)(HWND hwndOwner,
-        int nFolder, 
+typedef HRESULT (WINAPI *SHGetFolderPathWPtr)(HWND hwndOwner,
+        int    nFolder, 
         HANDLE hToken,
-        DWORD dwFlags,
+        DWORD  dwFlags,
         LPWSTR pszPath);
-typedef HRESULT (WINAPI *_NtSHGetSpecialFolderLocation)(HWND hwndOwner,
+typedef HRESULT (WINAPI *SHGetSpecialFolderLocationPtr)(HWND hwndOwner,
         int nFolder,
         LPITEMIDLIST *ppidl);
-typedef bool (WINAPI *_NtSHGetSpecialFolderPathW)(HWND hwndOwner,
+typedef bool (WINAPI *SHGetSpecialFolderPathWPtr)(HWND hwndOwner,
         LPWSTR lpszPath,
-        int csidl,
-        bool fCreate);
+        int    csidl,
+        bool   fCreate);
 typedef void (CALLBACK *user_func)(void);
 
 static  WNDINFO  ff_info;
 static  intptr_t m_target[EXCLUDE_NUM];
-static _NtSHGetFolderPathW           OrgiSHGetFolderPathW, TrueSHGetFolderPathW;
-static _NtSHGetSpecialFolderLocation OrgiSHGetSpecialFolderLocation,TrueSHGetSpecialFolderLocation;
-static _NtSHGetSpecialFolderPathW    OrgiSHGetSpecialFolderPathW,TrueSHGetSpecialFolderPathW;
+static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
+static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
+static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
 
 /* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
@@ -173,7 +173,7 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
     if ( CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder )
     {
         LPITEMIDLIST pidlnew = NULL;
-        HRESULT result = S_FALSE;
+        HRESULT result = E_FAIL;
         switch (folder)
         {
             case CSIDL_APPDATA:
@@ -201,7 +201,7 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
             return result;
         }
     }
-    return OrgiSHGetSpecialFolderLocation(hwndOwner, nFolder, ppidl);
+    return sSHGetSpecialFolderLocationStub(hwndOwner, nFolder, ppidl);
 }
 
 HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
@@ -216,14 +216,17 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
 #endif
     dwCaller = (uintptr_t)_ReturnAddress();
-    dwFf = is_specialdll(dwCaller, L"*\\xul.dll") ||
+    dwFf = is_specialdll(dwCaller, L"*\\xul.dll")                 ||
         #ifndef LIBPORTABLE_STATIC
-           is_specialdll(dwCaller, dllname)       ||
+           is_specialdll(dwCaller, dllname)                       ||
+        #endif
+        #ifndef _M_X64
+           is_specialdll(dwCaller, L"*\\FlashPlayerPlugin_*.exe") ||
         #endif
            is_specialdll(dwCaller, L"*\\npswf*.dll");
     if ( !dwFf )
     {
-        return OrgiSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
+        return sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
     }
 
     switch (folder)
@@ -253,19 +256,23 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     
     if (S_OK != ret)
     {
-        ret = OrgiSHGetFolderPathW(hwndOwner, nFolder, hToken, dwFlags, pszPath);
+        ret = sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
     }
     return ret;
 }
 
 bool WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreate)
 {
-    bool        internal;
-    uintptr_t	dwCaller = (uintptr_t)_ReturnAddress();
-    internal = is_specialdll(dwCaller, L"*\\xul.dll") || is_specialdll(dwCaller, L"*\\npswf*.dll");
+    bool       internal;
+    uintptr_t  dwCaller = (uintptr_t)_ReturnAddress();
+    internal = is_specialdll(dwCaller, L"*\\xul.dll")                ||
+           #ifndef _M_X64
+               is_specialdll(dwCaller, L"*\\FlashPlayerPlugin_*.exe")||
+           #endif
+               is_specialdll(dwCaller, L"*\\npswf*.dll");
     if ( !internal )
     {
-        return OrgiSHGetSpecialFolderPathW(hwndOwner,lpszPath,csidl,fCreate);
+        return sSHGetSpecialFolderPathWStub(hwndOwner,lpszPath,csidl,fCreate);
     }
     return (HookSHGetFolderPathW(
             hwndOwner,
@@ -275,67 +282,17 @@ bool WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
             lpszPath)) == S_OK ? true : false;
 }
 
-static bool init_libshell(void)
-{
-    bool    ret = true;
-    HMODULE h_module = GetModuleHandleW(L"shell32.dll");
-    if (h_module != NULL)
-    {
-        TrueSHGetSpecialFolderLocation = (_NtSHGetSpecialFolderLocation)GetProcAddress
-                                         (h_module, "SHGetSpecialFolderLocation");
-        TrueSHGetFolderPathW           = (_NtSHGetFolderPathW)GetProcAddress
-                                         (h_module, "SHGetFolderPathW");
-        TrueSHGetSpecialFolderPathW    = (_NtSHGetSpecialFolderPathW)GetProcAddress
-                                         (h_module, "SHGetSpecialFolderPathW");
-        if ( !(TrueSHGetSpecialFolderLocation && TrueSHGetFolderPathW 
-             && TrueSHGetSpecialFolderPathW) )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("GetProcAddress() false %s !\n", __FUNCTION__);
-        #endif
-            ret = false;
-        }
-    }
-    return (ret && h_module);
-}
-
 static void init_portable(void)
 {
-    if ( !init_libshell() )
-    {
-        return;
-    }
-    /* hook 下面几个函数 */
-    if ( MH_CreateHook(TrueSHGetSpecialFolderLocation, HookSHGetSpecialFolderLocation, \
-        (LPVOID*)&OrgiSHGetSpecialFolderLocation) == MH_OK )
-    {
-        if ( MH_EnableHook(TrueSHGetSpecialFolderLocation) != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("SHGetSpecialFolderLocation hook failed!\n");
-        #endif
-        }
-    }
-    if ( MH_CreateHook(TrueSHGetFolderPathW, HookSHGetFolderPathW, \
-        (LPVOID*)&OrgiSHGetFolderPathW) == MH_OK )
-    {
-        if ( MH_EnableHook(TrueSHGetFolderPathW) != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("SHGetFolderPathW hook failed!\n");
-        #endif
-        }
-    }
-    if ( MH_CreateHook(TrueSHGetSpecialFolderPathW, HookSHGetSpecialFolderPathW, \
-        (LPVOID*)&OrgiSHGetSpecialFolderPathW) == MH_OK )
-    {
-        if ( MH_EnableHook(TrueSHGetSpecialFolderPathW) != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("SHGetSpecialFolderPathW hook failed!\n");
-        #endif
-        }
-    }
+    apihook_ctors("shell32.dll", "SHGetSpecialFolderLocation",
+                  (intptr_t)HookSHGetSpecialFolderLocation,
+                  (void**) &sSHGetSpecialFolderLocationStub);
+    apihook_ctors("shell32.dll", "SHGetFolderPathW",
+                  (intptr_t)HookSHGetFolderPathW,
+                  (void**) &sSHGetFolderPathWStub);
+    apihook_ctors("shell32.dll", "SHGetSpecialFolderPathW",
+                  (intptr_t)HookSHGetSpecialFolderPathW,
+                  (void**) &sSHGetSpecialFolderPathWStub);
     return;
 }
 
@@ -374,21 +331,6 @@ void WINAPI undo_it(void)
             MH_DisableHook((void *)m_target[i]);
             m_target[i] = 0;
         }
-    }
-    if (OrgiSHGetFolderPathW)
-    {
-        MH_DisableHook(TrueSHGetFolderPathW);
-        OrgiSHGetFolderPathW = NULL;
-    }
-    if (OrgiSHGetSpecialFolderPathW)
-    {
-        MH_DisableHook(TrueSHGetSpecialFolderPathW);
-        OrgiSHGetSpecialFolderPathW = NULL;
-    }
-    if (OrgiSHGetSpecialFolderLocation)
-    {
-        MH_DisableHook(TrueSHGetSpecialFolderLocation);
-        OrgiSHGetSpecialFolderLocation = NULL;
     }
     jmp_end();
 #ifndef DISABLE_SAFE

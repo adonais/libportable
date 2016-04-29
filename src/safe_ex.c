@@ -19,7 +19,7 @@ static _NtWriteVirtualMemory       OrgiNtWriteVirtualMemory,
                                    TrueNtWriteVirtualMemory;
 static _CreateProcessInternalW     OrgiCreateProcessInternalW, 
                                    TrueCreateProcessInternalW;
-static _NtLoadLibraryExW           TrueLoadLibraryExW;
+static LoadLibraryExWPtr           pLoadLibraryExW;
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -204,7 +204,11 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     bool        tohook	= false;
     fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
     if ( stristrW(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
-         stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe") ||
+     #ifndef _M_X64
+         PathMatchSpecW(ProcessParameters->ImagePathName.Buffer,               \
+         L"*\\plugins\\FlashPlayerPlugin_*.exe")                              ||
+     #endif
+         stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe")       ||
          stristrW(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
     {
         tohook = true;
@@ -246,6 +250,9 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     {
         PROCESS_INFORMATION ProcessInformation;
         ULONG Suspend = 0;
+    #ifdef _LOGDEBUG
+        logmsg("hooked this process[%ls]\n",ProcessParameters->ImagePathName.Buffer);
+    #endif
         fzero(&ProcessInformation,sizeof(PROCESS_INFORMATION));
         ProcessInformation.hProcess = *ProcessHandle;
         ProcessInformation.hThread = *ThreadHandle;
@@ -286,8 +293,11 @@ HookCreateProcessInternalW (HANDLE hToken,
         return ret;
     }
     /* 存在不安全插件,注入保护 */
-    if ( stristrW(lpfile, L"SumatraPDF.exe") ||
-         stristrW(lpfile, L"java.exe")       ||
+    if ( stristrW(lpfile, L"SumatraPDF.exe")                            ||
+     #ifndef _M_X64
+         PathMatchSpecW(lpfile,L"*\\plugins\\FlashPlayerPlugin_*.exe")  ||
+     #endif
+         stristrW(lpfile, L"java.exe")                                  ||
          stristrW(lpfile, L"jp2launcher.exe"))
     {
         /* 静态编译或者启用GCC lto时,不能启用远程注入 */
@@ -409,7 +419,7 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     uintptr_t dwCaller = (uintptr_t)_ReturnAddress();
     if ( is_authorized(lpFileName) ) 
     {
-        return OrgiLoadLibraryExW(lpFileName, hFile, dwFlags);
+        return sLoadLibraryExWStub(lpFileName, hFile, dwFlags);
     }
     if ( is_specialdll(dwCaller,L"user32.dll") )
     {
@@ -421,7 +431,7 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
             lpFileName = NULL;
         }
     }
-    return OrgiLoadLibraryExW(lpFileName, hFile, dwFlags);
+    return sLoadLibraryExWStub(lpFileName, hFile, dwFlags);
 }
 
 unsigned WINAPI init_safed(void * pParam)
@@ -473,14 +483,14 @@ unsigned WINAPI init_safed(void * pParam)
     }
     if ( ver<503 )  /* winxp-2003 */
     {
-        TrueLoadLibraryExW	= (_NtLoadLibraryExW)GetProcAddress(\
+        pLoadLibraryExW	= (LoadLibraryExWPtr)GetProcAddress(\
                               hKernel, "LoadLibraryExW");
     }
-    if (TrueLoadLibraryExW && MH_CreateHook \
-       (TrueLoadLibraryExW, HookLoadLibraryExW, \
-       (LPVOID*)&OrgiLoadLibraryExW) == MH_OK )
+    if (pLoadLibraryExW && MH_CreateHook \
+       (pLoadLibraryExW, HookLoadLibraryExW, \
+       (LPVOID*)&sLoadLibraryExWStub) == MH_OK )
     {
-        if ( MH_EnableHook(TrueLoadLibraryExW) != MH_OK )
+        if ( MH_EnableHook(pLoadLibraryExW) != MH_OK )
         {
         #ifdef _LOGDEBUG
             logmsg("LoadLibraryExW hook failed!\n");
@@ -503,9 +513,9 @@ unsigned WINAPI init_safed(void * pParam)
 
 void WINAPI safe_end(void)
 {
-    if (OrgiLoadLibraryExW)
+    if (sLoadLibraryExWStub)
     {
-        MH_DisableHook(TrueLoadLibraryExW);
+        MH_DisableHook(pLoadLibraryExW);
     }
     if (OrgiCreateProcessInternalW)
     {

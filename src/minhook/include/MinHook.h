@@ -27,7 +27,7 @@
  */
 
 #ifndef _MIN_HOOK_H_
-#  define _MIN_HOOK_H
+#  define _MIN_HOOK_H_
 
 #ifndef WINVER         /* Define WINVER to fix building on MinGW */
 #  define WINVER 0x0501

@@ -1,7 +1,7 @@
 # nmake -f Makefile.msvc
 CC       = cl.exe
 CPP      = cl.exe
-CFLAGS   = /nologo /W3 /WX- /O2 /Ob2 /Gd /GL /MD /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE"
+CFLAGS   = /nologo /W3 /WX- /O2 /GL /Gd /MD /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
 AR       = lib.exe
 
 !if "$(LIBPORTABLE_STATIC)"=="1"

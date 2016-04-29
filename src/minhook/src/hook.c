@@ -25,6 +25,7 @@
  *  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
@@ -55,11 +56,11 @@ typedef struct _HOOK_ENTRY
     LPVOID pTrampoline;         // Address of the trampoline function.
     UINT8  backup[8];           // Original prologue of the target function.
 
-    bool   patchAbove  : 1;     // Uses the hot patch area.
-    bool   isEnabled   : 1;     // Enabled.
-    bool   queueEnable : 1;     // Queued for enabling/disabling when != isEnabled.
+    UINT8   patchAbove  : 1;     // Uses the hot patch area.
+    UINT8   isEnabled   : 1;     // Enabled.
+    UINT8   queueEnable : 1;     // Queued for enabling/disabling when != isEnabled.
 
-    UINT   nIP : 3;             // Count of the instruction boundaries.
+    UINT   nIP : 4;             // Count of the instruction boundaries.
     UINT8  oldIPs[8];           // Instruction boundaries of the target function.
     UINT8  newIPs[8];           // Instruction boundaries of the trampoline function.
 } HOOK_ENTRY, *PHOOK_ENTRY;
@@ -515,7 +516,7 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
             break;
         }
 
-        if (!IsExecutableAddress(pTarget) || !IsExecutableAddress(pDetour))
+        if (!(IsExecutableAddress(pTarget) && IsExecutableAddress(pDetour)))
         {
             status = MH_ERROR_NOT_EXECUTABLE;
             break;
@@ -616,9 +617,11 @@ MH_STATUS WINAPI MH_RemoveHook(LPVOID pTarget)
             status = EnableHookLL(pos, false);
             Unfreeze(&threads);
         }
-
-        FreeBuffer(g_hooks.pItems[pos].pTrampoline);
-        DelHookEntry(pos);
+        if (status == MH_OK)
+        {
+            FreeBuffer(g_hooks.pItems[pos].pTrampoline);
+            DelHookEntry(pos);
+        }
     } while (0);
     LeaveSpinLock();
     return status;

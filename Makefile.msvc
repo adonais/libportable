@@ -2,6 +2,7 @@
 
 CC       = cl.exe
 CPP	 = cl.exe
+VC12_CRT =
 TCMALLOC =
 CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
@@ -13,6 +14,9 @@ LIBPORTABLE_STATIC =
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
+!ELSEIF "$(VC12_CRT)"=="1"
+CFLAGS   = $(CFLAGS) /D "VC12_CRT"
+CRTFLAGS =
 !else
 CFLAGS   = $(CFLAGS) /GS- /GR- 
 !endif
@@ -55,22 +59,22 @@ CFLAGS   = $(CFLAGS) /D "DISABLE_SAFE"
 !endif
 
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
+LDFLAGS  = /NOLOGO /LTCG
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 LD       = lib.exe
 OUT	 = $(DISTDIR)\portable$(BITS)_s.lib
 TETE	 = $(DISTDIR)\tmemutil_s.lib
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
-LDFLAGS  = /LTCG /NOLOGO
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
 !else
 CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
-!if "$(TCMALLOC)"=="1"
-LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
+!if "$(TCMALLOC)"=="1" || "$(VC12_CRT)"=="1"
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
 OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
-LDFLAGS  =  /NOLOGO /LTCG /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
 OUT	 = $(DISTDIR)\portable$(BITS).dll
@@ -116,7 +120,7 @@ $(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
 	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
-!if "$(TCMALLOC)"==""
+!if "$(TCMALLOC)"=="" && "$(VC12_CRT)"==""
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
 	        /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
@@ -130,4 +134,3 @@ $(DEP)\resource.res                 : $(SRC)\resource.rc
 .PHONY		        : clean
 clean                   : 
 	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL
-

@@ -2,9 +2,12 @@
 
 The Minimalistic x86/x64 API Hooking Library for Windows
 
-http://www.codeproject.com/KB/winsdk/LibMinHook.aspx
+https://github.com/TsudaKageyu/minhook
 
 ### Version history
+- ####v1.3.2 - 1 Nov 2015
+
+  * Fixed some small bugs.
 
 - ####v1.3-beta3 - 31 Jul 2014
 

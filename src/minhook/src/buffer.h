@@ -26,7 +26,8 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#ifndef _MEM_BUFFER_H_
+#  define _MEM_BUFFER_H_
 
 // Size of each memory slot.
 #ifdef _M_X64
@@ -35,8 +36,16 @@
     #define MEMORY_SLOT_SIZE 32
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 VOID   InitializeBuffer(VOID);
 VOID   UninitializeBuffer(VOID);
 LPVOID AllocateBuffer(LPVOID pOrigin);
 VOID   FreeBuffer(LPVOID pBuffer);
 BOOL   IsExecutableAddress(LPVOID pAddress);
+#ifdef __cplusplus
+}
+#endif
+
+#endif

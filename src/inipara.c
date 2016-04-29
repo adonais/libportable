@@ -30,7 +30,7 @@ extern char       logfile_buf[VALUE_LEN+1];
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
 static PFNVQVW    pfnVerQueryValueW;
-_NtLoadLibraryExW OrgiLoadLibraryExW = NULL;
+LoadLibraryExWPtr sLoadLibraryExWStub = NULL;
 HMODULE           dll_module         = NULL;
 
 bool WINAPI

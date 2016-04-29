@@ -4,12 +4,12 @@
 #include "MinHook.h"
 #include "internal_dbg.h"
 
-typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *_NtSetUnhandledExceptionFilter)(\
+typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *SetUnhandledExceptionFilterPtr)(\
                                       LPTOP_LEVEL_EXCEPTION_FILTER 
                                       lpTopLevelExceptionFilter);
-static  _NtSetUnhandledExceptionFilter OrgiSetUnhandledExceptionFilter;
-static  _NtSetUnhandledExceptionFilter TrueSetUnhandledExceptionFilter;
-static  _NtMiniDumpWriteDump TrueMiniDumpWriteDump;
+static  SetUnhandledExceptionFilterPtr sSetUnhandledExceptionFilterStub;
+static  SetUnhandledExceptionFilterPtr pSetUnhandledExceptionFilter;
+static  MiniDumpWriteDumpPtr sMiniDumpWriteDumpStub;
 static  HMODULE m_dbg;
 
 static LONG WINAPI 
@@ -52,7 +52,7 @@ ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
     ExInfo.ClientPointers = true;
 
     /* MiniDumpWriteDump输出dump */
-    TrueMiniDumpWriteDump(GetCurrentProcess(),
+    sMiniDumpWriteDumpStub(GetCurrentProcess(),
                          GetCurrentProcessId(),
                          hFile,
                          MiniDumpNormal,
@@ -67,39 +67,39 @@ ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
 static LPTOP_LEVEL_EXCEPTION_FILTER WINAPI
 HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter)
 {
-    return OrgiSetUnhandledExceptionFilter(ProcessException_ice);
+    return sSetUnhandledExceptionFilterStub(ProcessException_ice);
 }
 
 unsigned WINAPI init_exeception(void * pParam)
 {
     unsigned ret = 0;
     HMODULE  m_kernel;
-    m_dbg = OrgiLoadLibraryExW?OrgiLoadLibraryExW(L"dbghelp.dll",NULL,0):\
+    m_dbg = sLoadLibraryExWStub?sLoadLibraryExWStub(L"dbghelp.dll",NULL,0):\
             LoadLibraryExW(L"dbghelp.dll",NULL,0);
     m_kernel =  GetModuleHandleW(L"kernel32.dll");
     if ( !(m_dbg && m_kernel) ) return ret;
-    TrueMiniDumpWriteDump           = (_NtMiniDumpWriteDump)GetProcAddress(\
+    sMiniDumpWriteDumpStub           = (MiniDumpWriteDumpPtr)GetProcAddress(\
                                       m_dbg, "MiniDumpWriteDump");
-    if ( !TrueMiniDumpWriteDump )
+    if ( !sMiniDumpWriteDumpStub )
     {
     #ifdef _LOGDEBUG
         logmsg("GetProcAddress(MiniDumpWriteDump) return false\n", __FUNCTION__);
     #endif
         return ret;
     }
-    TrueSetUnhandledExceptionFilter = (_NtSetUnhandledExceptionFilter)GetProcAddress(\
+    pSetUnhandledExceptionFilter = (SetUnhandledExceptionFilterPtr)GetProcAddress(\
                                       m_kernel, "SetUnhandledExceptionFilter");
-    if ( !TrueSetUnhandledExceptionFilter )
+    if ( !pSetUnhandledExceptionFilter )
     {
     #ifdef _LOGDEBUG
         logmsg("GetProcAddress(SetUnhandledExceptionFilter) return false\n", __FUNCTION__);
     #endif
         return ret;
     }
-    if (MH_CreateHook(TrueSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, 
-       (LPVOID*)&OrgiSetUnhandledExceptionFilter) == MH_OK )
+    if (MH_CreateHook(pSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, 
+       (LPVOID*)&sSetUnhandledExceptionFilterStub) == MH_OK )
     {
-        if ( MH_EnableHook(TrueSetUnhandledExceptionFilter) == MH_OK )
+        if ( MH_EnableHook(pSetUnhandledExceptionFilter) == MH_OK )
         {
             ret = 1;
         }
@@ -109,9 +109,9 @@ unsigned WINAPI init_exeception(void * pParam)
 
 void WINAPI jmp_end(void)
 {
-    if (OrgiSetUnhandledExceptionFilter)
+    if (sSetUnhandledExceptionFilterStub)
     {
-        MH_DisableHook(TrueSetUnhandledExceptionFilter);
+        MH_DisableHook(pSetUnhandledExceptionFilter);
     }
     if ( m_dbg )
     {
