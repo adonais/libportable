@@ -62,17 +62,30 @@ static bool find_msvcrt(char *crt_buf, int len)
               ) ;
     while( true )
     {
+        bool             vc14 = false;
         char*            pszDllName = NULL;
         char             name[CRT_LEN+1] = {0};
         IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
         IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
         if(pThunk == 0 && pThunkIAT == 0) break;
         pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-        if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
+        vc14 = PathMatchSpecA(pszDllName,"vcruntime*.dll");
+        if ( vc14 || PathMatchSpecA(pszDllName,"msvcr*.dll") )
         {
-            strncpy(name,pszDllName,CRT_LEN);
-            strncpy(crt_buf,CharLowerA(name),len);
+            if ( vc14 )
+            {
+                const char* ucrt = "ucrtbase.dll";
+                strncpy(crt_buf,ucrt,len);
+            }
+            else
+            {
+                strncpy(name,pszDllName,CRT_LEN);
+                strncpy(crt_buf,CharLowerA(name),len);
+            }
             ret = true;
+        #ifdef _LOGDEBUG
+            logmsg("crt_buf[%s]\n", crt_buf);
+        #endif
             break;
         }
         pImport++;
