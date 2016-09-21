@@ -68,7 +68,7 @@ extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void);
 extern bool     WINAPI get_mozprofiles_path(LPCWSTR, wchar_t*, int);
 extern bool     WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen);
-extern bool     WINAPI WaitWriteFile(LPCWSTR app_path);
+extern unsigned WINAPI WaitWriteFile(void * pParam);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
 extern bool     WINAPI IsGUI(LPCWSTR lpFileName);

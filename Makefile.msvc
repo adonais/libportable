@@ -2,9 +2,10 @@
 
 CC       = cl.exe
 CPP	 = cl.exe
-VC12_CRT =
+MSVC_CRT =
 TCMALLOC =
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /MD /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -12,13 +13,13 @@ MAKE	 = nmake
 LIBPORTABLE_STATIC =
 
 !if "$(TCMALLOC)"=="1"
-CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
+CFLAGS   = $(CFLAGS) /MD /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc12_md.lib
-!ELSEIF "$(VC12_CRT)"=="1"
-CFLAGS   = $(CFLAGS) /D "VC12_CRT"
+!ELSEIF "$(MSVC_CRT)">="1900"
+CFLAGS   = $(CFLAGS) /MT /D "VC12_CRT"
 CRTFLAGS =
 !else
-CFLAGS   = $(CFLAGS) /GS- /GR- 
+CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
@@ -50,7 +51,8 @@ RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
-           $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj $(DEP)\set_env.obj
+           $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
+	   $(DEP)\load_module.obj $(DEP)\set_env.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -69,9 +71,11 @@ CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
 !else
-CFLAGS   = $(CFLAGS) /D "_DLL" /D "_USRDLL" /D "LIBPORTABLE_EXPORTS"
-!if "$(TCMALLOC)"=="1" || "$(VC12_CRT)"=="1"
+CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
+!if "$(TCMALLOC)"=="1"
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
+!ELSEIF "$(MSVC_CRT)">="1900"
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
 OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
@@ -118,9 +122,11 @@ $(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
 	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
 $(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
 	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
+$(DEP)\load_module.obj  : $(SRC)\load_module.c $(SRC)\load_module.h
+	$(CC) $(CFLAGS) /c $(SRC)\load_module.c /Fo$@
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
-!if "$(TCMALLOC)"=="" && "$(VC12_CRT)"==""
+!if "$(TCMALLOC)"=="" && "$(VC12_CRT)"=="" && "$(MSVC_CRT)"<"1900"
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
 	        /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll

@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <ctype.h>
 
+#if _MSC_VER
+// Disable warning about DWORD -> void* on vc14
+#pragma warning(disable:4312)
+#endif
+
 void*  g_handle[PROCESS_NUM] = { NULL, };
 
 bool parse_shcommand(void)

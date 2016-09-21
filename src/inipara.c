@@ -14,6 +14,11 @@
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
 
+#ifndef THREAD_ACCESS
+#define THREAD_ACCESS \
+       (THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | THREAD_SET_CONTEXT)
+#endif
+
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
@@ -24,6 +29,8 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
+extern volatile   uint32_t nMainPid;
+extern WCHAR      appdata_path[VALUE_LEN+1];
 extern WCHAR      ini_path[MAX_PATH+1];
 extern char       logfile_buf[VALUE_LEN+1];
 
@@ -659,16 +666,61 @@ search_section_names(LPCWSTR moz_profile,
     return ret;
 }
 
-bool WINAPI 
-WaitWriteFile(LPCWSTR app_path)
+DWORD WINAPI GetMainThreadId(DWORD processId)
 {
+    DWORD threadId = 0;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (hSnapshot != INVALID_HANDLE_VALUE)
+    {
+        THREADENTRY32 te;
+        te.dwSize = sizeof(THREADENTRY32);
+        if (Thread32First(hSnapshot, &te))
+        {
+            do
+            {
+               if ( processId == te.th32OwnerProcessID )
+               {
+                   threadId = te.th32ThreadID;
+                   break;
+               }
+
+                te.dwSize = sizeof(THREADENTRY32);
+            } while (Thread32Next(hSnapshot, &te));
+        }
+        CloseHandle(hSnapshot);
+    }
+    return threadId;
+}
+
+unsigned WINAPI 
+WaitWriteFile(void * pParam)
+{
+    int*   flags = (int *)pParam;
     bool   ret   = false;
     LPWSTR szDir = NULL;
     WCHAR  moz_profile[MAX_PATH+1] = {0};
-    if ( !get_mozilla_profile(app_path, moz_profile, MAX_PATH) )
+    HANDLE hThread = NULL;
+    DWORD  threadId = 0;
+    if ( NULL == flags )
     {
-        return ret;
+        if ( (threadId=GetMainThreadId(nMainPid)) == 0 )
+        {
+            return (0);
+        }
+        hThread = OpenThread(THREAD_ACCESS, false, threadId);
+        if ( hThread == NULL )
+        {
+            return (0);
+        }
     }
+    if ( !get_mozilla_profile(appdata_path, moz_profile, MAX_PATH) )
+    {
+        return (0);
+    }
+    if ( NULL != hThread )
+    {
+        SuspendThread(hThread);
+    }    
     if ( exists_dir(moz_profile) )
     {
         WCHAR app_names[MAX_PATH+1] = {0};
@@ -714,13 +766,10 @@ WaitWriteFile(LPCWSTR app_path)
         }
         if ( szDir && PathRemoveFileSpecW( szDir ) && create_dir( szDir ) )
         {
-            if ( !WritePrivateProfileSectionW(\
-                 L"General",
-                 L"StartWithLastProfile=1\r\n\0",
-                 moz_profile))
-            {
-                SYS_FREE(szDir); return ret;
-            }
+            ret = WritePrivateProfileSectionW(\
+                  L"General",
+                  L"StartWithLastProfile=1\r\n\0",
+                  moz_profile);
             if ( is_specialapp(L"thunderbird.exe") )
             {
                 ret = WritePrivateProfileSectionW(\
@@ -744,8 +793,13 @@ WaitWriteFile(LPCWSTR app_path)
             }
         }
     }
+    if ( NULL != hThread )
+    {
+        ResumeThread(hThread);
+        CloseHandle(hThread);
+    }
     if ( szDir ) SYS_FREE(szDir);
-    return ret;
+    return (1);
 }
 
 DWORD WINAPI 

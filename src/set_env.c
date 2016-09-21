@@ -1,5 +1,6 @@
 #include "inipara.h"
 #include "set_env.h"
+#include "load_module.h"
 #include "MinHook.h"
 #include <windows.h>
 #include <shlwapi.h>
@@ -10,6 +11,11 @@
 #define	MAX_ENV_SIZE 8192
 typedef	int (__cdecl *MOZ_SETENV)(const wchar_t *env);
 extern  WCHAR ini_path[MAX_PATH+1];
+
+#if _MSC_VER
+// Disable warning about DWORD -> void* on vc14
+#pragma warning(disable:4312)
+#endif
 
 /* c风格的unicode字符串替换函数 */
 static WCHAR* 
@@ -62,9 +68,9 @@ static bool find_msvcrt(char *crt_buf, int len)
               ) ;
     while( true )
     {
-        bool             vc14 = false;
-        char*            pszDllName = NULL;
-        char             name[CRT_LEN+1] = {0};
+        bool  vc14 = false;
+        char* pszDllName = NULL;
+        char  name[CRT_LEN+1] = {0};
         IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
         IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
         if(pThunk == 0 && pThunkIAT == 0) break;
@@ -95,34 +101,84 @@ static bool find_msvcrt(char *crt_buf, int len)
 }
 
 /* 加载 msvcrt */
-static HMODULE 
-init_mscrt(const char* crt_name, MOZ_SETENV *wput_env)
+static HMODULE
+init_mscrt(const char *filename, MOZ_SETENV *wput_env)
 {
-    HMODULE hcrt = NULL;
-    do
+    FILE *fp;
+    unsigned char *data=NULL;
+    long size;
+    size_t read;
+    HMEMORYMODULE handle = NULL;
+    if ( GetOsVersion()>603 || *filename == 'm' )
     {
-        if ( (hcrt = LoadLibraryExA(crt_name ,NULL, 0)) == NULL )
+        UNREFERENCED_PARAMETER(fp);
+        UNREFERENCED_PARAMETER(size);
+        UNREFERENCED_PARAMETER(read);
+        do
         {
-            break;
-        }
-        if ( (*wput_env = (MOZ_SETENV)GetProcAddress(hcrt,"_wputenv")) == NULL )
+            if ( (handle = memDefaultLoadLibrary(filename ,NULL)) == NULL )
+            {
+                break;
+            }
+            if ( (*wput_env = (MOZ_SETENV)memDefaultGetProcAddress(handle,"_wputenv",NULL)) == NULL )
+            {
+                handle = NULL;
+                break;
+            }
+        }while(0);
+
+    }
+    else
+    {
+        do
         {
-            hcrt = NULL;
-            break;
-        }
-    }while(0);
-    return hcrt;
+            fp = fopen(filename, "rb");
+            if (fp == NULL)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("Can't open DLL file \"%s\".", filename);
+            #endif
+                break;
+            }
+
+            fseek(fp, 0, SEEK_END);
+            size = ftell(fp);
+            data = (unsigned char *)SYS_MALLOC(size);
+            fseek(fp, 0, SEEK_SET);
+            read = fread(data, 1, size, fp);
+            fclose(fp);
+
+            handle = memLoadLibrary(data, size);
+            if (handle == NULL)
+            {
+                break;
+            }
+
+            *wput_env = (MOZ_SETENV)memGetProcAddress(handle, "_wputenv");
+            if (*wput_env == NULL) 
+            {
+                handle = NULL;
+                break;
+            }
+
+        }while(0);
+    }
+    if ( NULL != data)
+    {
+        SYS_FREE(data);
+    }    
+    return handle;
 }
 
 unsigned WINAPI 
 pentadactyl_fixed(void * pParam)
 {
-    HMODULE    m_crt  = NULL;
-    WCHAR      *rc_path = NULL;
-    WCHAR      m_env[VALUE_LEN+1] = {0};
-    WCHAR      m_value[VALUE_LEN+1] = {0};
-    const char *crt_names = (const char *)pParam;
-    MOZ_SETENV my_putenv = NULL;
+    HMEMORYMODULE m_crt  = NULL;
+    WCHAR         *rc_path = NULL;
+    WCHAR         m_env[VALUE_LEN+1] = {0};
+    WCHAR         m_value[VALUE_LEN+1] = {0};
+    const char*   crt_names = (const char *)pParam;
+    MOZ_SETENV    my_putenv = NULL;
     if ( !read_appkey( L"Env",L"VimpPentaHome", m_value, sizeof(m_value), NULL ) )
     {
         return (0);
@@ -182,7 +238,13 @@ pentadactyl_fixed(void * pParam)
         }
     }while (0);
     SYS_FREE(rc_path);
-    FreeLibrary(m_crt);
+    if ( m_crt )
+    {
+        if ( GetOsVersion()>=603 || *crt_names == 'm' )
+            memDefaultFreeLibrary(m_crt, NULL);
+        else
+            memFreeLibrary(m_crt);
+    }
     return (1);
 }
 
@@ -237,25 +299,29 @@ set_plugins(void *pParam)
 
 void WINAPI set_envp(char *crt_names, int len)
 {
-    HMODULE    m_crt = NULL;
-    MOZ_SETENV moz_put_env = NULL;
+    HMEMORYMODULE m_crt = NULL;
+    MOZ_SETENV    moz_put_env = NULL;
     do
     {
         if ( !find_msvcrt(crt_names, len) )
         {
             break;
         }
+        
         if ( (m_crt = init_mscrt(crt_names, &moz_put_env)) 
               == NULL )
         {
             break;
         }
         foreach_env(moz_put_env);
-        set_plugins(moz_put_env);
+        set_plugins(moz_put_env); 
     }while(0);
     if ( m_crt )
     {
-        FreeLibrary(m_crt);
-    }
+        if ( GetOsVersion()>603 || *crt_names == 'm' )
+            memDefaultFreeLibrary(m_crt, NULL);
+        else
+            memFreeLibrary(m_crt);
+    } 
     return;
 }

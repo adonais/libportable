@@ -36,7 +36,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/load_module.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -77,6 +77,9 @@ LDFLAGS  += -L$(DISTDIR) -nostdlib $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = --define UNICODE -J rc -O coff
+ifeq ($(BITS),32)
+RCFLAGS  += -F pe-i386
+endif
 OBJECTS  += $(DEP)/resource.o
 OBJS     = $(OBJECTS)
 endif
@@ -112,6 +115,8 @@ $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/load_module.o  : $(SRC)/load_module.c $(SRC)/load_module.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) $< $(CFLAGS) -o $@

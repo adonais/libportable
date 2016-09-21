@@ -1,4 +1,4 @@
-HOW TO BUILD libportable_src
+HOW TO BUILD libportable source code?
 =================
 
 System requirements
@@ -18,7 +18,7 @@ System requirements
 
      Microsoft Visual Studio .
 
- Build!
+Build!
 ------------------
 mingw64 compiler 
 
@@ -37,3 +37,9 @@ vc compiler
 
 nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc
+
+--------------------
+vs2015
+
+nmake -f Makefile.msvc clean
+nmake -f Makefile.msvc MSVC_CRT=1900

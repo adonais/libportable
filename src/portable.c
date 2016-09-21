@@ -60,7 +60,7 @@ volatile long nProCout SHARED = -1;
 volatile uint32_t nMainPid SHARED = 0;
 WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
 char     logfile_buf[VALUE_LEN+1] SHARED = {0};
-static   WCHAR appdata_path[VALUE_LEN+1] SHARED = {0};
+WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
 static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
 #pragma data_seg()
@@ -131,39 +131,6 @@ apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void**
     return ret;
 }
 
-/* 初始化全局变量 */
-static bool
-init_global_env(void)
-{
-    /* 如果ini文件里的appdata设置路径为相对路径 */
-    if (appdata_path[1] != L':')
-    {
-        PathToCombineW(appdata_path,VALUE_LEN);
-    }
-    if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path),NULL) )
-    {
-        /* 修正相对路径问题 */
-        if (localdata_path[1] != L':')
-        {
-            PathToCombineW(localdata_path,VALUE_LEN);
-        }
-    }
-    else
-    {
-        wcsncpy(localdata_path,appdata_path,VALUE_LEN);
-    }
-    
-    if ( appdata_path[0] != L'\0' )
-    {
-        wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
-    }
-    if ( localdata_path[0] != L'\0' )
-    {
-        wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
-    }   
-    
-    return WaitWriteFile(appdata_path);
-}
 
 HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
         int nFolder,
@@ -296,6 +263,50 @@ static void init_portable(void)
     return;
 }
 
+
+/* 初始化全局变量 */
+static bool
+init_global_env(const char* crt)
+{   
+    int flags = 1;
+    /* 如果ini文件里的appdata设置路径为相对路径 */
+    if (appdata_path[1] != L':')
+    {
+        PathToCombineW(appdata_path,VALUE_LEN);
+    }
+    if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path),NULL) )
+    {
+        /* 修正相对路径问题 */
+        if (localdata_path[1] != L':')
+        {
+            PathToCombineW(localdata_path,VALUE_LEN);
+        }
+    }
+    else
+    {
+        wcsncpy(localdata_path,appdata_path,VALUE_LEN);
+    }
+    
+    if ( appdata_path[0] != L'\0' )
+    {
+        wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
+    }
+    if ( localdata_path[0] != L'\0' )
+    {
+        wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
+    }
+    if ( GetOsVersion()>503 && GetOsVersion()<604 && \
+         sizeof(void *)*8==64 && *crt=='u' )
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&WaitWriteFile,NULL,0,NULL));
+    }
+    else
+    {
+        WaitWriteFile(&flags);
+    }
+    return true;
+}
+
 #if defined(__GNUC__) && defined(__LTO__)
 #pragma GCC push_options
 #pragma GCC optimize ("O3")
@@ -353,28 +364,29 @@ void WINAPI do_it(void)
         {
             return;
         }
-        if ( true )
-        {
-            /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
-            set_envp(m_crt, CRT_LEN);
-        }
+       
         if ( read_appint(L"General", L"Portable") <= 0 )
         {
             return;
+        }
+        if ( true )
+        {
+            /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
+            set_envp(m_crt, CRT_LEN); 
         }
         if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
         {
             /* 预设默认的配置文件所在路径 */
             _snwprintf(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
         }
-        if ( !init_global_env() )
+        if ( !init_global_env(m_crt) )
         {
             return;
         }
         if ( *m_crt == 'u' || *m_crt == 'm' )
         {
             /* 在专门的线程中设置vim home变量,它不需要太快加载 */
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed,m_crt,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed,m_crt,0,NULL)); 
         }
     }
     if ( true )
