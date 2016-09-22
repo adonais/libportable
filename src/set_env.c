@@ -11,6 +11,7 @@
 #define	MAX_ENV_SIZE 8192
 typedef	int (__cdecl *MOZ_SETENV)(const wchar_t *env);
 extern  WCHAR ini_path[MAX_PATH+1];
+static  MOZ_SETENV envPtrw = NULL;
 
 #if _MSC_VER
 // Disable warning about DWORD -> void* on vc14
@@ -170,43 +171,36 @@ init_mscrt(const char *filename, MOZ_SETENV *wput_env)
     return handle;
 }
 
-unsigned WINAPI 
-pentadactyl_fixed(void * pParam)
+static void  
+pentadactyl_fixed(void)
 {
-    HMEMORYMODULE m_crt  = NULL;
     WCHAR         *rc_path = NULL;
     WCHAR         m_env[VALUE_LEN+1] = {0};
     WCHAR         m_value[VALUE_LEN+1] = {0};
-    const char*   crt_names = (const char *)pParam;
-    MOZ_SETENV    my_putenv = NULL;
     if ( !read_appkey( L"Env",L"VimpPentaHome", m_value, sizeof(m_value), NULL ) )
     {
-        return (0);
-    }
-    if ( (m_crt = init_mscrt(crt_names, &my_putenv)) == NULL )
-    {
-        return (0);
+        return;
     }
     if ( !(PathToCombineW(m_value, VALUE_LEN) && create_dir(m_value)) )
     {
-        return (0);
+        return;
     }
     if ( (rc_path = (WCHAR *)SYS_MALLOC(VALUE_LEN+1)) == NULL )
     {
-        return 0;
+        return;
     }
     do
     {
         int m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
         if ( m > 0 &&  m < VALUE_LEN )
         {
-            my_putenv( m_env );
+            envPtrw( m_env );
         }
         dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
         m = _snwprintf(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
         if ( m > 0 &&  m < VALUE_LEN )
         {
-            my_putenv( m_env );
+            envPtrw( m_env );
         }
         m = _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
         if ( !(m > 0 &&  m < VALUE_LEN) )
@@ -216,7 +210,7 @@ pentadactyl_fixed(void * pParam)
         m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_INIT=:source ", rc_path);
         if ( m > 0 &&  m < VALUE_LEN )
         {
-            my_putenv( m_env );
+            envPtrw( m_env );
         }
         if ( rc_path[1] == L':' && !exists_dir(rc_path) )
         {
@@ -238,23 +232,15 @@ pentadactyl_fixed(void * pParam)
         }
     }while (0);
     SYS_FREE(rc_path);
-    if ( m_crt )
-    {
-        if ( GetOsVersion()>=603 || *crt_names == 'm' )
-            memDefaultFreeLibrary(m_crt, NULL);
-        else
-            memFreeLibrary(m_crt);
-    }
-    return (1);
+    return;
 }
 
 static void 
-foreach_env(void *pParam)
+foreach_env(void)
 {
     LPWSTR     m_key;
     /* 使用栈空间, 节省申请堆的时间 */
     WCHAR      env_buf[MAX_ENV_SIZE+1];
-    MOZ_SETENV my_putenv = (MOZ_SETENV)pParam;
     if ( GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini_path) < 4 )
     {
         return;
@@ -267,7 +253,7 @@ foreach_env(void *pParam)
              _wcsnicmp( m_key, L"TmpDataPath", wcslen(L"TmpDataPath") ) != 0
            )
         {
-            my_putenv( m_key );
+            envPtrw( m_key );
         }
         m_key += wcslen(m_key)+1;
     }
@@ -275,10 +261,9 @@ foreach_env(void *pParam)
 }
 
 static void 
-set_plugins(void *pParam)
+set_plugins(void)
 {
     WCHAR      val_str[VALUE_LEN+1] = {0};
-    MOZ_SETENV my_putenv = (MOZ_SETENV)pParam;
     if ( read_appkey( L"Env",L"NpluginPath", val_str, sizeof(val_str), NULL ) )
     {
         WCHAR env_str[VALUE_LEN+1] = {0};
@@ -291,7 +276,7 @@ set_plugins(void *pParam)
                       ) > 0
           )
         {
-            my_putenv( env_str );
+            envPtrw( env_str );
         }
     }
     return;
@@ -300,7 +285,6 @@ set_plugins(void *pParam)
 void WINAPI set_envp(char *crt_names, int len)
 {
     HMEMORYMODULE m_crt = NULL;
-    MOZ_SETENV    moz_put_env = NULL;
     do
     {
         if ( !find_msvcrt(crt_names, len) )
@@ -308,13 +292,17 @@ void WINAPI set_envp(char *crt_names, int len)
             break;
         }
         
-        if ( (m_crt = init_mscrt(crt_names, &moz_put_env)) 
+        if ( (m_crt = init_mscrt(crt_names, &envPtrw)) 
               == NULL )
         {
             break;
         }
-        foreach_env(moz_put_env);
-        set_plugins(moz_put_env); 
+        if ( NULL != envPtrw )
+        {
+            foreach_env();
+            set_plugins();
+            pentadactyl_fixed();
+        }
     }while(0);
     if ( m_crt )
     {

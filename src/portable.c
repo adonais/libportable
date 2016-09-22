@@ -383,11 +383,6 @@ void WINAPI do_it(void)
         {
             return;
         }
-        if ( *m_crt == 'u' || *m_crt == 'm' )
-        {
-            /* 在专门的线程中设置vim home变量,它不需要太快加载 */
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&pentadactyl_fixed,m_crt,0,NULL)); 
-        }
     }
     if ( true )
     {

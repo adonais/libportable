@@ -8,7 +8,6 @@ extern "C" {
 #endif
 
 extern void     __stdcall set_envp(char *crt_names, int len);
-extern unsigned __stdcall pentadactyl_fixed(void * pParam);
 
 #ifdef __cplusplus
 }
