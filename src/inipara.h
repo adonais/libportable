@@ -17,9 +17,11 @@
 #define   goodHandle(m_handle) ( (m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE) )
 
 #if defined(__GNUC__)
+#define LIB_INLINE inline __attribute__((__gnu_inline__))
 #define SHARED __attribute__((section(".shrd"), shared))
 #define USERED __attribute__ ((__used__))
 #else
+#define LIB_INLINE __inline
 #define SHARED
 #define USERED extern
 #endif
@@ -29,6 +31,7 @@
 #endif
 
 #define fzero(b,len)  (__stosb((LPBYTE)(b), '\0', (len)))
+extern LIB_INLINE bool is_wow64() {int wow64=0; return IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
 
 typedef HMODULE (WINAPI *LoadLibraryExWPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
 typedef struct tagWNDINFO

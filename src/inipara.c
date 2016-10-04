@@ -14,11 +14,6 @@
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
 
-#ifndef THREAD_ACCESS
-#define THREAD_ACCESS \
-       (THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | THREAD_SET_CONTEXT)
-#endif
-
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
@@ -29,7 +24,6 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
-extern volatile   uint32_t nMainPid;
 extern WCHAR      appdata_path[VALUE_LEN+1];
 extern WCHAR      ini_path[MAX_PATH+1];
 extern char       logfile_buf[VALUE_LEN+1];
@@ -321,6 +315,7 @@ replace_separator(LPWSTR path)        /* 替换unix风格的路径符号 */
     return;
 }
 
+
 bool WINAPI 
 exists_dir(LPCWSTR path) 
 {
@@ -333,7 +328,7 @@ exists_dir(LPCWSTR path)
 }
 
 bool WINAPI 
-create_dir(LPCWSTR full_path) 
+create_dir2(LPCWSTR full_path) 
 {
     int err;
     if (exists_dir(full_path))
@@ -342,6 +337,25 @@ create_dir(LPCWSTR full_path)
     }
     err = SHCreateDirectoryExW(NULL, full_path, NULL);
     return err == ERROR_SUCCESS;
+}
+
+bool WINAPI 
+create_dir(LPCWSTR dir)
+{
+    LPWSTR p = NULL;
+    WCHAR  tmp_name[MAX_PATH];
+    wcscpy(tmp_name, dir);
+    p = wcschr(tmp_name, L'\\');
+    for ( ; p != NULL; *p = L'\\', p = wcschr(p+1, L'\\') )
+    {
+        *p = L'\0';
+        if (exists_dir(tmp_name))
+        {
+            continue;
+        }
+        CreateDirectoryW(tmp_name, NULL);
+    }
+    return (CreateDirectoryW(tmp_name, NULL)||GetLastError() == ERROR_ALREADY_EXISTS);
 }
 
 bool WINAPI 
@@ -666,61 +680,17 @@ search_section_names(LPCWSTR moz_profile,
     return ret;
 }
 
-DWORD WINAPI GetMainThreadId(DWORD processId)
-{
-    DWORD threadId = 0;
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-    if (hSnapshot != INVALID_HANDLE_VALUE)
-    {
-        THREADENTRY32 te;
-        te.dwSize = sizeof(THREADENTRY32);
-        if (Thread32First(hSnapshot, &te))
-        {
-            do
-            {
-               if ( processId == te.th32OwnerProcessID )
-               {
-                   threadId = te.th32ThreadID;
-                   break;
-               }
-
-                te.dwSize = sizeof(THREADENTRY32);
-            } while (Thread32Next(hSnapshot, &te));
-        }
-        CloseHandle(hSnapshot);
-    }
-    return threadId;
-}
-
 unsigned WINAPI 
 WaitWriteFile(void * pParam)
 {
-    int*   flags = (int *)pParam;
     bool   ret   = false;
     LPWSTR szDir = NULL;
     WCHAR  moz_profile[MAX_PATH+1] = {0};
-    HANDLE hThread = NULL;
-    DWORD  threadId = 0;
-    if ( NULL == flags )
-    {
-        if ( (threadId=GetMainThreadId(nMainPid)) == 0 )
-        {
-            return (0);
-        }
-        hThread = OpenThread(THREAD_ACCESS, false, threadId);
-        if ( hThread == NULL )
-        {
-            return (0);
-        }
-    }
+
     if ( !get_mozilla_profile(appdata_path, moz_profile, MAX_PATH) )
     {
         return (0);
-    }
-    if ( NULL != hThread )
-    {
-        SuspendThread(hThread);
-    }    
+    }  
     if ( exists_dir(moz_profile) )
     {
         WCHAR app_names[MAX_PATH+1] = {0};
@@ -792,11 +762,6 @@ WaitWriteFile(void * pParam)
                       moz_profile);
             }
         }
-    }
-    if ( NULL != hThread )
-    {
-        ResumeThread(hThread);
-        CloseHandle(hThread);
     }
     if ( szDir ) SYS_FREE(szDir);
     return (1);

@@ -174,23 +174,24 @@ init_mscrt(const char *filename, MOZ_SETENV *wput_env)
 static void  
 pentadactyl_fixed(void)
 {
-    WCHAR         *rc_path = NULL;
-    WCHAR         m_env[VALUE_LEN+1] = {0};
-    WCHAR         m_value[VALUE_LEN+1] = {0};
+    WCHAR rc_path[VALUE_LEN+1] = {0};
+    WCHAR m_env[VALUE_LEN+1] = {0};
+    WCHAR m_value[VALUE_LEN+1] = {0};
     if ( !read_appkey( L"Env",L"VimpPentaHome", m_value, sizeof(m_value), NULL ) )
     {
         return;
+    } 
+    if ( !PathToCombineW(m_value, VALUE_LEN) )
+    {
+        return;
     }
+    
     if ( !(PathToCombineW(m_value, VALUE_LEN) && create_dir(m_value)) )
     {
         return;
     }
-    if ( (rc_path = (WCHAR *)SYS_MALLOC(VALUE_LEN+1)) == NULL )
-    {
-        return;
-    }
     do
-    {
+    {  
         int m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
         if ( m > 0 &&  m < VALUE_LEN )
         {
@@ -202,6 +203,7 @@ pentadactyl_fixed(void)
         {
             envPtrw( m_env );
         }
+        
         m = _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
         if ( !(m > 0 &&  m < VALUE_LEN) )
         {
@@ -214,24 +216,23 @@ pentadactyl_fixed(void)
         }
         if ( rc_path[1] == L':' && !exists_dir(rc_path) )
         {
-            DWORD  m_bytes;
             const  char* desc = "\" File created by libportable.\r\n"
                                 "loadplugins \'\\.(js|penta)$\'\r\n";
             HANDLE h_file = CreateFileW(rc_path,
                             GENERIC_WRITE,
-                            FILE_SHARE_WRITE,
+                            0,
                             NULL,
                             OPEN_ALWAYS,
                             FILE_ATTRIBUTE_NORMAL,
                             NULL);
             if ( goodHandle(h_file) )
             {
+                DWORD  m_bytes;
                 WriteFile(h_file, desc, (DWORD)strlen(desc), &m_bytes, NULL);
                 CloseHandle(h_file);
             }
         }
     }while (0);
-    SYS_FREE(rc_path);
     return;
 }
 
@@ -310,6 +311,6 @@ void WINAPI set_envp(char *crt_names, int len)
             memDefaultFreeLibrary(m_crt, NULL);
         else
             memFreeLibrary(m_crt);
-    } 
+    }
     return;
 }

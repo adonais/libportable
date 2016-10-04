@@ -73,7 +73,7 @@ memset_nontemporal_tt ( void *dest, int c, unsigned long count )
     return memset_avx(dest, c, count);
 }
 
-
+/* Get the second level cache size */
 TETE_EXT_CLASS uint32_t
 GetNonTemporalDataSizeMin_tt( void )
 {
@@ -131,6 +131,20 @@ apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void**
     return ret;
 }
 
+static void 
+apihook_dtors(void)
+{
+    int i;
+    for ( i = 0 ; i < EXCLUDE_NUM; ++i )
+    {
+        if ( m_target[i] > 0 )
+        {
+            MH_DisableHook((void *)m_target[i]);
+            m_target[i] = 0;
+        }
+    }
+    return;
+}
 
 HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
         int nFolder,
@@ -268,7 +282,6 @@ static void init_portable(void)
 static bool
 init_global_env(const char* crt)
 {   
-    int flags = 1;
     /* 如果ini文件里的appdata设置路径为相对路径 */
     if (appdata_path[1] != L':')
     {
@@ -295,16 +308,7 @@ init_global_env(const char* crt)
     {
         wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
     }
-    if ( GetOsVersion()>503 && GetOsVersion()<604 && \
-         sizeof(void *)*8==64 && *crt=='u' )
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&WaitWriteFile,NULL,0,NULL));
-    }
-    else
-    {
-        WaitWriteFile(&flags);
-    }
-    return true;
+    return WaitWriteFile(NULL);
 }
 
 #if defined(__GNUC__) && defined(__LTO__)
@@ -315,34 +319,22 @@ init_global_env(const char* crt)
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
-    int i;
+    /* 计数器复位 */
     if ( --nProCout == -1 || nMainPid == ff_info.hPid )
     {
         _InterlockedExchange(&nRunOnce, 0);
         *(long volatile*)&nProCout = -1;
     }
+    /* 解除快捷键 */
     if (ff_info.atom_str)
     {
         UnregisterHotKey(NULL, ff_info.atom_str);
         GlobalDeleteAtom(ff_info.atom_str);
     }
-    if (g_handle[0]>0)
-    {
-        for ( i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i )
-        {
-            TerminateProcess(g_handle[i], (DWORD)-1);
-            CloseHandle(g_handle[i]);
-        }
-        refresh_tray();
-    }
-    for ( i = 0 ; i < EXCLUDE_NUM; ++i )
-    {
-        if ( m_target[i] > 0 )
-        {
-            MH_DisableHook((void *)m_target[i]);
-            m_target[i] = 0;
-        }
-    }
+    /* 清理启动过的进程树 */
+    kill_trees();
+    /* 解除inline hook */
+    apihook_dtors();
     jmp_end();
 #ifndef DISABLE_SAFE
     safe_end();

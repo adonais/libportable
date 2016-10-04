@@ -13,7 +13,8 @@
 #pragma warning(disable:4312)
 #endif
 
-void*  g_handle[PROCESS_NUM] = { NULL, };
+#define PROCESS_NUM 10
+static  void* g_handle[PROCESS_NUM];
 
 bool parse_shcommand(void)
 {
@@ -149,6 +150,21 @@ void WINAPI refresh_tray(void)
         int y = m_trayToolBar.bottom / 2;
         PostMessage(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
     }
+}
+
+void WINAPI kill_trees(void)
+{
+    if (g_handle[0]>0)
+    {
+        int i;
+        for ( i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i )
+        {
+            TerminateProcess(g_handle[i], (DWORD)-1);
+            CloseHandle(g_handle[i]);
+        }
+        refresh_tray();
+    }
+    return;
 }
 
 unsigned WINAPI run_process(void * pParam)

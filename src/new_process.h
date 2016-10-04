@@ -1,15 +1,13 @@
 #ifndef _NEW_PROCESS_H
 #define _NEW_PROCESS_H
 
-#define	  PROCESS_NUM 10
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern void*    g_handle[PROCESS_NUM];     /* process tree handle */
 extern unsigned __stdcall run_process(void * pParam);
 extern void     __stdcall refresh_tray(void);
+extern void     __stdcall kill_trees(void);
 
 #ifdef __cplusplus
 }

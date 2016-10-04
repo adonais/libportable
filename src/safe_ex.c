@@ -349,7 +349,6 @@ static bool
 is_authorized(LPCWSTR lpFileName)
 {
     bool    ret   = false;
-    int     wow64 = 0;
     LPWSTR  filename = NULL;
     WCHAR   *szAuthorizedList[] = { L"comctl32.dll", 
                                     L"uxtheme.dll", 
@@ -368,8 +367,8 @@ is_authorized(LPCWSTR lpFileName)
                                     L"gdi32.dll",
                                     L"dwmapi.dll"
                                   };
+    bool     wow64 = is_wow64();
     uint16_t line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
-    IsWow64Process(NtCurrentProcess(),&wow64);
     if (lpFileName[1] == L':')
     {
         wchar_t sysdir[VALUE_LEN+1] = {0};
