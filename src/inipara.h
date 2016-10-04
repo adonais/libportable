@@ -70,7 +70,8 @@ extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini å
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void);
 extern bool     WINAPI get_mozprofiles_path(LPCWSTR, wchar_t*, int);
-extern bool     WINAPI GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen);
+extern bool     WINAPI GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen);
+extern bool     WINAPI GetCurrentWorkDirA(LPSTR lpstrName, DWORD len);
 extern unsigned WINAPI WaitWriteFile(void * pParam);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);

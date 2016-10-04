@@ -496,7 +496,7 @@ GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 }
 
 bool WINAPI 
-GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
+GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen)
 {
     int   i = 0;
     WCHAR lpFullPath[MAX_PATH+1] = {0};
@@ -516,6 +516,18 @@ GetCurrentWorkDir(LPWSTR lpstrName, DWORD wlen)
         }
     }
     return (i>0 && i<(int)wlen);
+}
+
+bool WINAPI 
+GetCurrentWorkDirA(LPSTR lpstrName, DWORD len)
+{
+    int   i = 0;
+    WCHAR wPath[MAX_PATH+1] = {0};
+    if ( GetCurrentWorkDirW(wPath,MAX_PATH) )
+    {
+        i = WideCharToMultiByte(CP_ACP, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
+    }
+    return (i>0 && i<(int)len);
 }
 
 static __inline bool is_ff_dev(void)

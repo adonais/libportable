@@ -111,7 +111,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
             {
                 temp[lp-temp] = L'\0';
                 _snwprintf(m_para,VALUE_LEN,L" "L"%ls",lp+1);
-                if ( !GetCurrentWorkDir(wdir,len) )
+                if ( !GetCurrentWorkDirW(wdir,len) )
                 {
                     wdir[0] = L'\0';
                 }

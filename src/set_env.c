@@ -45,7 +45,8 @@ dull_replace( WCHAR *in,              /* 目标字符串 */
 }
 
  /* 不硬编码文件名,而是从输入表查找CRT版本 */
-static bool find_msvcrt(char *crt_buf, int len)
+static bool 
+find_msvcrt(char *crt_buf, int len)
 {
     bool ret = false;
     IMAGE_DOS_HEADER         *pDos;
@@ -133,11 +134,19 @@ init_mscrt(const char *filename, MOZ_SETENV *wput_env)
     {
         do
         {
-            fp = fopen(filename, "rb");
-            if (fp == NULL)
+            char lpPath[MAX_PATH+1] = {0};
+            if ( !GetCurrentWorkDirA(lpPath, MAX_PATH) )
+            {
+                break;
+            }
+            if ( !PathAppendA(lpPath, filename) )
+            {
+                break;
+            }
+            if ( (fp = fopen(lpPath, "rb")) == NULL )
             {
             #ifdef _LOGDEBUG
-                logmsg("Can't open DLL file \"%s\".", filename);
+                logmsg("Can't open DLL file \"%s\".", lpPath);
             #endif
                 break;
             }
@@ -154,7 +163,6 @@ init_mscrt(const char *filename, MOZ_SETENV *wput_env)
             {
                 break;
             }
-
             *wput_env = (MOZ_SETENV)memGetProcAddress(handle, "_wputenv");
             if (*wput_env == NULL) 
             {
