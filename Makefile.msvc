@@ -52,7 +52,7 @@ MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
-	   $(DEP)\load_module.obj $(DEP)\set_env.obj
+	   $(DEP)\load_module.obj $(DEP)\win_registry.obj $(DEP)\set_env.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -124,6 +124,8 @@ $(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
 	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
 $(DEP)\load_module.obj  : $(SRC)\load_module.c $(SRC)\load_module.h
 	$(CC) $(CFLAGS) /c $(SRC)\load_module.c /Fo$@
+$(DEP)\win_registry.obj : $(SRC)\win_registry.c $(SRC)\win_registry.h
+	$(CC) $(CFLAGS) /c $(SRC)\win_registry.c /Fo$@
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
 !if "$(TCMALLOC)"=="" && "$(VC12_CRT)"=="" && "$(MSVC_CRT)"<"1900"

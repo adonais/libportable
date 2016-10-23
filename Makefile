@@ -36,7 +36,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/load_module.o
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/load_module.o $(DEP)/win_registry.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -117,6 +117,8 @@ $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/load_module.o  : $(SRC)/load_module.c $(SRC)/load_module.h
+	$(CC) $< $(CFLAGS) -o $@
+$(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) $< $(CFLAGS) -o $@

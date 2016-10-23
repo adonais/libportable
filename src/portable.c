@@ -13,6 +13,7 @@
 #include "cpu_info.h"
 #include "balance.h"
 #include "set_env.h"
+#include "win_registry.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -335,6 +336,7 @@ void WINAPI undo_it(void)
     kill_trees();
     /* 解除inline hook */
     apihook_dtors();
+    winreg_end();
     jmp_end();
 #ifndef DISABLE_SAFE
     safe_end();
@@ -393,6 +395,10 @@ void WINAPI do_it(void)
             init_safed(NULL);
         }
     #endif
+        if ( read_appint(L"General", L"DisableScan") > 0 )
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
+        }
         if ( read_appint(L"General",L"CreateCrashDump") )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
