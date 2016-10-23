@@ -44,7 +44,6 @@ typedef bool (WINAPI *SHGetSpecialFolderPathWPtr)(HWND hwndOwner,
         LPWSTR lpszPath,
         int    csidl,
         bool   fCreate);
-typedef void (CALLBACK *user_func)(void);
 
 static  WNDINFO  ff_info;
 static  intptr_t m_target[EXCLUDE_NUM];
@@ -374,7 +373,7 @@ void WINAPI do_it(void)
         }
         if ( !init_global_env() )
         {
-            return;
+            ;
         }
     }
     if ( true )
