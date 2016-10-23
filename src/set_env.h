@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern void     __stdcall set_envp(char *crt_names, int len);
+extern void __stdcall set_envp(void *);
 
 #ifdef __cplusplus
 }

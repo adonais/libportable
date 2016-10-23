@@ -280,7 +280,7 @@ static void init_portable(void)
 
 /* 初始化全局变量 */
 static bool
-init_global_env(const char* crt)
+init_global_env(void)
 {   
     /* 如果ini文件里的appdata设置路径为相对路径 */
     if (appdata_path[1] != L':')
@@ -345,7 +345,6 @@ void WINAPI undo_it(void)
 
 void WINAPI do_it(void)
 {
-    static char m_crt[CRT_LEN+1];
     if ( ++nProCout>2048 || !nRunOnce )
     {
         if ( !init_parser(ini_path, MAX_PATH) )
@@ -364,14 +363,14 @@ void WINAPI do_it(void)
         if ( true )
         {
             /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
-            set_envp(m_crt, CRT_LEN); 
+            set_envp(NULL); 
         }
         if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
         {
             /* 预设默认的配置文件所在路径 */
             _snwprintf(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
         }
-        if ( !init_global_env(m_crt) )
+        if ( !init_global_env() )
         {
             return;
         }

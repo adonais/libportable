@@ -9,9 +9,9 @@
 #include <stdio.h>
 
 #define	MAX_ENV_SIZE 8192
-typedef	int (__cdecl *MOZ_SETENV)(const wchar_t *env);
+typedef	int (__cdecl *pSetEnv)(const char *env);
 extern  WCHAR ini_path[MAX_PATH+1];
-static  MOZ_SETENV envPtrw = NULL;
+static  pSetEnv envPtrA = NULL;
 
 #if _MSC_VER
 // Disable warning about DWORD -> void* on vc14
@@ -44,139 +44,12 @@ dull_replace( WCHAR *in,              /* 目标字符串 */
     return in_ptr;
 }
 
- /* 不硬编码文件名,而是从输入表查找CRT版本 */
-static bool 
-find_msvcrt(char *crt_buf, int len)
+static int envPtrw(LPCWSTR env)
 {
-    bool ret = false;
-    IMAGE_DOS_HEADER         *pDos;
-    IMAGE_OPTIONAL_HEADER    *pOptHeader;
-    IMAGE_IMPORT_DESCRIPTOR  *pImport ;
-    HMODULE hMod=LoadLibraryExW(L"mozglue.dll" ,NULL, 0);   
-    if (!hMod)
-    {
-        return ret;
-    }
-    pDos = (IMAGE_DOS_HEADER *)hMod;
-    pOptHeader = (IMAGE_OPTIONAL_HEADER *)(
-                 (BYTE *)hMod
-                 + pDos->e_lfanew
-                 + SIZE_OF_NT_SIGNATURE
-                 + sizeof(IMAGE_FILE_HEADER)
-                 );
-    pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
-               (BYTE *)hMod
-               + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
-              ) ;
-    while( true )
-    {
-        bool  vc14 = false;
-        char* pszDllName = NULL;
-        char  name[CRT_LEN+1] = {0};
-        IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
-        IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
-        if(pThunk == 0 && pThunkIAT == 0) break;
-        pszDllName = (char*)((BYTE*)hMod+pImport->Name);
-        vc14 = PathMatchSpecA(pszDllName,"vcruntime*.dll");
-        if ( vc14 || PathMatchSpecA(pszDllName,"msvcr*.dll") )
-        {
-            if ( vc14 )
-            {
-                const char* ucrt = "ucrtbase.dll";
-                strncpy(crt_buf,ucrt,len);
-            }
-            else
-            {
-                strncpy(name,pszDllName,CRT_LEN);
-                strncpy(crt_buf,CharLowerA(name),len);
-            }
-            ret = true;
-        #ifdef _LOGDEBUG
-            logmsg("crt_buf[%s]\n", crt_buf);
-        #endif
-            break;
-        }
-        pImport++;
-    }
-    FreeLibrary(hMod);
-    return ret;
-}
-
-/* 加载 msvcrt */
-static HMODULE
-init_mscrt(const char *filename, MOZ_SETENV *wput_env)
-{
-    FILE *fp;
-    unsigned char *data=NULL;
-    long size;
-    size_t read;
-    HMEMORYMODULE handle = NULL;
-    if ( GetOsVersion()>603 || *filename == 'm' )
-    {
-        UNREFERENCED_PARAMETER(fp);
-        UNREFERENCED_PARAMETER(size);
-        UNREFERENCED_PARAMETER(read);
-        do
-        {
-            if ( (handle = memDefaultLoadLibrary(filename ,NULL)) == NULL )
-            {
-                break;
-            }
-            if ( (*wput_env = (MOZ_SETENV)memDefaultGetProcAddress(handle,"_wputenv",NULL)) == NULL )
-            {
-                handle = NULL;
-                break;
-            }
-        }while(0);
-
-    }
-    else
-    {
-        do
-        {
-            char lpPath[MAX_PATH+1] = {0};
-            if ( !GetCurrentWorkDirA(lpPath, MAX_PATH) )
-            {
-                break;
-            }
-            if ( !PathAppendA(lpPath, filename) )
-            {
-                break;
-            }
-            if ( (fp = fopen(lpPath, "rb")) == NULL )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("Can't open DLL file \"%s\".", lpPath);
-            #endif
-                break;
-            }
-
-            fseek(fp, 0, SEEK_END);
-            size = ftell(fp);
-            data = (unsigned char *)SYS_MALLOC(size);
-            fseek(fp, 0, SEEK_SET);
-            read = fread(data, 1, size, fp);
-            fclose(fp);
-
-            handle = memLoadLibrary(data, size);
-            if (handle == NULL)
-            {
-                break;
-            }
-            *wput_env = (MOZ_SETENV)memGetProcAddress(handle, "_wputenv");
-            if (*wput_env == NULL) 
-            {
-                handle = NULL;
-                break;
-            }
-
-        }while(0);
-    }
-    if ( NULL != data)
-    {
-        SYS_FREE(data);
-    }    
-    return handle;
+    int  len = MAX_PATH;
+    char lpkey[MAX_PATH+1] = {0};
+    WideCharToMultiByte(CP_ACP, 0, env, -1, lpkey, len, NULL, NULL);
+    return envPtrA( lpkey );
 }
 
 static void  
@@ -244,6 +117,117 @@ pentadactyl_fixed(void)
     return;
 }
 
+static bool 
+find_ucrt(LPCSTR names, char *ucrt_path, int len)
+{
+    bool ret = false;   
+    do
+    {
+        const char* path = "%SystemRoot%";
+        char  lpPath[MAX_PATH+1] = {0};
+        if ( !GetCurrentWorkDirA(ucrt_path, len) )
+        {
+            break;
+        }
+        if ( !PathAppendA(ucrt_path, names) )
+        {
+            break;
+        }
+        if ( !!(ret = PathFileExistsA(ucrt_path)) )
+        {
+            break;
+        }
+        if ( !ExpandEnvironmentStringsA(path, lpPath, MAX_PATH) )
+        {
+            break;
+        }
+        if ( ucrt_path )
+        {
+            ucrt_path[len-1] = '\0';
+        }
+        if ( is_wow64() )
+        {
+            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "SysWOW64", names);
+        }
+        else
+        {
+            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "System32", names);
+        }
+        ret = ucrt_path[len-1] == '\0' && PathFileExistsA(ucrt_path);
+    } while (0);
+    return ret;
+}
+
+/* 加载 nss3.dll */
+static HMODULE init_mscrt(int *n)
+{
+    FILE *fp = NULL;
+    unsigned char *data=NULL;
+    long size;
+    size_t read;
+    HMEMORYMODULE handle = NULL;
+    UNREFERENCED_PARAMETER(n);
+    UNREFERENCED_PARAMETER(fp);
+    UNREFERENCED_PARAMETER(size);
+    UNREFERENCED_PARAMETER(read);
+    do
+    {
+        if ( (handle = memDefaultLoadLibrary("nss3.dll" ,NULL)) != NULL )
+        {
+            if ( (envPtrA = (pSetEnv)memDefaultGetProcAddress(handle,"PR_SetEnv",NULL)) != NULL )
+            {
+                break;
+            }
+        }
+    #ifdef _LOGDEBUG
+        logmsg("memDefaultLoadLibrary(nss3.dll) faild[%lu]\n", GetLastError());
+    #endif
+        if ( true )
+        {
+            char  lpPath[MAX_PATH+1] = {0};
+            if ( !find_ucrt("ucrtbase.dll", lpPath, MAX_PATH) )
+            {
+                break;
+            }
+            if ( (fp = fopen(lpPath, "rb")) == NULL )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("Can't open DLL file \"%s\".", lpPath);
+            #endif
+                break;
+            }
+
+            fseek(fp, 0, SEEK_END);
+            size = ftell(fp);
+            data = (unsigned char *)SYS_MALLOC(size);
+            fseek(fp, 0, SEEK_SET);
+            read = fread(data, 1, size, fp);
+            fclose(fp);
+
+            handle = memLoadLibrary(data, size);
+            if (handle == NULL)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("memLoadLibrary(%s) faild\n", lpPath);
+            #endif
+                break;
+            }
+            if ((envPtrA = (pSetEnv)memGetProcAddress(handle, "_putenv")) == NULL)
+            {
+                memDefaultFreeLibrary(handle, NULL);
+                handle = NULL;
+                break;
+            }
+            *n = 1;
+        }
+    } while (0);
+    if ( NULL != data)
+    {
+        SYS_FREE(data);
+    }    
+    return handle;
+}
+
 static void 
 foreach_env(void)
 {
@@ -291,22 +275,18 @@ set_plugins(void)
     return;
 }
 
-void WINAPI set_envp(char *crt_names, int len)
+void WINAPI set_envp(void * non_use)
 {
-    HMEMORYMODULE m_crt = NULL;
+    int     fn_load = 0;
+    HMODULE m_crt = NULL;
     do
     {
-        if ( !find_msvcrt(crt_names, len) )
+        if ( (m_crt = init_mscrt(&fn_load)) == NULL )
         {
             break;
         }
-        
-        if ( (m_crt = init_mscrt(crt_names, &envPtrw)) 
-              == NULL )
-        {
-            break;
-        }
-        if ( NULL != envPtrw )
+     
+        if ( NULL != envPtrA )
         {
             foreach_env();
             set_plugins();
@@ -315,10 +295,7 @@ void WINAPI set_envp(char *crt_names, int len)
     }while(0);
     if ( m_crt )
     {
-        if ( GetOsVersion()>603 || *crt_names == 'm' )
-            memDefaultFreeLibrary(m_crt, NULL);
-        else
-            memFreeLibrary(m_crt);
+        fn_load?memFreeLibrary(m_crt):memDefaultFreeLibrary(m_crt, NULL);
     }
     return;
 }
