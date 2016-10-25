@@ -26,7 +26,7 @@ typedef struct _LANGANDCODEPAGE
 
 extern WCHAR      appdata_path[VALUE_LEN+1];
 extern WCHAR      ini_path[MAX_PATH+1];
-extern char       logfile_buf[VALUE_LEN+1];
+extern char       logfile_buf[MAX_PATH+1];
 
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
@@ -595,7 +595,7 @@ is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
 
 /* 获取profiles.ini文件绝对路径,保存到in_dir数组 */
 static __inline bool 
-get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
+get_mozilla_profile(LPWSTR in_dir, int len)
 {
     int m = 0;
     if (is_specialapp(L"thunderbird.exe"))
@@ -603,7 +603,7 @@ get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
         m = _snwprintf(in_dir,
                        (size_t)len,
                        L"%ls%ls",
-                       app_path,
+                       appdata_path,
                        L"\\Thunderbird\\profiles.ini"
                       );
     }
@@ -612,36 +612,12 @@ get_mozilla_profile(LPCWSTR app_path, LPWSTR in_dir, int len)
         m = _snwprintf(in_dir,
                        (size_t)len,
                        L"%ls%ls",
-                       app_path,
+                       appdata_path,
                        L"\\Mozilla\\Firefox\\profiles.ini"
                       );
     }
     in_dir[m] = L'\0';
     return (m>0 && m<len);
-}
-
-/* 获取配置文件夹所在路径,保存到dist_buf */
-bool WINAPI 
-get_mozprofiles_path(LPCWSTR app_path, WCHAR *dist_buf, int len)
-{
-    int ret = 0;
-    do
-    {
-        if ( !dist_buf )
-        {
-            break;
-        }
-        if ( read_appint(L"General", L"Portable") <= 0 )
-        {
-            break;
-        }
-        ret = _snwprintf(dist_buf,(size_t)len,L"%ls",app_path);
-        if ( ret > 1 && ret < len )
-        {
-            ret = PathRemoveFileSpecW(dist_buf);
-        }
-    } while (0);
-    return (ret>0&&ret<len);
 }
 
 /* 查找moz_values所在段,并把段名保存在out_names数组
@@ -699,7 +675,7 @@ WaitWriteFile(void * pParam)
     LPWSTR szDir = NULL;
     WCHAR  moz_profile[MAX_PATH+1] = {0};
 
-    if ( !get_mozilla_profile(appdata_path, moz_profile, MAX_PATH) )
+    if ( !get_mozilla_profile(moz_profile, MAX_PATH) )
     {
         return (0);
     }  

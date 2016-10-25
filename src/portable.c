@@ -59,7 +59,7 @@ volatile long nRunOnce SHARED = 0;
 volatile long nProCout SHARED = -1;
 volatile uint32_t nMainPid SHARED = 0;
 WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
-char     logfile_buf[VALUE_LEN+1] SHARED = {0};
+char     logfile_buf[MAX_PATH+1] SHARED = {0};
 WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
 static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
