@@ -150,9 +150,11 @@ set_cpu_balance(void *fx_info)
     int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
     /* 修复非mozclass窗体无限循环的bug */
-    if ( (is_browser() || is_specialapp(L"thunderbird.exe")) ? 
-         (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
+    if ( is_browser() ? (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
     {
+    #ifdef _LOGDEBUG
+        logmsg("not browser!!!!\n");
+    #endif  
         return (0);
     }
     _snwprintf(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());

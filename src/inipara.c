@@ -27,6 +27,7 @@ typedef struct _LANGANDCODEPAGE
 extern WCHAR      appdata_path[VALUE_LEN+1];
 extern WCHAR      ini_path[MAX_PATH+1];
 extern char       logfile_buf[MAX_PATH+1];
+extern volatile   uint32_t nMainPid;
 
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
@@ -545,12 +546,7 @@ static __inline bool is_ff_dev(void)
 
 bool WINAPI is_browser(void)
 {
-    WCHAR process_name[VALUE_LEN+1];
-    GetCurrentProcessName(process_name,VALUE_LEN);
-    return ( !(_wcsicmp(process_name, L"Iceweasel.exe") &&
-               _wcsicmp(process_name, L"firefox.exe")	&&
-               _wcsicmp(process_name, L"lawlietfox.exe") )
-           );
+    return ( nMainPid == GetCurrentProcessId() && !is_specialapp(L"plugin-container.exe") );
 }
 
 bool WINAPI 

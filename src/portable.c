@@ -355,8 +355,7 @@ void WINAPI do_it(void)
         if ( (nMainPid = GetCurrentProcessId()) < 0x4 )
         {
             return;
-        }
-       
+        }  
         if ( read_appint(L"General", L"Portable") <= 0 )
         {
             return;
@@ -382,6 +381,9 @@ void WINAPI do_it(void)
         ff_info.hPid = GetCurrentProcessId();
         if (MH_Initialize() != MH_OK)
         {
+        #ifdef _LOGDEBUG
+            logmsg("MH_Initialize false!!!!\n");
+        #endif 
             return;
         }
         if ( appdata_path[1] == L':' )
@@ -394,22 +396,25 @@ void WINAPI do_it(void)
             init_safed(NULL);
         }
     #endif
-        if ( read_appint(L"General", L"DisableScan") > 0 )
+        if (  is_browser() )
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
-        }
-        if ( read_appint(L"General",L"CreateCrashDump") )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
-        }
-        if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+            if ( read_appint(L"General", L"DisableScan") > 0 )
+            {
+                CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
+            }
+            if ( read_appint(L"General",L"CreateCrashDump") != 0 )
+            {
+                CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
+            }
+            if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+            {
+                CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+            }
         }
     }
     /* 使用计数器方式判断是否浏览器重启? */
     if ( !nRunOnce )
-    {
+    { 
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));

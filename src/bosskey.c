@@ -105,7 +105,7 @@ unsigned WINAPI bosskey_thread(void * lparam)
     MSG msg;
     LPWNDINFO lpInfo = (LPWNDINFO)lparam;
     set_hotkey(lpInfo);
-    if ( is_browser()  || is_specialapp(L"thunderbird.exe") )
+    if ( is_browser() )
     {
         if ( init_bosskey(lpInfo) )
         {
