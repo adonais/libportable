@@ -412,7 +412,8 @@ HWND WINAPI
 get_moz_hwnd(LPWNDINFO pInfo)
 {
     HWND hwnd = NULL;
-    while ( !pInfo->hFF )    /* 等待主窗口并获取句柄 */
+    int  i = 10;
+    while ( !pInfo->hFF && i-- )    /* 等待主窗口并获取句柄,增加线程退出倒计时8s */
     {
         bool  m_loop = false;
         DWORD dwProcessId = 0;

@@ -6,7 +6,10 @@
 bool init_bosskey(LPWNDINFO pInfo)
 {
     WCHAR atom[8+1] = {0};
-    get_moz_hwnd(pInfo);
+    if ( !get_moz_hwnd(pInfo) )
+    {
+        return false;
+    }
     _ui64tow(pInfo->hPid,atom,10);
     pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;    
     return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
@@ -105,16 +108,13 @@ unsigned WINAPI bosskey_thread(void * lparam)
     MSG msg;
     LPWNDINFO lpInfo = (LPWNDINFO)lparam;
     set_hotkey(lpInfo);
-    if ( is_browser() )
+    if ( init_bosskey(lpInfo) )
     {
-        if ( init_bosskey(lpInfo) )
+        while( GetMessageW(&msg, NULL, 0, 0) > 0 )
         {
-            while( GetMessageW(&msg, NULL, 0, 0) > 0 )
-            {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-                EnumWindows(find_chwnd, (LPARAM)lpInfo);
-            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            EnumWindows(find_chwnd, (LPARAM)lpInfo);
         }
     }
     return (1);

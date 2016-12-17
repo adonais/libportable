@@ -149,14 +149,6 @@ set_cpu_balance(void *fx_info)
     WCHAR         m_name[32] = {0};
     int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
-    /* 修复非mozclass窗体无限循环的bug */
-    if ( is_browser() ? (m_hwnd = get_moz_hwnd(m_info)) == NULL : false )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("not browser!!!!\n");
-    #endif  
-        return (0);
-    }
     _snwprintf(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());
     m_timer = CreateWaitableTimerW(NULL, false, m_name);
     if ( !m_timer )

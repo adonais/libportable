@@ -396,25 +396,22 @@ void WINAPI do_it(void)
             init_safed(NULL);
         }
     #endif
-        if (  is_browser() )
+        if ( read_appint(L"General",L"CreateCrashDump") != 0 )
         {
-            if ( read_appint(L"General", L"DisableScan") > 0 )
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
-            }
-            if ( read_appint(L"General",L"CreateCrashDump") != 0 )
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
-            }
-            if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
-            }
+            init_exeception(NULL);
         }
     }
     /* 使用计数器方式判断是否浏览器重启? */
     if ( !nRunOnce )
     { 
+        if ( read_appint(L"General", L"DisableScan") > 0 )
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
+        }
+        if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+        }
         if ( read_appint(L"General", L"Bosskey") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
