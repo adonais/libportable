@@ -6,8 +6,7 @@ LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
 AR       =$(CROSS_COMPILING)ar
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG \
-            -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
+            -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
 LTO      :=
 
 MD       = mkdir -p

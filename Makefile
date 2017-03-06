@@ -23,7 +23,7 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-            -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
+            -Wno-unknown-pragmas -finline-functions \
             -DWINVER=0x0501 -D_WIN32_IE=0x0601  -mavx
 
 MD       = mkdir -p
@@ -73,7 +73,7 @@ TETE     = $(DISTDIR)/tmemutil.dll
 DEPLIBS  = -Wl,-static -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
 LDFLAGS  += -L$(DISTDIR) -nostdlib $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 \
-            -static-libgcc --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,--gc-sections -Wl,-s
+            -static-libgcc --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,-s
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = --define UNICODE -J rc -O coff

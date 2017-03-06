@@ -75,7 +75,7 @@ CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 !if "$(TCMALLOC)"=="1"
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !ELSEIF "$(MSVC_CRT)">="1900"
-LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
+LDFLAGS  =  $(LDFLAGS) legacy_stdio_definitions.lib /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:LIBCMT /SECTION:.shrd,RWS
 !else
 OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
