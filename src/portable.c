@@ -68,7 +68,7 @@ static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 
 /* AVX memset with non-temporal instructions */
 TETE_EXT_CLASS void * __cdecl 
-memset_nontemporal_tt ( void *dest, int c, unsigned long count )
+memset_nontemporal_tt ( void *dest, int c, size_t count )
 {
     return memset_avx(dest, c, count);
 }

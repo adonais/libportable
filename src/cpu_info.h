@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 extern uint32_t __stdcall get_level_size(void);
-extern void*    __cdecl   memset_avx(void*, int, unsigned long);
+extern void*    __cdecl   memset_avx(void*, int, size_t);
 
 #ifdef __cplusplus
 }

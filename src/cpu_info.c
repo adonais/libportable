@@ -51,31 +51,27 @@ get_cache_size(void)
 
 /* using non-temporal avx */
 void* __cdecl 
-memset_avx(void* dest, int c, unsigned long count)
+memset_avx(void* dst, int c, size_t size)
 {
-    uint32_t i;
-    uint8_t* end_dst = NULL;
-    const    uint32_t count256 = count / sizeof(__m256i);
-    const    uint8_t  non_aligned = count % sizeof(__m256i);
-    __m256i  vals;
-    if ( !cpu_has_avx() )
-    {
-        return memset(dest, c, count);
-    }    
-    if ( non_aligned )
-    {
-        end_dst = (uint8_t*)dest;
-    }
+    uint8_t  *buffer = (uint8_t *)dst;
+    __m256i  vals;  
+    /* fill head */
+    uintptr_t head = 32 - (uintptr_t)buffer % 32;
+    memset(buffer, c, head);
+    buffer += head;
+    size -= head;
     vals = _mm256_set1_epi8(c);
-    for (i = 0; i < count256; i++)
+    while (size >= 128)
     {
-        _mm256_stream_si256((__m256i*)dest+i, vals);
+        _mm256_stream_si256((__m256i*)buffer + 0, vals);
+        _mm256_stream_si256((__m256i*)buffer + 1, vals);
+        _mm256_stream_si256((__m256i*)buffer + 2, vals);
+        _mm256_stream_si256((__m256i*)buffer + 3, vals);
+        buffer += 128;
+        size -= 128;
     }
-    if ( end_dst )
-    {
-        __stosb(end_dst+i*32, (uint8_t)c, non_aligned);
-    }
-    return dest;
+    /* fill tail */
+    return memset(buffer, c, size);
 }
 
 uint32_t __stdcall 
