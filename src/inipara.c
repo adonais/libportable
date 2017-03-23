@@ -532,7 +532,7 @@ GetCurrentWorkDirA(LPSTR lpstrName, DWORD len)
     return (i>0 && i<(int)len);
 }
 
-static __inline bool is_ff_dev(void)
+static LIB_INLINE bool is_ff_dev(void)
 {
     bool     ret = false;
     WCHAR    process_name[VALUE_LEN+1];
@@ -591,7 +591,7 @@ is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
 }
 
 /* 获取profiles.ini文件绝对路径,保存到in_dir数组 */
-static __inline bool 
+static LIB_INLINE bool 
 get_mozilla_profile(LPWSTR in_dir, int len)
 {
     int m = 0;

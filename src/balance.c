@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <windows.h>
 
-static __inline int
+static LIB_INLINE int
 get_cpu_works(void)
 {
     SYSTEM_INFO si;
@@ -12,7 +12,7 @@ get_cpu_works(void)
     return (int)(si.dwNumberOfProcessors);
 }
 
-static __inline uint64_t             /* 时间转换 */
+static LIB_INLINE uint64_t             /* 时间转换 */
 ft2ull(const FILETIME* ftime)
 {
     ULARGE_INTEGER li;
@@ -107,7 +107,7 @@ get_cpu_usage(LPVOID lpArg,                /* 用户apc回调参数 */
 #endif
 }
 
-static __inline bool 
+static LIB_INLINE bool 
 is_foreground_window(HWND hwnd)
 {
     return ( GetWindowThreadProcessId(hwnd, NULL) ==

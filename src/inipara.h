@@ -20,17 +20,19 @@
 #define LIB_INLINE inline __attribute__((__gnu_inline__))
 #define SHARED __attribute__((section(".shrd"), shared))
 #define USERED __attribute__ ((__used__))
+#define ALIGNED32 __attribute((aligned (32)))
 #else
 #define LIB_INLINE __inline
 #define SHARED
 #define USERED extern
+#define ALIGNED32 __declspec(align(32))
 #endif
 
 #ifdef _LOGDEBUG
 #define LOG_FILE    "run_hook.log"
 #endif
 
-#define fzero(b,len)  (__stosb((LPBYTE)(b), '\0', (len)))
+#define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))
 extern LIB_INLINE bool is_wow64() {int wow64=0; return IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
 
 typedef HMODULE (WINAPI *LoadLibraryExWPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
