@@ -17,8 +17,7 @@ static  pSetEnv envPtrA = NULL;
 #pragma warning(disable:4312)
 #endif
 
-/* c风格的unicode字符串替换函数 */
-static WCHAR* 
+static WCHAR*       /* c风格的unicode字符串替换函数 */
 dull_replace( WCHAR *in,              /* 目标字符串 */      
               size_t in_size,         /* 字符串长度 */
               const WCHAR *pattern,
@@ -43,7 +42,8 @@ dull_replace( WCHAR *in,              /* 目标字符串 */
     return in_ptr;
 }
 
-static int envPtrw(LPCWSTR env)
+static LIB_INLINE int 
+envPtrw(LPCWSTR env)
 {
     int  len = MAX_PATH;
     char lpkey[MAX_PATH+1] = {0};
@@ -51,7 +51,220 @@ static int envPtrw(LPCWSTR env)
     return envPtrA( lpkey );
 }
 
-static void  
+static bool 
+find_mscrt(HMODULE hMod, char *crt_buf, int len)
+{
+    bool ret = false;
+    IMAGE_DOS_HEADER         *pDos;
+    IMAGE_OPTIONAL_HEADER    *pOptHeader;
+    IMAGE_IMPORT_DESCRIPTOR  *pImport ; 
+    if (!hMod)
+    {
+        return ret;
+    }
+    pDos = (IMAGE_DOS_HEADER *)hMod;
+    pOptHeader = (IMAGE_OPTIONAL_HEADER *)(
+                 (BYTE *)hMod
+                 + pDos->e_lfanew
+                 + SIZE_OF_NT_SIGNATURE
+                 + sizeof(IMAGE_FILE_HEADER)
+                 );
+    pImport = (IMAGE_IMPORT_DESCRIPTOR * )(
+               (BYTE *)hMod
+               + pOptHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress
+              ) ;
+    while( true )
+    {
+        char*            pszDllName = NULL;
+        char             name[CRT_LEN+1] = {0};
+        IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
+        IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
+        if(pThunk == 0 && pThunkIAT == 0) break;
+        pszDllName = (char*)((BYTE*)hMod+pImport->Name);
+        if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
+        {
+            strncpy(name,pszDllName,CRT_LEN);
+            strncpy(crt_buf,CharLowerA(name),len);
+            ret = true;
+        #ifdef _LOGDEBUG
+            logmsg("crt_buf[%s]\n", crt_buf);
+        #endif
+            break;
+        }
+        pImport++;
+    }
+    return ret;
+}
+
+static bool   /* 在当前目录或系统目录查找 */
+find_ucrt(LPCSTR names, char *ucrt_path, int len)
+{
+    bool ret = false;   
+    do
+    {
+        const char* path = "%SystemRoot%";
+        char  lpPath[MAX_PATH+1] = {0};
+        if ( !GetCurrentWorkDirA(ucrt_path, len) )
+        {
+            break;
+        }
+        if ( !PathAppendA(ucrt_path, names) )
+        {
+            break;
+        }
+        if ( !!(ret = PathFileExistsA(ucrt_path)) )
+        {
+            break;
+        }
+        if ( !ExpandEnvironmentStringsA(path, lpPath, MAX_PATH) )
+        {
+            break;
+        }
+        if ( ucrt_path )
+        {
+            ucrt_path[len-1] = '\0';
+        }
+        if ( is_wow64() )
+        {
+            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "SysWOW64", names);
+        }
+        else
+        {
+            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "System32", names);
+        }
+        ret = ucrt_path[len-1] == '\0' && PathFileExistsA(ucrt_path);
+    } while (0);
+    return ret;
+}
+
+static HMODULE  /* 加载 nss3.dll或msvcr*.dll或ucrtbase.dll */
+init_mscrt(int *n)
+{
+    FILE *fp = NULL;
+    uint8_t *data=NULL;
+    long size;
+    size_t read;
+    HMEMORYMODULE handle = NULL;;
+    UNREFERENCED_PARAMETER(fp);
+    UNREFERENCED_PARAMETER(size);
+    *n = 0;
+    do
+    {
+        if ( (handle = memDefaultLoadLibrary("nss3.dll" ,NULL)) != NULL )
+        {
+            char crt_names[CRT_LEN+1]= { 0 };
+            if ( (envPtrA = (pSetEnv)memDefaultGetProcAddress(handle,"PR_SetEnv",NULL)) != NULL )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("memDefaultGetProcAddress(PR_SetEnv 0x%x)\n", (uintptr_t)envPtrA);
+            #endif
+                break;
+            }
+            /* 兼容旧版fx */
+            if ( !find_mscrt(handle, crt_names, CRT_LEN) )
+            {
+                break;
+            }
+            if ( *crt_names == 'm' && (handle = memDefaultLoadLibrary(crt_names ,NULL)) != NULL && 
+                 (envPtrA = (pSetEnv)memDefaultGetProcAddress(handle,"_putenv",NULL)) != NULL )
+            {
+                break;
+            }
+        }
+    #ifdef _LOGDEBUG
+        logmsg("memDefaultLoadLibrary(nss3.dll) fail[%lu]\n", GetLastError());
+    #endif
+        if ( NULL == envPtrA )
+        {
+            char  lpPath[MAX_PATH+1] = {0};
+            if ( !find_ucrt("ucrtbase.dll", lpPath, MAX_PATH) )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("not found ucrtbase.dll.\n");
+            #endif
+                break;
+            }
+            if ( (fp = fopen(lpPath, "rb")) == NULL )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("Can't open DLL file \"%s\".", lpPath);
+            #endif
+                break;
+            }
+
+            fseek(fp, 0, SEEK_END);
+            size = ftell(fp);
+            data = (uint8_t *)SYS_MALLOC(size);
+            fseek(fp, 0, SEEK_SET);
+            read = fread(data, 1, size, fp);
+            fclose(fp);
+
+            handle = memLoadLibrary(data, size);
+            if (handle == NULL)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("memLoadLibrary(%s) fail\n", lpPath);
+            #endif
+                break;
+            }
+            envPtrA = (pSetEnv)memGetProcAddress(handle, "_putenv");
+            *n = 1;
+        }
+    } while (0);
+    if ( NULL != data)
+    {
+        SYS_FREE(data);
+    }    
+    return handle;
+}
+
+static void    /* 导入env字段下的环境变量 */
+foreach_env(void)
+{
+    LPWSTR     m_key;
+    WCHAR      env_buf[MAX_ENV_SIZE+1];
+    if ( GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini_path) < 4 )
+    {
+        return;
+    }
+    m_key = env_buf;
+    while(*m_key != L'\0')
+    {
+        if ( _wcsnicmp(m_key, L"NpluginPath", wcslen(L"NpluginPath")) &&
+             _wcsnicmp(m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome")) &&
+             _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath"))
+           )
+        {
+            envPtrw( m_key );
+        }
+        m_key += wcslen(m_key)+1;
+    }
+    return;
+}
+
+static void  /* 重定向插件目录 */
+set_plugins(void)
+{
+    WCHAR      val_str[VALUE_LEN+1] = {0};
+    if ( read_appkey( L"Env",L"NpluginPath", val_str, sizeof(val_str), NULL ) )
+    {
+        WCHAR env_str[VALUE_LEN+1] = {0};
+        PathToCombineW( val_str, VALUE_LEN );
+        if ( _snwprintf(env_str,
+                       VALUE_LEN,
+                       L"%ls%ls",
+                       L"MOZ_PLUGIN_PATH=",
+                       val_str
+                      ) > 0
+          )
+        {
+            envPtrw( env_str );
+        }
+    }
+    return;
+}
+
+static void  /* 重定向Pentadactyl/Vimperator主目录 */
 pentadactyl_fixed(void)
 {
     WCHAR rc_path[VALUE_LEN+1] = {0};
@@ -111,167 +324,10 @@ pentadactyl_fixed(void)
     return;
 }
 
-static bool 
-find_ucrt(LPCSTR names, char *ucrt_path, int len)
+void WINAPI 
+set_envp(void * non_use)
 {
-    bool ret = false;   
-    do
-    {
-        const char* path = "%SystemRoot%";
-        char  lpPath[MAX_PATH+1] = {0};
-        if ( !GetCurrentWorkDirA(ucrt_path, len) )
-        {
-            break;
-        }
-        if ( !PathAppendA(ucrt_path, names) )
-        {
-            break;
-        }
-        if ( !!(ret = PathFileExistsA(ucrt_path)) )
-        {
-            break;
-        }
-        if ( !ExpandEnvironmentStringsA(path, lpPath, MAX_PATH) )
-        {
-            break;
-        }
-        if ( ucrt_path )
-        {
-            ucrt_path[len-1] = '\0';
-        }
-        if ( is_wow64() )
-        {
-            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "SysWOW64", names);
-        }
-        else
-        {
-            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "System32", names);
-        }
-        ret = ucrt_path[len-1] == '\0' && PathFileExistsA(ucrt_path);
-    } while (0);
-    return ret;
-}
-
-/* 加载 nss3.dll */
-static HMODULE init_mscrt(int *n)
-{
-    FILE *fp = NULL;
-    uint8_t *data=NULL;
-    long size;
-    size_t read;
-    HMEMORYMODULE handle = NULL;
-    UNREFERENCED_PARAMETER(n);
-    UNREFERENCED_PARAMETER(fp);
-    UNREFERENCED_PARAMETER(size);
-    UNREFERENCED_PARAMETER(read);
-    do
-    {
-        if ( (handle = memDefaultLoadLibrary("nss3.dll" ,NULL)) != NULL )
-        {
-            if ( (envPtrA = (pSetEnv)memDefaultGetProcAddress(handle,"PR_SetEnv",NULL)) != NULL )
-            {
-                break;
-            }
-        }
-    #ifdef _LOGDEBUG
-        logmsg("memDefaultLoadLibrary(nss3.dll) faild[%lu]\n", GetLastError());
-    #endif
-        if ( true )
-        {
-            char  lpPath[MAX_PATH+1] = {0};
-            if ( !find_ucrt("ucrtbase.dll", lpPath, MAX_PATH) )
-            {
-                break;
-            }
-            if ( (fp = fopen(lpPath, "rb")) == NULL )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("Can't open DLL file \"%s\".", lpPath);
-            #endif
-                break;
-            }
-
-            fseek(fp, 0, SEEK_END);
-            size = ftell(fp);
-            data = (uint8_t *)SYS_MALLOC(size);
-            fseek(fp, 0, SEEK_SET);
-            read = fread(data, 1, size, fp);
-            fclose(fp);
-
-            handle = memLoadLibrary(data, size);
-            if (handle == NULL)
-            {
-            #ifdef _LOGDEBUG
-                logmsg("memLoadLibrary(%s) faild\n", lpPath);
-            #endif
-                break;
-            }
-            if ((envPtrA = (pSetEnv)memGetProcAddress(handle, "_putenv")) == NULL)
-            {
-                memFreeLibrary(handle, NULL);
-                handle = NULL;
-                break;
-            }
-            *n = 1;
-        }
-    } while (0);
-    if ( NULL != data)
-    {
-        SYS_FREE(data);
-    }    
-    return handle;
-}
-
-static void 
-foreach_env(void)
-{
-    LPWSTR     m_key;
-    /* 使用栈空间, 节省申请堆的时间 */
-    WCHAR      env_buf[MAX_ENV_SIZE+1];
-    if ( GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini_path) < 4 )
-    {
-        return;
-    }
-    m_key = env_buf;
-    while(*m_key != L'\0')
-    {
-        if ( _wcsnicmp(m_key, L"NpluginPath", wcslen(L"NpluginPath")) &&
-             _wcsnicmp(m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome")) &&
-             _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath"))
-           )
-        {
-            envPtrw( m_key );
-        }
-        m_key += wcslen(m_key)+1;
-    }
-    return;
-}
-
-static void 
-set_plugins(void)
-{
-    WCHAR      val_str[VALUE_LEN+1] = {0};
-    if ( read_appkey( L"Env",L"NpluginPath", val_str, sizeof(val_str), NULL ) )
-    {
-        WCHAR env_str[VALUE_LEN+1] = {0};
-        PathToCombineW( val_str, VALUE_LEN );
-        if ( _snwprintf(env_str,
-                       VALUE_LEN,
-                       L"%ls%ls",
-                       L"MOZ_PLUGIN_PATH=",
-                       val_str
-                      ) > 0
-          )
-        {
-            envPtrw( env_str );
-        }
-    }
-    return;
-}
-
-void WINAPI set_envp(void * non_use)
-{
-    int     fn_load = 0;
+    int     fn_load;
     HMODULE m_crt = NULL;
     do
     {

@@ -3,16 +3,13 @@
 #include <tchar.h>
 
 #if _MSC_VER
-// Disable warning about data -> function pointer conversion
 #pragma warning(disable:4055)
- // C4244: conversion from 'uintptr_t' to 'uint32_t', possible loss of data.
 #pragma warning(error: 4244)
-// C4267: conversion from 'size_t' to 'int', possible loss of data.
 #pragma warning(error: 4267)
 #endif
 
 #ifndef IMAGE_SIZEOF_BASE_RELOCATION
-// Vista SDKs no longer define IMAGE_SIZEOF_BASE_RELOCATION!?
+/* 某些版本没有定义IMAGE_SIZEOF_BASE_RELOCATION */
 #define IMAGE_SIZEOF_BASE_RELOCATION (sizeof(IMAGE_BASE_RELOCATION))
 #endif
 
@@ -217,7 +214,7 @@ FinalizeSection(PMEMORYMODULE module, PSECTIONFINALIZEDATA sectionData)
     }
 
     // change memory access flags
-    if (VirtualProtect(sectionData->address, sectionData->size, protect, &oldProtect) == 0) 
+    if (VirtualProtect(sectionData->address, sectionData->size, protect, (PDWORD)&oldProtect) == 0) 
     {
     #ifdef _LOGDEBUG
         logmsg("Error protecting memory page\n");
@@ -414,7 +411,7 @@ BuildImportTable(PMEMORYMODULE module)
             funcRef = (FARPROC *) (codeBase + importDesc->FirstThunk);
         } else 
         {
-            // no hint table
+            /* 没有hint表项 */
             thunkRef = (uintptr_t *) (codeBase + importDesc->FirstThunk);
             funcRef = (FARPROC *) (codeBase + importDesc->FirstThunk);
         }
@@ -538,7 +535,7 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
 
     if (old_header->OptionalHeader.SectionAlignment & 1) 
     {
-        // Only support section alignments that are a multiple of 2
+        /* 只支持对齐的区段,2的整数倍 */
         SetLastError(ERROR_BAD_EXE_FORMAT);
         return NULL;
     }
@@ -550,9 +547,10 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
         size_t endOfSection;
         if (section->SizeOfRawData == 0) 
         {
-            // Section without data in the DLL
+            /* 区段内没有数据 */
             endOfSection = section->VirtualAddress + optionalSectionSize;
-        } else {
+        } else 
+        {
             endOfSection = section->VirtualAddress + section->SizeOfRawData;
         }
 
@@ -570,9 +568,7 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
         return NULL;
     }
 
-    // reserve memory for image of library
-    // XXX: is it correct to commit the complete memory region at once?
-    //      calling DllEntry raises an exception if we don't...
+    /* 以dll的ImageBase映像地址分配虚拟内存空间,如果不这样做,运行dll入口函数时将发生异常 */
     code = (uint8_t *)allocMemory((LPVOID)(old_header->OptionalHeader.ImageBase),
            alignedImageSize,
            MEM_RESERVE | MEM_COMMIT,
@@ -581,7 +577,7 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
 
     if (code == NULL) 
     {
-        // try to allocate memory at arbitrary position
+        /* 尝试在任意位置分配虚拟内存 */
         code = (uint8_t *)allocMemory(NULL,
                alignedImageSize,
                MEM_RESERVE | MEM_COMMIT,
@@ -617,27 +613,27 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
         goto error;
     }
 
-    // commit memory for headers
+    /* 为NT映像头分配保留的内存页空间 */
     headers = (uint8_t *)allocMemory(code,
               old_header->OptionalHeader.SizeOfHeaders,
               MEM_COMMIT,
               PAGE_READWRITE,
               userdata);
 
-    // copy PE header to code
+    /* 从dos_header开始,拷贝PE头到code地址 */
     memcpy(headers, dos_header, old_header->OptionalHeader.SizeOfHeaders);
     result->headers = (PIMAGE_NT_HEADERS)&((const uint8_t *)(headers))[dos_header->e_lfanew];
 
-    // update position
+    /* 更新DLL在进程内部的映像地址 */
     result->headers->OptionalHeader.ImageBase = (uintptr_t)code;
 
-    // copy sections from DLL file block to new memory location
+    /* 拷贝各区段到新的内存位置 */
     if (!CopySections((const uint8_t *) data, size, old_header, result)) 
     {
         goto error;
     }
 
-    // adjust base address of imported data
+    /* 调整导入表数据的映像基址 */
     locationDelta = (ptrdiff_t)(result->headers->OptionalHeader.ImageBase - old_header->OptionalHeader.ImageBase);
     if (locationDelta != 0) 
     {
@@ -647,32 +643,31 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
         result->isRelocated = true;
     }
 
-    // load required dlls and adjust function table of imports
+    /* 加载依赖的dll与重建输入表 */
     if (!BuildImportTable(result)) 
     {
         goto error;
     }
 
-    // mark memory pages depending on section headers and release
-    // sections that are marked as "discardable"
+    /* 根据区段头标记内存页面,释放的区段标记为"废弃" */
     if (!FinalizeSections(result)) 
     {
         goto error;
     }
 
-    // TLS callbacks are executed BEFORE the main loading
+    /* 在dllmain运行之前,初始化tls */
     if (!ExecuteTLS(result)) 
     {
         goto error;
     }
 
-    // get entry point of loaded library
+    /* 获取动态库的入口指针 */
     if (result->headers->OptionalHeader.AddressOfEntryPoint != 0) 
     {
         if (result->isDLL) 
         {
             DllEntryPtr DllEntry = (DllEntryPtr)(LPVOID)(code + result->headers->OptionalHeader.AddressOfEntryPoint);
-            // notify library about attaching to process
+            /* 当DLL加载到进程时运行 */
             bool successfull = (*DllEntry)((HINSTANCE)code, DLL_PROCESS_ATTACH, 0);
             if (!successfull) 
             {
@@ -692,7 +687,6 @@ HMEMORYMODULE memLoadLibraryEx(const void *data, size_t size,
     return (HMEMORYMODULE)result;
 
 error:
-    // cleanup
     memFreeLibrary(result);
     return NULL;
 }
@@ -705,7 +699,7 @@ FARPROC memGetProcAddress(HMEMORYMODULE module, LPCSTR name)
     PIMAGE_DATA_DIRECTORY directory = GET_HEADER_DICTIONARY((PMEMORYMODULE)module, IMAGE_DIRECTORY_ENTRY_EXPORT);
     if (directory->Size == 0) 
     {
-        // no export table found
+        /* 没有输入表项 */
         SetLastError(ERROR_PROC_NOT_FOUND);
         return NULL;
     }
@@ -713,14 +707,14 @@ FARPROC memGetProcAddress(HMEMORYMODULE module, LPCSTR name)
     exports = (PIMAGE_EXPORT_DIRECTORY) (codeBase + directory->VirtualAddress);
     if (exports->NumberOfNames == 0 || exports->NumberOfFunctions == 0) 
     {
-        // DLL doesn't export anything
+        /* 输入表没有任何条目 */
         SetLastError(ERROR_PROC_NOT_FOUND);
         return NULL;
     }
 
     if (HIWORD(name) == 0) 
     {
-        // load function by ordinal value
+        /* 通过序号查找函数 */
         if (LOWORD(name) < exports->Base) 
         {
             SetLastError(ERROR_PROC_NOT_FOUND);
@@ -728,8 +722,9 @@ FARPROC memGetProcAddress(HMEMORYMODULE module, LPCSTR name)
         }
 
         idx = LOWORD(name) - exports->Base;
-    } else {
-        // search function name in list of exported names
+    } else 
+    {
+        /* 通过函数名称查找函数 */
         uint32_t i;
         uint32_t *nameRef = (uint32_t *) (codeBase + exports->AddressOfNames);
         WORD *ordinal = (WORD *) (codeBase + exports->AddressOfNameOrdinals);
@@ -749,7 +744,7 @@ FARPROC memGetProcAddress(HMEMORYMODULE module, LPCSTR name)
 
         if (!found) 
         {
-            // exported symbol not found
+            /* 函数名称没找到 */
             SetLastError(ERROR_PROC_NOT_FOUND);
             return NULL;
         }
@@ -757,12 +752,12 @@ FARPROC memGetProcAddress(HMEMORYMODULE module, LPCSTR name)
 
     if (idx > exports->NumberOfFunctions) 
     {
-        // name <-> ordinal number don't match
+        /* 序号值也没找到 */
         SetLastError(ERROR_PROC_NOT_FOUND);
         return NULL;
     }
 
-    // AddressOfFunctions contains the RVAs to the "real" functions
+    /* 函数所在地址rva转va */
     return (FARPROC)(LPVOID)(codeBase + (*(uint32_t *) (codeBase + exports->AddressOfFunctions + (idx*4))));
 }
 
@@ -776,14 +771,14 @@ void memFreeLibrary(HMEMORYMODULE mod)
     }
     if (module->initialized) 
     {
-        // notify library about detaching from process
+        /* 通知库从进程分离 */
         DllEntryPtr DllEntry = (DllEntryPtr)(LPVOID)(module->codeBase + module->headers->OptionalHeader.AddressOfEntryPoint);
         (*DllEntry)((HINSTANCE)module->codeBase, DLL_PROCESS_DETACH, 0);
     }
 
     if (module->modules != NULL) 
     {
-        // free previously opened libraries
+        /* 卸载预先加载的库与释放内存地址 */
         int i;
         for (i=0; i<module->numModules; i++) 
         {
@@ -798,7 +793,7 @@ void memFreeLibrary(HMEMORYMODULE mod)
 
     if (module->codeBase != NULL) 
     {
-        // release memory of library
+        /* 释放库在进程内的虚拟地址 */
         module->free(module->codeBase, 0, MEM_RELEASE, module->userdata);
     }
 
