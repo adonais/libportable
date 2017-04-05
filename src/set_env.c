@@ -14,7 +14,6 @@ extern  WCHAR ini_path[MAX_PATH+1];
 static  pSetEnv envPtrA = NULL;
 
 #if _MSC_VER
-// Disable warning about DWORD -> void* on vc14
 #pragma warning(disable:4312)
 #endif
 
@@ -61,12 +60,7 @@ pentadactyl_fixed(void)
     if ( !read_appkey( L"Env",L"VimpPentaHome", m_value, sizeof(m_value), NULL ) )
     {
         return;
-    } 
-    if ( !PathToCombineW(m_value, VALUE_LEN) )
-    {
-        return;
     }
-    
     if ( !(PathToCombineW(m_value, VALUE_LEN) && create_dir(m_value)) )
     {
         return;
@@ -162,7 +156,7 @@ find_ucrt(LPCSTR names, char *ucrt_path, int len)
 static HMODULE init_mscrt(int *n)
 {
     FILE *fp = NULL;
-    unsigned char *data=NULL;
+    uint8_t *data=NULL;
     long size;
     size_t read;
     HMEMORYMODULE handle = NULL;
@@ -199,7 +193,7 @@ static HMODULE init_mscrt(int *n)
 
             fseek(fp, 0, SEEK_END);
             size = ftell(fp);
-            data = (unsigned char *)SYS_MALLOC(size);
+            data = (uint8_t *)SYS_MALLOC(size);
             fseek(fp, 0, SEEK_SET);
             read = fread(data, 1, size, fp);
             fclose(fp);
@@ -214,7 +208,7 @@ static HMODULE init_mscrt(int *n)
             }
             if ((envPtrA = (pSetEnv)memGetProcAddress(handle, "_putenv")) == NULL)
             {
-                memDefaultFreeLibrary(handle, NULL);
+                memFreeLibrary(handle, NULL);
                 handle = NULL;
                 break;
             }
@@ -241,9 +235,9 @@ foreach_env(void)
     m_key = env_buf;
     while(*m_key != L'\0')
     {
-        if ( _wcsnicmp( m_key, L"NpluginPath", wcslen(L"NpluginPath") ) != 0 ||
-             _wcsnicmp( m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome") ) != 0 || 
-             _wcsnicmp( m_key, L"TmpDataPath", wcslen(L"TmpDataPath") ) != 0
+        if ( _wcsnicmp(m_key, L"NpluginPath", wcslen(L"NpluginPath")) &&
+             _wcsnicmp(m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome")) &&
+             _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath"))
            )
         {
             envPtrw( m_key );
