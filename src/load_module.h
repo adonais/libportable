@@ -2,6 +2,7 @@
 #define __LOAD_MODULE_H__
 
 #include <windows.h>
+#include <stdint.h>
 
 typedef void *HMEMORYMODULE;
 typedef void *HMEMORYRSRC;
@@ -11,25 +12,25 @@ typedef void *HCUSTOMMODULE;
 extern "C" {
 #endif
 
-typedef LPVOID (*CustomAllocFunc)(LPVOID, SIZE_T, DWORD, DWORD, void*);
-typedef BOOL (*CustomFreeFunc)(LPVOID, SIZE_T, DWORD, void*);
+typedef LPVOID (*CustomAllocFunc)(LPVOID, SIZE_T, uint32_t, uint32_t, void*);
+typedef int (*CustomFreeFunc)(LPVOID, SIZE_T, uint32_t, void*);
 typedef HCUSTOMMODULE (*CustomLoadLibraryFunc)(LPCSTR, void *);
 typedef FARPROC (*CustomGetProcAddressFunc)(HCUSTOMMODULE, LPCSTR, void *);
 typedef void (*CustomFreeLibraryFunc)(HCUSTOMMODULE, void *);
 
 HMEMORYMODULE memLoadLibrary(const void *, size_t);
 HMEMORYMODULE memLoadLibraryEx(const void *, size_t,
-    CustomAllocFunc,
-    CustomFreeFunc,
-    CustomLoadLibraryFunc,
-    CustomGetProcAddressFunc,
-    CustomFreeLibraryFunc,
-    void *);
+                               CustomAllocFunc,
+                               CustomFreeFunc,
+                               CustomLoadLibraryFunc,
+                               CustomGetProcAddressFunc,
+                               CustomFreeLibraryFunc,
+                               void *);
 
 FARPROC memGetProcAddress(HMEMORYMODULE, LPCSTR);
 void memFreeLibrary(HMEMORYMODULE);
-LPVOID memDefaultAlloc(LPVOID, SIZE_T, DWORD, DWORD, void *);
-BOOL memDefaultFree(LPVOID, SIZE_T, DWORD, void *);
+LPVOID memDefaultAlloc(LPVOID, SIZE_T, uint32_t, uint32_t, void *);
+int memDefaultFree(LPVOID, SIZE_T, uint32_t, void *);
 HCUSTOMMODULE memDefaultLoadLibrary(LPCSTR, void *);
 FARPROC memDefaultGetProcAddress(HCUSTOMMODULE, LPCSTR, void *);
 void memDefaultFreeLibrary(HCUSTOMMODULE, void *);
