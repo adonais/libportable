@@ -2,12 +2,6 @@
 #include "inipara.h"
 #include <tchar.h>
 
-#if _MSC_VER
-#pragma warning(disable:4055)
-#pragma warning(error: 4244)
-#pragma warning(error: 4267)
-#endif
-
 #ifndef IMAGE_SIZEOF_BASE_RELOCATION
 /* 某些版本没有定义IMAGE_SIZEOF_BASE_RELOCATION */
 #define IMAGE_SIZEOF_BASE_RELOCATION (sizeof(IMAGE_BASE_RELOCATION))

@@ -13,10 +13,6 @@ typedef	int (__cdecl *pSetEnv)(const char *env);
 extern  WCHAR ini_path[MAX_PATH+1];
 static  pSetEnv envPtrA = NULL;
 
-#if _MSC_VER
-#pragma warning(disable:4312)
-#endif
-
 static WCHAR*       /* c风格的unicode字符串替换函数 */
 dull_replace( WCHAR *in,              /* 目标字符串 */      
               size_t in_size,         /* 字符串长度 */
@@ -77,8 +73,8 @@ find_mscrt(HMODULE hMod, char *crt_buf, int len)
     {
         char*            pszDllName = NULL;
         char             name[CRT_LEN+1] = {0};
-        IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(pImport->Characteristics);
-        IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(pImport->FirstThunk);
+        IMAGE_THUNK_DATA *pThunk  = (PIMAGE_THUNK_DATA)(uintptr_t)pImport->Characteristics;
+        IMAGE_THUNK_DATA *pThunkIAT = (PIMAGE_THUNK_DATA)(uintptr_t)pImport->FirstThunk;
         if(pThunk == 0 && pThunkIAT == 0) break;
         pszDllName = (char*)((BYTE*)hMod+pImport->Name);
         if ( PathMatchSpecA(pszDllName,"msvcr*.dll") )
