@@ -8,11 +8,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#if _MSC_VER
-// Disable warning about DWORD -> void* on vc14
-#pragma warning(disable:4312)
-#endif
-
 #define PROCESS_NUM 10
 static  void* g_handle[PROCESS_NUM];
 
@@ -70,7 +65,7 @@ HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
         }
         if ( lpstr && pe32.th32ParentProcessID>4 && StrStrIW((LPWSTR)lpstr,(LPCWSTR)pe32.szExeFile) )
         {
-            m_handle = (HANDLE)pe32.th32ProcessID;
+            m_handle = (HANDLE)(uintptr_t)pe32.th32ProcessID;
             break;
         }
         b_more = Process32NextW(hSnapshot,&pe32);

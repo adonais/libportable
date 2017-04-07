@@ -2,7 +2,7 @@
 #include "inipara.h"
 #include "winapis.h"
 
-#ifdef __MSVC__
+#ifdef _MSC_VER
 #define MOZ_NOINLINE __declspec(noinline)
 #elif defined(__GNUC__)
 #define MOZ_NOINLINE __attribute__((noinline))
@@ -21,7 +21,7 @@ static _NtFreeVirtualMemory pNtFreeVirtualMemory = NULL;
 static _NtSuspendThread     pNtSuspendThread     = NULL;
 static _NtResumeThread      pNtResumeThread      = NULL;
 
-#ifdef __MSVC__
+#ifdef _MSC_VER
 #pragma check_stack (off)
 #endif
 

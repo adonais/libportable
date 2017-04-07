@@ -87,8 +87,7 @@ CopySections(const uint8_t *data, size_t size, PIMAGE_NT_HEADERS old_headers, PM
     {
         if (section->SizeOfRawData == 0) 
         {
-            // section doesn't contain data in the dll itself, but may define
-            // uninitialized data
+            /* 区段中的数据是未初始化的 */
             section_size = old_headers->OptionalHeader.SectionAlignment;
             if (section_size > 0)
             {
@@ -102,14 +101,13 @@ CopySections(const uint8_t *data, size_t size, PIMAGE_NT_HEADERS old_headers, PM
                     return false;
                 }
 
-                // Always use position from file to support alignments smaller
-                // than page size.
+                /* 设置区段所在打开文件中的物理位置 */
                 dest = codeBase + section->VirtualAddress;
                 section->Misc.PhysicalAddress = (uint32_t) ((uintptr_t)  dest & 0xffffffff);
                 fzero(dest, section_size);
             }
 
-            // section is empty
+            /* 空区段 */
             continue;
         }
 
@@ -118,7 +116,7 @@ CopySections(const uint8_t *data, size_t size, PIMAGE_NT_HEADERS old_headers, PM
             return false;
         }
 
-        // commit memory block and copy data from dll
+        /* 申请内存,从dll拷贝数据 */
         dest = (uint8_t *)module->alloc(codeBase + section->VirtualAddress,
                section->SizeOfRawData,
                MEM_COMMIT,
@@ -128,9 +126,6 @@ CopySections(const uint8_t *data, size_t size, PIMAGE_NT_HEADERS old_headers, PM
         {
             return false;
         }
-
-        // Always use position from file to support alignments smaller
-        // than page size.
         dest = codeBase + section->VirtualAddress;
         memcpy(dest, data + section->PointerToRawData, section->SizeOfRawData);
         section->Misc.PhysicalAddress = (uint32_t) ((uintptr_t) dest & 0xffffffff);
@@ -138,16 +133,16 @@ CopySections(const uint8_t *data, size_t size, PIMAGE_NT_HEADERS old_headers, PM
     return true;
 }
 
-// Protection flags for memory pages (Executable, Readable, Writeable)
+/* 内存页面属性 (Executable, Readable, Writeable) */
 static int ProtectionFlags[2][2][2] = 
 {
     {
-        // not executable
+        /* 不可执行 */
         {PAGE_NOACCESS, PAGE_WRITECOPY},
         {PAGE_READONLY, PAGE_READWRITE},
     }, 
     {
-        // executable
+        /* 可执行 */
         {PAGE_EXECUTE, PAGE_EXECUTE_WRITECOPY},
         {PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE},
     },
@@ -185,19 +180,19 @@ FinalizeSection(PMEMORYMODULE module, PSECTIONFINALIZEDATA sectionData)
 
     if (sectionData->characteristics & IMAGE_SCN_MEM_DISCARDABLE) 
     {
-        // section is not needed any more and can safely be freed
+        /* 此区段已经不再需要,可以安全的释放 */
         if (sectionData->address == sectionData->alignedAddress &&
             (sectionData->last || module->headers->OptionalHeader.SectionAlignment == module->pageSize ||
             (sectionData->size % module->pageSize) == 0)
            ) 
         {
-            // Only allowed to decommit whole pages
+            /* 释放虚拟内存页面 */
             module->free(sectionData->address, sectionData->size, MEM_DECOMMIT, module->userdata);
         }
         return true;
     }
 
-    // determine protection flags based on characteristics
+    /* 根据characteristics确定权限标志 */
     executable = (sectionData->characteristics & IMAGE_SCN_MEM_EXECUTE) != 0;
     readable =   (sectionData->characteristics & IMAGE_SCN_MEM_READ) != 0;
     writeable =  (sectionData->characteristics & IMAGE_SCN_MEM_WRITE) != 0;
@@ -207,7 +202,7 @@ FinalizeSection(PMEMORYMODULE module, PSECTIONFINALIZEDATA sectionData)
         protect |= PAGE_NOCACHE;
     }
 
-    // change memory access flags
+    /* 更改内存权限标志 */
     if (VirtualProtect(sectionData->address, sectionData->size, protect, (PDWORD)&oldProtect) == 0) 
     {
     #ifdef _LOGDEBUG
@@ -237,18 +232,15 @@ FinalizeSections(PMEMORYMODULE module)
     sectionData.last = false;
     section++;
 
-    // loop through all sections and change access flags
+    /* 遍历所有区段更改访问权限标记 */
     for (i=1; i<module->headers->FileHeader.NumberOfSections; i++, section++) 
     {
         LPVOID sectionAddress = (LPVOID)((uintptr_t)section->Misc.PhysicalAddress | imageOffset);
         LPVOID alignedAddress = AlignAddressDown(sectionAddress, module->pageSize);
         SIZE_T sectionSize = GetRealSectionSize(module, section);
-        // Combine access flags of all sections that share a page
-        // TODO(fancycode): We currently share flags of a trailing large section
-        //   with the page of a first small section. This should be optimized.
+        /* 合并共享页所有区段的的访问标志 */
         if (sectionData.alignedAddress == alignedAddress || (uintptr_t) sectionData.address + sectionData.size > (uintptr_t) alignedAddress) 
         {
-            // Section shares page with previous
             if ((section->Characteristics & IMAGE_SCN_MEM_DISCARDABLE) == 0 || (sectionData.characteristics & IMAGE_SCN_MEM_DISCARDABLE) == 0) 
             {
                 sectionData.characteristics = (sectionData.characteristics | section->Characteristics) & ~IMAGE_SCN_MEM_DISCARDABLE;
@@ -323,19 +315,19 @@ PerformBaseRelocation(PMEMORYMODULE module, ptrdiff_t delta)
         uint16_t *relInfo = (uint16_t *)OffsetPointer(relocation, IMAGE_SIZEOF_BASE_RELOCATION);
         for (i=0; i<((relocation->SizeOfBlock-IMAGE_SIZEOF_BASE_RELOCATION) / 2); i++, relInfo++) 
         {
-            // the upper 4 bits define the type of relocation
+            /* 高4位定义了偏移类型 */
             int type = *relInfo >> 12;
-            // the lower 12 bits define the offset
+            /* 低12位定义了需要重定位的地址 */
             int offset = *relInfo & 0xfff;
 
             switch (type)
             {
             case IMAGE_REL_BASED_ABSOLUTE:
-                // skip relocation
+                /* 跳过基址重定位 */
                 break;
 
             case IMAGE_REL_BASED_HIGHLOW:
-                // change complete 32 bit address
+                /* VirtualAddress+offset,应用于此地址上全部32位 */
                 {
                     uint32_t *patchAddrHL = (uint32_t *) (dest + offset);
                     *patchAddrHL += (uint32_t) delta;
