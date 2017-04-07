@@ -6,8 +6,8 @@
 // Version
 
 1 VERSIONINFO
-FILEVERSION     4,0,6,200
-PRODUCTVERSION  4,0,6,200
+FILEVERSION     5,0,5,300
+PRODUCTVERSION  5,0,5,300
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -15,12 +15,12 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "ZH_CN NetWork\0"
       VALUE "FileDescription", "Portable DLL for Mozilla by adonais\0"
-      VALUE "FileVersion", "4.0.6"
+      VALUE "FileVersion", "5.0.5"
       VALUE "InternalName", "Portable\0"
       VALUE "LegalCopyright", L" (C) \x534E\x306Eblog , \x4FDD\x7559\x6240\x6709\x6743\x5229\x3002\0"
       VALUE "OriginalFilename", "Portable.dll\0"
       VALUE "ProductName", "Portable.dll"
-      VALUE "ProductVersion", "4.0.6"
+      VALUE "ProductVersion", "5.0.5"
     END
   END
 
