@@ -30,6 +30,7 @@
 #endif
 
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
+
 SHSTDAPI SHILCreateFromPath (PCWSTR pszPath, PIDLIST_ABSOLUTE *ppidl, DWORD *rgfInOut);
 
 typedef HRESULT (WINAPI *SHGetFolderPathWPtr)(HWND hwndOwner,
@@ -44,12 +45,17 @@ typedef bool (WINAPI *SHGetSpecialFolderPathWPtr)(HWND hwndOwner,
         LPWSTR lpszPath,
         int    csidl,
         bool   fCreate);
+typedef HRESULT (WINAPI *SHGetKnownFolderIDListPtr)(REFKNOWNFOLDERID rfid,
+        DWORD            dwFlags,
+        HANDLE           hToken,
+        PIDLIST_ABSOLUTE *ppidl);
 
 static  WNDINFO  ff_info;
 static  intptr_t m_target[EXCLUDE_NUM];
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
 static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
+static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub;
 
 /* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
@@ -146,9 +152,8 @@ apihook_dtors(void)
     return;
 }
 
-HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
-        int nFolder,
-        LPITEMIDLIST *ppidl)
+HRESULT WINAPI 
+HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
 {
     int folder = nFolder & 0xff;
     if ( CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder )
@@ -185,8 +190,9 @@ HRESULT WINAPI HookSHGetSpecialFolderLocation(HWND hwndOwner,
     return sSHGetSpecialFolderLocationStub(hwndOwner, nFolder, ppidl);
 }
 
-HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
-                                    DWORD dwFlags,LPWSTR pszPath)
+HRESULT WINAPI 
+HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
+                     DWORD dwFlags,LPWSTR pszPath)
 {
     uintptr_t   dwCaller;
     bool        dwFf = false;
@@ -242,7 +248,8 @@ HRESULT WINAPI HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     return ret;
 }
 
-bool WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreate)
+bool WINAPI 
+HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreate)
 {
     bool       internal;
     uintptr_t  dwCaller = (uintptr_t)_ReturnAddress();
@@ -263,7 +270,22 @@ bool WINAPI HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl
             lpszPath)) == S_OK ? true : false;
 }
 
-static void init_portable(void)
+HRESULT WINAPI 
+HookSHGetKnownFolderIDList(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PIDLIST_ABSOLUTE *ppidl)
+{
+    if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
+    {
+        return HookSHGetSpecialFolderLocation(NULL, CSIDL_APPDATA, ppidl);
+    }
+    else if ( IsEqualGUID(rfid, &FOLDERID_LocalAppData) )
+    {
+        return HookSHGetSpecialFolderLocation(NULL, CSIDL_LOCAL_APPDATA, ppidl);
+    }
+    return sSHGetKnownFolderIDListStub(rfid,dwFlags,hToken,ppidl);
+}
+
+static void 
+init_portable(void)
 {
     apihook_ctors("shell32.dll", "SHGetSpecialFolderLocation",
                   (intptr_t)HookSHGetSpecialFolderLocation,
@@ -274,7 +296,10 @@ static void init_portable(void)
     apihook_ctors("shell32.dll", "SHGetSpecialFolderPathW",
                   (intptr_t)HookSHGetSpecialFolderPathW,
                   (void**) &sSHGetSpecialFolderPathWStub);
-    return;
+    apihook_ctors("shell32.dll", "SHGetKnownFolderIDList",
+                  (intptr_t)HookSHGetKnownFolderIDList,
+                  (void**) &sSHGetKnownFolderIDListStub); 
+    return; 
 }
 
 
@@ -317,7 +342,8 @@ init_global_env(void)
 #endif
 
 /* uninstall hook and clean up */
-void WINAPI undo_it(void)
+void WINAPI 
+undo_it(void)
 {
     /* 计数器复位 */
     if ( --nProCout == -1 || nMainPid == ff_info.hPid )
@@ -344,7 +370,8 @@ void WINAPI undo_it(void)
     return;
 }
 
-void WINAPI do_it(void)
+void WINAPI 
+do_it(void)
 {
     if ( ++nProCout>2048 || !nRunOnce )
     {
@@ -434,7 +461,8 @@ extern "C" {
 #endif
 
 #if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
-int CALLBACK _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
+int CALLBACK 
+_DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 {
     switch(dwReason)
     {
