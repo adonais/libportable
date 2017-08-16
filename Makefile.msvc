@@ -80,7 +80,7 @@ LDFLAGS  =  $(LDFLAGS) legacy_stdio_definitions.lib /opt:ref /opt:icf /ignore:40
 OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /SECTION:.shrd,RWS
 !endif
-CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
+CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib $(CRTFLAGS)
 OUT	 = $(DISTDIR)\portable$(BITS).dll
 TETE	 = $(DISTDIR)\tmemutil.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res

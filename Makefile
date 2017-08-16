@@ -71,7 +71,7 @@ else
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
 DEPLIBS  = -Wl,-static -lminhook$(BITS)
-LDLIBS   = -lshlwapi -lshell32 $(MSCRT)
+LDLIBS   = -lshlwapi -lshell32 -lole32 $(MSCRT)
 LDFLAGS  += -L$(DISTDIR) -nostdlib $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 \
             -static-libgcc --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,-s
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a

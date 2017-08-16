@@ -49,6 +49,10 @@ typedef HRESULT (WINAPI *SHGetKnownFolderIDListPtr)(REFKNOWNFOLDERID rfid,
         DWORD            dwFlags,
         HANDLE           hToken,
         PIDLIST_ABSOLUTE *ppidl);
+typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
+        DWORD            dwFlags,
+        HANDLE           hToken,
+        PWSTR            *ppszPath);
 
 static  WNDINFO  ff_info;
 static  intptr_t m_target[EXCLUDE_NUM];
@@ -56,6 +60,7 @@ static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
 static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
 static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub;
+static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub;
 
 /* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
@@ -284,6 +289,39 @@ HookSHGetKnownFolderIDList(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PID
     return sSHGetKnownFolderIDListStub(rfid,dwFlags,hToken,ppidl);
 }
 
+HRESULT WINAPI 
+HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR *ppszPath)
+{
+    *ppszPath = NULL;
+    if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
+    {
+        *ppszPath = CoTaskMemAlloc((wcslen(appdata_path) + 1) * sizeof(WCHAR));
+        if (!*ppszPath) 
+        {
+            return E_OUTOFMEMORY;
+        #ifdef _LOGDEBUG
+            logmsg("return E_OUTOFMEMORY\n");
+        #endif 
+        }
+        wcscpy(*ppszPath, appdata_path);
+        PathRemoveBackslashW(*ppszPath);
+        return S_OK;
+    }
+    else if ( IsEqualGUID(rfid, &FOLDERID_LocalAppData) )
+    {
+        *ppszPath = CoTaskMemAlloc((wcslen(localdata_path) + 1) * sizeof(WCHAR));
+        if (!*ppszPath)
+        {
+            return E_OUTOFMEMORY;
+        }
+        wcscpy(*ppszPath, localdata_path);
+        PathRemoveBackslashW(*ppszPath);
+        return S_OK;
+    }
+
+    return sSHGetKnownFolderPathStub(rfid,dwFlags,hToken,ppszPath);
+}
+
 static void 
 init_portable(void)
 {
@@ -299,6 +337,9 @@ init_portable(void)
     apihook_ctors("shell32.dll", "SHGetKnownFolderIDList",
                   (intptr_t)HookSHGetKnownFolderIDList,
                   (void**) &sSHGetKnownFolderIDListStub); 
+    apihook_ctors("shell32.dll", "SHGetKnownFolderPath",
+                  (intptr_t)HookSHGetKnownFolderPath,
+                  (void**) &sSHGetKnownFolderPathStub); 
     return; 
 }
 
