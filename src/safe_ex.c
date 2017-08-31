@@ -107,14 +107,12 @@ uintptr_t WINAPI getid_parental(uint32_t dwProcessId)
         {
             break;
         }
-        pNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(\
-                                        hNtdll, "NtQueryInformationProcess");
+        pNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
         if ( !pNtQueryInformationProcess )
         {
             break;
         }
-        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 
-                               false, dwProcessId);
+        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, dwProcessId);
         if (!hProcess)
         {
             break;
@@ -238,10 +236,10 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             ProcessParameters = &mY_ProcessParameters;
     }
     status = sNtCreateUserProcess(ProcessHandle, ThreadHandle,
-                                     ProcessDesiredAccess, ThreadDesiredAccess,
-                                     ProcessObjectAttributes, ThreadObjectAttributes,
-                                     CreateProcessFlags, CreateThreadFlags, ProcessParameters,
-                                     CreateInfo, AttributeList);
+                                  ProcessDesiredAccess, ThreadDesiredAccess,
+                                  ProcessObjectAttributes, ThreadObjectAttributes,
+                                  CreateProcessFlags, CreateThreadFlags, ProcessParameters,
+                                  CreateInfo, AttributeList);
     /* 静态编译或者启用GCC lto时,不能启用远程注入 */
 #if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) )
     if ( NT_SUCCESS(status) && tohook )
@@ -327,10 +325,10 @@ HookCreateProcessInternalW (HANDLE hToken,
             return ret;
         }
     }
-    ret =  sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
-                                      lpThreadAttributes,bInheritHandles,dwCreationFlags,
-                                      lpEnvironment,lpCurrentDirectory,
-                                      lpStartupInfo,lpProcessInformation,hNewToken);
+    ret = sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
+                                  lpThreadAttributes,bInheritHandles,dwCreationFlags,
+                                  lpEnvironment,lpCurrentDirectory,
+                                  lpStartupInfo,lpProcessInformation,hNewToken);
     if ( ret && tohook )
     {
         InjectDll(lpProcessInformation);
@@ -382,8 +380,7 @@ is_authorized(LPCWSTR lpFileName)
         {
             PathRemoveFileSpecW(sysdir);
             PathAppendW(sysdir,L"system32");
-            filename = _wcsnicmp(lpFileName,sysdir,
-                       wcslen(sysdir))?NULL:PathFindFileNameW(lpFileName);
+            filename = _wcsnicmp(lpFileName,sysdir,wcslen(sysdir))?NULL:PathFindFileNameW(lpFileName);
         }
     }
     else
@@ -432,71 +429,45 @@ unsigned WINAPI init_safed(void * pParam)
     DWORD		ver = GetOsVersion();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
-    if ( !(hNtdll&&hKernel) ) return (0);
-    pNtWriteVirtualMemory      = (_NtWriteVirtualMemory)GetProcAddress(\
-                                    hNtdll, "NtWriteVirtualMemory");
-    pRtlNtStatusToDosError     = (_RtlNtStatusToDosError)GetProcAddress(\
-                                    hNtdll, "RtlNtStatusToDosError");
+
+    if ( hNtdll == NULL || hKernel  == NULL ||
+        (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL ||
+        (pNtWriteVirtualMemory = (_NtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory")) == NULL )
+    {
+        return 0;
+    }
     if ( ver>601 )  /* win8 */
     {
-        pNtCreateUserProcess   = (_NtCreateUserProcess)GetProcAddress(\
-                                    hNtdll, "NtCreateUserProcess");
-        if (pNtCreateUserProcess && MH_CreateHook \
-           (pNtCreateUserProcess, HookNtCreateUserProcess, \
-           (LPVOID*)&sNtCreateUserProcess) == MH_OK )
+        pNtCreateUserProcess = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
+        if (!creator_hook(pNtCreateUserProcess, HookNtCreateUserProcess, (LPVOID*)&sNtCreateUserProcess))
         {
-            if ( MH_EnableHook(pNtCreateUserProcess) != MH_OK )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("NtCreateUserProcess hook failed!\n");
-            #endif
-            }
+        
+        #ifdef _LOGDEBUG
+            logmsg("NtCreateUserProcess hook failed!\n");
+        #endif
         }
     }
     else
     {
-        pCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(\
-                                      hKernel, "CreateProcessInternalW");
-        if (pCreateProcessInternalW && MH_CreateHook \
-           (pCreateProcessInternalW, HookCreateProcessInternalW, \
-           (LPVOID*)&sCreateProcessInternalW) == MH_OK )
+        pCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(hKernel, "CreateProcessInternalW");
+        if (!creator_hook(pCreateProcessInternalW, HookCreateProcessInternalW, (LPVOID*)&sCreateProcessInternalW))
         {
-            if ( MH_EnableHook(pCreateProcessInternalW) != MH_OK )
-            {
-            #ifdef _LOGDEBUG
-                logmsg("pCreateProcessInternalW hook failed!\n");
-            #endif
-            }
+        #ifdef _LOGDEBUG
+            logmsg("pCreateProcessInternalW hook failed!\n");
+        #endif
         }
     }
     if ( ver<503 )  /* winxp-2003 */
     {
-        pLoadLibraryExW	= (LoadLibraryExWPtr)GetProcAddress(\
-                              hKernel, "LoadLibraryExW");
-    }
-    if (pLoadLibraryExW && MH_CreateHook \
-       (pLoadLibraryExW, HookLoadLibraryExW, \
-       (LPVOID*)&sLoadLibraryExWStub) == MH_OK )
-    {
-        if ( MH_EnableHook(pLoadLibraryExW) != MH_OK )
+        pLoadLibraryExW	= (LoadLibraryExWPtr)GetProcAddress(hKernel, "LoadLibraryExW");
+        if (!creator_hook(pLoadLibraryExW, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExWStub))
         {
         #ifdef _LOGDEBUG
             logmsg("LoadLibraryExW hook failed!\n");
         #endif
         }
     }
-    if (pNtWriteVirtualMemory && MH_CreateHook \
-       (pNtWriteVirtualMemory, HookNtWriteVirtualMemory, \
-       (LPVOID*)&sNtWriteVirtualMemory) == MH_OK )
-    {
-        if ( MH_EnableHook(pNtWriteVirtualMemory) != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("pNtWriteVirtualMemory hook failed!\n");
-        #endif
-        }
-    }
-    return (1);
+    return creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory);
 }
 
 void WINAPI safe_end(void)

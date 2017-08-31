@@ -77,6 +77,16 @@ static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #pragma data_seg()
 #endif
 
+bool
+creator_hook(void* target, void* func, void **original)
+{
+    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
+    {
+        return ( MH_EnableHook(target) == MH_OK );
+    }
+    return false;
+}
+
 /* AVX memset with non-temporal instructions */
 TETE_EXT_CLASS void * __cdecl 
 memset_nontemporal_tt ( void *dest, int c, size_t count )
@@ -111,7 +121,6 @@ apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void**
     static  int  m = 0;
     HMODULE module = GetModuleHandleA(m_module);
     int     ret = 0;
-
     do
     {
         if ( module == NULL )
@@ -126,12 +135,7 @@ apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void**
         {
             break;
         }
-        if ( MH_CreateHook((void*)m_target[m], (void *)m_detour, m_original) != MH_OK )
-        {
-            m_target[m] = 0;
-            break;
-        }
-        if ( MH_EnableHook((void*)m_target[m]) != MH_OK )
+        if ( !creator_hook((void*)m_target[m], (void *)m_detour, m_original) )
         {
             m_target[m] = 0;
             break;

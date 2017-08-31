@@ -31,21 +31,11 @@ HookRegOpenKeyExW(HKEY    hKey,
 unsigned WINAPI init_winreg(void * pParam)
 {
     HMODULE m_adv = GetModuleHandleW(L"advapi32.dll");
-    if ( !m_adv )
+    if ( m_adv && (pRegOpenKeyExW = (RegOpenKeyExPtr)GetProcAddress(m_adv, "RegOpenKeyExW")) != NULL )
     {
-        return (0);
+        return creator_hook(pRegOpenKeyExW, HookRegOpenKeyExW, (LPVOID*)&sRegOpenKeyExWStub);
     }
-    if ( (pRegOpenKeyExW = (RegOpenKeyExPtr)GetProcAddress(m_adv, "RegOpenKeyExW")) != NULL && 
-         MH_CreateHook(pRegOpenKeyExW, HookRegOpenKeyExW, (LPVOID*)&sRegOpenKeyExWStub) == MH_OK )
-    {
-        if ( MH_EnableHook(pRegOpenKeyExW) != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("RegOpenKeyExW hook failed!\n");
-        #endif
-        }
-    }
-    return (1);
+    return (0);
 }
 
 void WINAPI winreg_end(void)

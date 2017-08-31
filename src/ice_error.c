@@ -72,39 +72,16 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
 
 unsigned WINAPI init_exeception(void * pParam)
 {
-    unsigned ret = 0;
     HMODULE  m_kernel;
-    m_dbg = sLoadLibraryExWStub?sLoadLibraryExWStub(L"dbghelp.dll",NULL,0):\
-            LoadLibraryExW(L"dbghelp.dll",NULL,0);
+    m_dbg = sLoadLibraryExWStub?sLoadLibraryExWStub(L"dbghelp.dll",NULL,0):LoadLibraryExW(L"dbghelp.dll",NULL,0);
     m_kernel =  GetModuleHandleW(L"kernel32.dll");
-    if ( !(m_dbg && m_kernel) ) return ret;
-    sMiniDumpWriteDumpStub           = (MiniDumpWriteDumpPtr)GetProcAddress(\
-                                      m_dbg, "MiniDumpWriteDump");
-    if ( !sMiniDumpWriteDumpStub )
+    if ( m_dbg == NULL || m_kernel == NULL ||  
+        (sMiniDumpWriteDumpStub = (MiniDumpWriteDumpPtr)GetProcAddress(m_dbg, "MiniDumpWriteDump")) == NULL)
     {
-    #ifdef _LOGDEBUG
-        logmsg("GetProcAddress(MiniDumpWriteDump) return false\n", __FUNCTION__);
-    #endif
-        return ret;
+        return (0);
     }
-    pSetUnhandledExceptionFilter = (SetUnhandledExceptionFilterPtr)GetProcAddress(\
-                                      m_kernel, "SetUnhandledExceptionFilter");
-    if ( !pSetUnhandledExceptionFilter )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("GetProcAddress(SetUnhandledExceptionFilter) return false\n", __FUNCTION__);
-    #endif
-        return ret;
-    }
-    if (MH_CreateHook(pSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, 
-       (LPVOID*)&sSetUnhandledExceptionFilterStub) == MH_OK )
-    {
-        if ( MH_EnableHook(pSetUnhandledExceptionFilter) == MH_OK )
-        {
-            ret = 1;
-        }
-    }
-    return ret;
+    pSetUnhandledExceptionFilter = (SetUnhandledExceptionFilterPtr)GetProcAddress(m_kernel, "SetUnhandledExceptionFilter");
+    return creator_hook(pSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, (LPVOID*)&sSetUnhandledExceptionFilterStub);
 }
 
 void WINAPI jmp_end(void)

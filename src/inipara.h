@@ -51,9 +51,12 @@ extern "C" {
 
 extern LoadLibraryExWPtr sLoadLibraryExWStub;
 extern HMODULE           dll_module; 
+extern bool creator_hook(void* target, void* func, void **original);
+
 #ifdef _LOGDEBUG
 extern void     __cdecl logmsg(const char * format, ...);
 #endif  /* _LOGDEBUG */
+
 extern DWORD    WINAPI GetOsVersion(void);
 extern bool     WINAPI PathToCombineW(LPWSTR lpfile, int str_len);
 extern LPWSTR   WINAPI stristrW(LPCWSTR Str, LPCWSTR Pat);
