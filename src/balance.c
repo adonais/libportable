@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <windows.h>
+#include <shlwapi.h>
 
 static LIB_INLINE int
 get_cpu_works(void)
@@ -149,7 +150,7 @@ set_cpu_balance(void *fx_info)
     WCHAR         m_name[32] = {0};
     int           m_cpu   = 0;
     int           value   = read_appint(L"attach ", L"CpuUse");
-    _snwprintf(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());
+    wnsprintfW(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());
     m_timer = CreateWaitableTimerW(NULL, false, m_name);
     if ( !m_timer )
     {

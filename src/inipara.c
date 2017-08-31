@@ -156,23 +156,24 @@ void __cdecl
 logmsg(const char * format, ...)
 {
     va_list args;
-    int	    len	 ;
-    char    buffer[VALUE_LEN+3];
+    char    buffer[MAX_PATH];
     va_start (args, format);
-    len = _vscprintf(format, args);
-    if (len > 0 && len < VALUE_LEN && strlen(logfile_buf) > 0)
+    if (strlen(logfile_buf) > 0)
     {
         FILE *pFile = NULL;
-        len = _vsnprintf(buffer,len,format, args);
-        buffer[len++] = '\n';
-        buffer[len] = '\0';
-        if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
+        int  len = wvnsprintfA(buffer,MAX_PATH,format, args);
+        if ( len > 0 && len < MAX_PATH )
         {
-            fprintf(pFile,buffer);
-            fclose(pFile);
+            buffer[len] = '\n';
+            buffer[len+1] = '\0';
+            if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
+            {
+                fwrite(buffer,strlen(buffer),1,pFile);
+                fclose(pFile);
+            }
         }
-        va_end(args);
     }
+    va_end(args);
     return;
 }
 #endif
@@ -248,7 +249,7 @@ get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
         }
         for ( i=0; i < (cbTranslate/sizeof(LANGANDCODEPAGE)); i++ )
         {
-            _snwprintf(dwBlock,
+            wnsprintfW(dwBlock,
                        NAMES_LEN,
                        L"\\StringFileInfo\\%04x%04x\\ProductName",
                        lpTranslate[i].wLanguage, 
@@ -380,15 +381,15 @@ PathToCombineW(LPWSTR lpfile, int len)
         }
         if ( n < len )
         {
-            _snwprintf(buf_env, n+1 ,L"%ls", lpfile);
+            wnsprintfW(buf_env, n+1 ,L"%ls", lpfile);
         }
         if ( wcslen(buf_env) > 1 &&
              ExpandEnvironmentStringsW(buf_env,buf_env,VALUE_LEN) > 0
            )
         {
             WCHAR tmp_env[VALUE_LEN+1] = {0};
-            _snwprintf(tmp_env, len ,L"%ls%ls", buf_env, &lpfile[n+1]);
-            n = _snwprintf(lpfile, len ,L"%ls", tmp_env);
+            wnsprintfW(tmp_env, len ,L"%ls%ls", buf_env, &lpfile[n+1]);
+            n = wnsprintfW(lpfile, len ,L"%ls", tmp_env);
         }
     }
     if ( lpfile[1] != L':' )
@@ -401,7 +402,7 @@ PathToCombineW(LPWSTR lpfile, int len)
             if ( PathRemoveFileSpecW(buf_modname) && 
                  PathCombineW(tmp_path,buf_modname,lpfile) )
             {
-                n = _snwprintf(lpfile,len,L"%ls",tmp_path);
+                n = wnsprintfW(lpfile,len,L"%ls",tmp_path);
             }
         }
     }
@@ -491,7 +492,7 @@ GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
         }
         if ( i > 0 )
         {
-            i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath+i+1);
+            i = wnsprintfW(lpstrName,wlen,L"%ls",lpFullPath+i+1);
         }
     }
     return (i>0 && i<(int)wlen);
@@ -514,7 +515,7 @@ GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen)
         }
         if ( i > 0 )
         {
-            i = _snwprintf(lpstrName,wlen,L"%ls",lpFullPath);
+            i = wnsprintfW(lpstrName,wlen,L"%ls",lpFullPath);
         }
     }
     return (i>0 && i<(int)wlen);
@@ -597,7 +598,7 @@ get_mozilla_profile(LPWSTR in_dir, int len)
     int m = 0;
     if (is_specialapp(L"thunderbird.exe"))
     {
-        m = _snwprintf(in_dir,
+        m = wnsprintfW(in_dir,
                        (size_t)len,
                        L"%ls%ls",
                        appdata_path,
@@ -606,14 +607,13 @@ get_mozilla_profile(LPWSTR in_dir, int len)
     }
     else if (is_browser())
     {
-        m = _snwprintf(in_dir,
+        m = wnsprintfW(in_dir,
                        (size_t)len,
                        L"%ls%ls",
                        appdata_path,
                        L"\\Mozilla\\Firefox\\profiles.ini"
                       );
     }
-    in_dir[m] = L'\0';
     return (m>0 && m<len);
 }
 
@@ -646,7 +646,7 @@ search_section_names(LPCWSTR moz_profile,
                  read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
             {
                 if ( wcsncmp(values, moz_values, wcslen(moz_values))==0 && \
-                     _snwprintf(out_names,(size_t)len,L"%ls",str_section) > 0 )
+                     wnsprintfW(out_names,(size_t)len,L"%ls",str_section) > 0 )
                 {
                     ret = 0;
                     break;
@@ -695,7 +695,7 @@ WaitWriteFile(void * pParam)
             if ( m > 0 )
             {
                 /* 更新dev版配置文件 */
-                _snwprintf(m_profile+wcslen(m_profile), 2, L"%d", m);
+                wnsprintfW(m_profile+wcslen(m_profile), 2, L"%d", m);
                 ret = WritePrivateProfileSectionW(\
                       m_profile,
                       L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0",
@@ -767,7 +767,7 @@ GetOsVersion(void)
              osvi.dwMajorVersion > 4 )
         {
             WCHAR pszOS[5] = {0};
-            _snwprintf(pszOS, 4, L"%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
+            wnsprintfW(pszOS, 4, L"%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
             ver = wcstol(pszOS, NULL, 10);
         }
     }

@@ -33,7 +33,7 @@ dull_replace( WCHAR *in,              /* 目标字符串 */
         resoffset += wcslen(by);
     }
     wcscpy(res + resoffset, in);
-    _snwprintf(in_ptr, in_size, L"%ls", res);
+    wnsprintfW(in_ptr, in_size, L"%ls", res);
     return in_ptr;
 }
 
@@ -121,11 +121,11 @@ find_ucrt(LPCSTR names, char *ucrt_path, int len)
         }
         if ( is_wow64() )
         {
-            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "SysWOW64", names);
+            wnsprintfA(ucrt_path, len, "%s\\%s\\%s", lpPath, "SysWOW64", names);
         }
         else
         {
-            _snprintf(ucrt_path, len, "%s\\%s\\%s", lpPath, "System32", names);
+            wnsprintfA(ucrt_path, len, "%s\\%s\\%s", lpPath, "System32", names);
         }
         ret = ucrt_path[len-1] == '\0' && PathFileExistsA(ucrt_path);
     } while (0);
@@ -245,7 +245,7 @@ set_plugins(void)
     {
         WCHAR env_str[VALUE_LEN+1] = {0};
         PathToCombineW( val_str, VALUE_LEN );
-        if ( _snwprintf(env_str,
+        if ( wnsprintfW(env_str,
                        VALUE_LEN,
                        L"%ls%ls",
                        L"MOZ_PLUGIN_PATH=",
@@ -275,24 +275,24 @@ pentadactyl_fixed(void)
     }
     do
     {  
-        int m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
+        int m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
         if ( m > 0 &&  m < VALUE_LEN )
         {
             envPtrw( m_env );
         }
         dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
-        m = _snwprintf(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
+        m = wnsprintfW(m_env, VALUE_LEN,L"%ls%ls",L"PENTADACTYL_RUNTIME=", m_value);
         if ( m > 0 &&  m < VALUE_LEN )
         {
             envPtrw( m_env );
         }
         
-        m = _snwprintf(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
+        m = wnsprintfW(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
         if ( !(m > 0 &&  m < VALUE_LEN) )
         {
             break;
         }
-        m = _snwprintf(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_INIT=:source ", rc_path);
+        m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_INIT=:source ", rc_path);
         if ( m > 0 &&  m < VALUE_LEN )
         {
             envPtrw( m_env );

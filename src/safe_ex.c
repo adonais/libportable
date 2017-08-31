@@ -57,7 +57,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         PathRemoveFileSpecW(temp);
         for(num=2; num<i; ++num)
         {
-            _snwprintf(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
+            wnsprintfW(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
         }
         ret = foreach_section(L"whitelist", &white_list[num], EXCLUDE_NUM-num);
     }

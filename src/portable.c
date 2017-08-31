@@ -230,13 +230,12 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
 
     switch (folder)
     {
-        int	 num = 0;
         case CSIDL_APPDATA:
         {
             if ( appdata_path[0] != L'\0' )
             {
-                num = _snwprintf(pszPath,MAX_PATH,L"%ls",appdata_path);
-                ret = S_OK;
+                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",appdata_path);
+                if ( num>0 && num<MAX_PATH ) ret = S_OK;
             }
             break;
         }
@@ -244,8 +243,8 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         {
             if ( localdata_path[0] != L'\0' && create_dir(localdata_path) )
             {
-                num = _snwprintf(pszPath,MAX_PATH,L"%ls",localdata_path);
-                ret = S_OK;
+                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdata_path);
+                if ( num>0 && num<MAX_PATH ) ret = S_OK;
             }
             break;
         }
@@ -443,7 +442,7 @@ do_it(void)
         if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
         {
             /* 预设默认的配置文件所在路径 */
-            _snwprintf(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
+            wnsprintfW(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
         }
         if ( !init_global_env() )
         {

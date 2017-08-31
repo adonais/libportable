@@ -105,13 +105,13 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
             if ( lp )
             {
                 temp[lp-temp] = L'\0';
-                _snwprintf(m_para,VALUE_LEN,L" "L"%ls",lp+1);
+                wnsprintfW(m_para,VALUE_LEN,L" "L"%ls",lp+1);
                 if ( !GetCurrentWorkDirW(wdir,len) )
                 {
                     wdir[0] = L'\0';
                 }
             }
-            _snwprintf(lpstrCmd,len,L"%ls",temp);
+            wnsprintfW(lpstrCmd,len,L"%ls",temp);
             if ( lpstrCmd[0] == L'.' || lpstrCmd[0] == L'%' )
             {
                 PathToCombineW(lpstrCmd,VALUE_LEN);
@@ -119,7 +119,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
             wcsncat(lpstrCmd,m_para,len);
             if ( wcslen(wdir) == 0 )
             {
-                _snwprintf(wdir,len,L"%ls",lpstrCmd);
+                wnsprintfW(wdir,len,L"%ls",lpstrCmd);
                 if ( !PathRemoveFileSpecW(wdir) )
                 {
                     wdir[0] = L'\0';
