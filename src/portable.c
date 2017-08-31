@@ -474,7 +474,7 @@ do_it(void)
     { 
         if ( read_appint(L"General", L"DisableScan") > 0 )
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_winreg,NULL,0,NULL));
+            init_winreg(NULL);
         }
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {

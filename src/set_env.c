@@ -1,7 +1,6 @@
 #include "inipara.h"
 #include "set_env.h"
 #include "load_module.h"
-#include "MinHook.h"
 #include <windows.h>
 #include <shlwapi.h>
 #include <shlobj.h>
