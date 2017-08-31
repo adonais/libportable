@@ -17,6 +17,9 @@
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
+#ifdef __MINGW32__  /* FOLDERID_RoamingAppData defined */
+#include <knownfolders.h>
+#endif
 #include <process.h>
 #include <stdio.h>
 

@@ -23,7 +23,7 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-            -Wno-unknown-pragmas -finline-functions \
+            -Wno-unknown-pragmas -finline-functions -DINITGUID \
             -DWINVER=0x0501 -D_WIN32_IE=0x0601  -mavx
 
 MD       = mkdir -p
