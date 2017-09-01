@@ -1,12 +1,17 @@
-#include <shlwapi.h>
-#include "inipara.h"
 #include "ice_error.h"
+#include "inipara.h"
 #include "MinHook.h"
-#include "internal_dbg.h"
+#include <shlwapi.h>
+#include <dbghelp.h>
 
-typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *SetUnhandledExceptionFilterPtr)(\
+typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *SetUnhandledExceptionFilterPtr)(
                                       LPTOP_LEVEL_EXCEPTION_FILTER 
                                       lpTopLevelExceptionFilter);
+typedef BOOL (WINAPI *MiniDumpWriteDumpPtr)(HANDLE,DWORD,HANDLE,MINIDUMP_TYPE,
+              PMINIDUMP_EXCEPTION_INFORMATION,
+              PMINIDUMP_USER_STREAM_INFORMATION,
+              PMINIDUMP_CALLBACK_INFORMATION);
+
 static  SetUnhandledExceptionFilterPtr sSetUnhandledExceptionFilterStub;
 static  SetUnhandledExceptionFilterPtr pSetUnhandledExceptionFilter;
 static  MiniDumpWriteDumpPtr sMiniDumpWriteDumpStub;
