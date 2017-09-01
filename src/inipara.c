@@ -766,9 +766,11 @@ GetOsVersion(void)
         if ( VER_PLATFORM_WIN32_NT==osvi.dwPlatformId &&
              osvi.dwMajorVersion > 4 )
         {
-            WCHAR pszOS[5] = {0};
-            wnsprintfW(pszOS, 4, L"%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
+        #define VER_NUM 5
+            WCHAR pszOS[VER_NUM] = {0};
+            wnsprintfW(pszOS, VER_NUM, L"%lu%d%lu", osvi.dwMajorVersion,0,osvi.dwMinorVersion);
             ver = wcstol(pszOS, NULL, 10);
+        #undef VER_NUM
         }
     }
     return ver;
