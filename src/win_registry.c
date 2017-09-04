@@ -1,6 +1,5 @@
 #include "inipara.h"
 #include "win_registry.h"
-#include "MinHook.h"
 #include <windows.h>
 
 typedef	LONG (WINAPI *RegOpenKeyExPtr)(HKEY, LPCWSTR, DWORD, REGSAM, PHKEY);
@@ -36,13 +35,4 @@ unsigned WINAPI init_winreg(void * pParam)
         return creator_hook(pRegOpenKeyExW, HookRegOpenKeyExW, (LPVOID*)&sRegOpenKeyExWStub);
     }
     return (0);
-}
-
-void WINAPI winreg_end(void)
-{
-    if (sRegOpenKeyExWStub)
-    {
-        MH_DisableHook(pRegOpenKeyExW);
-    }
-    return;
 }

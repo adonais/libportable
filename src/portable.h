@@ -32,8 +32,6 @@ TETE_EXT_CLASS void *  __cdecl memset_nontemporal_tt ( void*, int, size_t );
 /* compatibility with tete's patches */
 TETE_EXT_CLASS int      GetCpuFeature_tt ( void );
 TETE_EXT_CLASS intptr_t GetAppDirHash_tt ( void );
-TETE_EXT_CLASS int      apihook_ctors(const char* m_module, const char* names,
-                                      intptr_t m_detour, void** m_original);
 
 #if defined(LIBPORTABLE_STATIC)
 TETE_EXT_CLASS void __stdcall do_it( void );

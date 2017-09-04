@@ -23,17 +23,16 @@ dull_replace( WCHAR *in,              /* 目标字符串 */
     WCHAR  res[MAX_PATH+1] = {0};
     size_t resoffset = 0;
     WCHAR  *needle;
-    while ( (needle = StrStrW(in, pattern)) && 
-            resoffset < in_size ) 
+    while ( (needle = StrStrW(in, pattern)) && resoffset < in_size ) 
     {
         wcsncpy(res + resoffset, in, needle - in);
         resoffset += needle - in;
-        in = needle + wcslen(pattern);
+        in = needle + (int)wcslen(pattern);
         wcsncpy(res + resoffset, by, wcslen(by));
-        resoffset += wcslen(by);
+        resoffset += (int)wcslen(by);
     }
     wcscpy(res + resoffset, in);
-    wnsprintfW(in_ptr, in_size, L"%ls", res);
+    wnsprintfW(in_ptr, (int)in_size, L"%ls", res);
     return in_ptr;
 }
 

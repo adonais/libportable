@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 extern unsigned __stdcall init_winreg(void *);
-extern void __stdcall winreg_end(void);
 
 #ifdef __cplusplus
 }

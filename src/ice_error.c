@@ -1,6 +1,5 @@
 #include "ice_error.h"
 #include "inipara.h"
-#include "MinHook.h"
 #include <shlwapi.h>
 #include <dbghelp.h>
 
@@ -91,10 +90,6 @@ unsigned WINAPI init_exeception(void * pParam)
 
 void WINAPI jmp_end(void)
 {
-    if (sSetUnhandledExceptionFilterStub)
-    {
-        MH_DisableHook(pSetUnhandledExceptionFilter);
-    }
     if ( m_dbg )
     {
         FreeLibrary(m_dbg);

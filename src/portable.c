@@ -58,12 +58,20 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
         PWSTR            *ppszPath);
 
 static  WNDINFO  ff_info;
-static  intptr_t m_target[EXCLUDE_NUM];
+static  uintptr_t m_target[EXCLUDE_NUM];
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
 static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
 static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub;
 static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub;
+
+typedef void (*pointer_to_handler)();
+typedef struct _dyn_link_desc
+{
+    const char* name;
+    void* hook;
+    pointer_to_handler* original;
+}dyn_link_desc;
 
 /* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
@@ -115,53 +123,6 @@ TETE_EXT_CLASS intptr_t
 GetAppDirHash_tt( void )
 {
     return 0;
-}
-
-/* Note: This function is not thread safe */
-TETE_EXT_CLASS int
-apihook_ctors(const char* m_module, const char* names, intptr_t m_detour, void** m_original)
-{
-    static  int  m = 0;
-    HMODULE module = GetModuleHandleA(m_module);
-    int     ret = 0;
-    do
-    {
-        if ( module == NULL )
-        {
-            break;
-        }
-        if ( m >= EXCLUDE_NUM )
-        {
-            break;
-        }
-        if ( (m_target[m] = (intptr_t)GetProcAddress(module, names)) == 0 )
-        {
-            break;
-        }
-        if ( !creator_hook((void*)m_target[m], (void *)m_detour, m_original) )
-        {
-            m_target[m] = 0;
-            break;
-        }
-        ret=1; ++m;
-    }while(0);
-
-    return ret;
-}
-
-static void 
-apihook_dtors(void)
-{
-    int i;
-    for ( i = 0 ; i < EXCLUDE_NUM; ++i )
-    {
-        if ( m_target[i] > 0 )
-        {
-            MH_DisableHook((void *)m_target[i]);
-            m_target[i] = 0;
-        }
-    }
-    return;
 }
 
 HRESULT WINAPI 
@@ -324,29 +285,41 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
-
     return sSHGetKnownFolderPathStub(rfid,dwFlags,hToken,ppszPath);
 }
 
 static void 
 init_portable(void)
 {
-    apihook_ctors("shell32.dll", "SHGetSpecialFolderLocation",
-                  (intptr_t)HookSHGetSpecialFolderLocation,
-                  (void**) &sSHGetSpecialFolderLocationStub);
-    apihook_ctors("shell32.dll", "SHGetFolderPathW",
-                  (intptr_t)HookSHGetFolderPathW,
-                  (void**) &sSHGetFolderPathWStub);
-    apihook_ctors("shell32.dll", "SHGetSpecialFolderPathW",
-                  (intptr_t)HookSHGetSpecialFolderPathW,
-                  (void**) &sSHGetSpecialFolderPathWStub);
-    apihook_ctors("shell32.dll", "SHGetKnownFolderIDList",
-                  (intptr_t)HookSHGetKnownFolderIDList,
-                  (void**) &sSHGetKnownFolderIDListStub); 
-    apihook_ctors("shell32.dll", "SHGetKnownFolderPath",
-                  (intptr_t)HookSHGetKnownFolderPath,
-                  (void**) &sSHGetKnownFolderPathStub); 
-    return; 
+#define FUNC_NUM 5
+#define DLD(s,h) {#s, (void*)(Hook##s), (pointer_to_handler*)(void*)(&h)}
+    int i;
+    HMODULE h_shell32;
+    const dyn_link_desc api_tables[FUNC_NUM] = 
+    {
+          DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
+        , DLD(SHGetFolderPathW, sSHGetFolderPathWStub)
+        , DLD(SHGetSpecialFolderPathW, sSHGetSpecialFolderPathWStub)
+        , DLD(SHGetKnownFolderIDList, sSHGetKnownFolderIDListStub)
+        , DLD(SHGetKnownFolderPath, sSHGetKnownFolderPathStub)
+    };
+    if ( (h_shell32 = GetModuleHandleW(L"shell32.dll")) == NULL )
+    {
+        return;
+    }
+    if ( !m_target[0] )
+    {
+        for ( i = 0 ; i<FUNC_NUM; i++)
+        {
+            m_target[i] = (uintptr_t)GetProcAddress(h_shell32, api_tables[i].name);
+        }
+        for ( i = 0 ; m_target[i]!=0&&i<FUNC_NUM; i++ )
+        {
+            creator_hook((void*)m_target[i], api_tables[i].hook, (void **)api_tables[i].original);
+        }
+    }
+#undef FUNC_NUM
+#undef DLD
 }
 
 
@@ -406,13 +379,7 @@ undo_it(void)
     }
     /* 清理启动过的进程树 */
     kill_trees();
-    /* 解除inline hook */
-    apihook_dtors();
-    winreg_end();
     jmp_end();
-#ifndef DISABLE_SAFE
-    safe_end();
-#endif
     MH_Uninitialize();
     return;
 }

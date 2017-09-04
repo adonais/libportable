@@ -2,7 +2,6 @@
 #include "inipara.h"
 #include "winapis.h"
 #include "inject.h"
-#include "MinHook.h"
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -468,25 +467,4 @@ unsigned WINAPI init_safed(void * pParam)
         }
     }
     return creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory);
-}
-
-void WINAPI safe_end(void)
-{
-    if (sLoadLibraryExWStub)
-    {
-        MH_DisableHook(pLoadLibraryExW);
-    }
-    if (sCreateProcessInternalW)
-    {
-        MH_DisableHook(pCreateProcessInternalW);
-    }
-    if (sNtCreateUserProcess)
-    {
-        MH_DisableHook(pNtCreateUserProcess);
-    }
-    if (sNtWriteVirtualMemory)
-    {
-        MH_DisableHook(pNtWriteVirtualMemory);
-    }
-    return;
 }
