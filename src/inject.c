@@ -93,7 +93,7 @@ static void remote32_asm(void)
 {
 __asm(
     ".globl _remote32_asm\n"
-    "_remote32_asm:\n"
+    "_remote32_as:\n"
     "pushl $0xDEADBEEF\n"         // return address, [1]
     "pushfl\n"
     "pushal\n"
