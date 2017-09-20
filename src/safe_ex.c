@@ -92,49 +92,6 @@ static bool in_whitelist(LPCWSTR lpfile)
     return ret;
 }
 
-/* 获得父线程PID */
-uintptr_t WINAPI getid_parental(uint32_t dwProcessId)
-{
-    NTSTATUS  status;
-    uintptr_t dwParentPID = 0;
-    HANDLE    hProcess = NULL;
-    PROCESS_BASIC_INFORMATION pbi;
-    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
-    do
-    {
-        if( !hNtdll )
-        {
-            break;
-        }
-        pNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
-        if ( !pNtQueryInformationProcess )
-        {
-            break;
-        }
-        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, dwProcessId);
-        if (!hProcess)
-        {
-            break;
-        }
-        status = pNtQueryInformationProcess(hProcess,
-                 ProcessBasicInformation,
-                 (PVOID)&pbi,
-                 sizeof(PROCESS_BASIC_INFORMATION),
-                 NULL
-                 );
-        if ( NT_SUCCESS(status) )
-        {
-            dwParentPID = (uintptr_t)pbi.InheritedFromUniqueProcessId;
-        }
-    }while(0);
-    if ( hProcess )
-    {
-        CloseHandle(hProcess);
-    }
-    return dwParentPID;
-}  
-
-
 static bool 
 ProcessIsCUI(LPCWSTR lpfile)
 {
