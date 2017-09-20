@@ -1,13 +1,24 @@
 CC       = $(CROSS_COMPILING)gcc
 CFLAGS   = -O2
-BITS	 := 32
 DFLAGS :=
 LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
-AR       =$(CROSS_COMPILING)ar
 CFLAGS   += $(DFLAGS) -D_LOGDEBUG  -Wall -Wno-unused -Wno-format -DNDEBUG \
             -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
 LTO      :=
+BUILD    = $(shell file `which gcc.exe` | grep x86-64)
+
+ifneq ($(CROSS_COMPILING),)
+ifneq ($(BITS),32)
+BITS	 := 64
+endif
+else
+ifeq ($(BUILD),)
+BITS	 := 32
+else
+BITS	 := 64
+endif
+endif
 
 MD       = mkdir -p
 SRC      = src

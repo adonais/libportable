@@ -6,13 +6,14 @@ System requirements
 
     - C compiler 
 	
-     mingw64, msys
+     mingw64, msys or msys2
 
      MinGW project on:
      http://sourceforge.net/projects/mingw-w64/
 
-     msys project on
+     msys msys2 project on
      https://sourceforge.net/projects/mingw/files/MSYS/
+     https://sourceforge.net/projects/msys2/
 
 	 or
 
@@ -22,15 +23,21 @@ Build!
 ------------------
 mingw64 compiler 
 
-build x86:
+32bits or 64bits:
 
 make clean
 make
 
-build x64:
+If gcc is a cross-compiler, use the CROSS_COMPILING option:
 
 make clean
-make BITS=64
+64bits:
+make CROSS_COMPILING=x86_64-w64-mingw32-
+32bits:
+make CROSS_COMPILING=x86_64-w64-mingw32- BITS=32
+
+more option:
+make CROSS_COMPILING=x86_64-w64-mingw32- LTO=1
 
 --------------------
 vc compiler 
@@ -39,7 +46,7 @@ nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc
 
 --------------------
-vs2015
+vs2015 or vs2017 dynamic lininking the CRT
 
 nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc MSVC_CRT=1900

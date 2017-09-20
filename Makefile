@@ -1,18 +1,26 @@
 CC       = $(CROSS_COMPILING)gcc -c 
 CFLAGS   = -O2
-AR       = $(CROSS_COMPILING)ar
 LD       = $(CROSS_COMPILING)gcc -o
-BITS	 := 32
+RC       = windres
+
 DFLAGS   :=
 MSCRT    := -lmsvcrt
 LTO      :=
 DLL_MAIN_STDCALL_NAME =
 LIBPORTABLE_STATIC :=
 
-ifeq ($(CROSS_COMPILING),)
-YASM     := msrt/yasm
+BUILD = $(shell file `which gcc.exe` | grep x86-64)
+
+ifneq ($(CROSS_COMPILING),)
+ifneq ($(BITS),32)
+BITS	 := 64
+endif
 else
-YASM     := yasm
+ifeq ($(BUILD),)
+BITS	 := 32
+else
+BITS	 := 64
+endif
 endif
 
 ifeq ($(BITS),64)
@@ -36,7 +44,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/load_module.o $(DEP)/win_registry.o
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -75,7 +83,6 @@ LDLIBS   = -lshlwapi -lshell32 -lole32 $(MSCRT)
 LDFLAGS  += -L$(DISTDIR) -nostdlib $(DEPLIBS) -lmingw32 -lmingwex -lgcc -lkernel32 -luser32 \
             -static-libgcc --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,-s
 DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
-RC       = $(CROSS_COMPILING)windres
 RCFLAGS  = --define UNICODE -J rc -O coff
 ifeq ($(BITS),32)
 RCFLAGS  += -F pe-i386
@@ -115,8 +122,6 @@ $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
-	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/load_module.o  : $(SRC)/load_module.c $(SRC)/load_module.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 	$(CC) $< $(CFLAGS) -o $@
