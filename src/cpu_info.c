@@ -1,13 +1,12 @@
 #include "cpu_info.h"
 #include <stdio.h>
 
-#if defined _MSC_VER && _MSC_VER > 1500
+#if defined _MSC_VER && _MSC_VER > 1500 && !defined(__clang__)
 #pragma intrinsic(__cpuid, _xgetbv, _mm_stream_si32, \
         _mm256_set1_epi8, _mm256_setzero_si256, _mm256_stream_si256)
 #elif defined(__GNUC__)
 extern void __cpuid(int CPUInfo[4], int info_type);
 #else
-#error Unsupported compiler
 #endif
 
 #define CPUID(func, a, b, c, d) do {\

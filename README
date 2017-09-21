@@ -45,8 +45,19 @@ vc compiler
 nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc
 
---------------------
-vs2015 or vs2017 dynamic lininking the CRT
-
+vs2015 or vs2017 dynamic lininking the CRT:
 nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc MSVC_CRT=1900
+
+--------------------
+clang compiler
+
+make clean
+make CC=clang                                           (deault target build)
+make CC=clang DFLAGS=--target=i686-pc-windows-gnu       (x86 mingw32 target build)
+
+If you have MSVC compiler installed
+
+make clean
+make CC=clang DFLAGS=--target=i686-pc-windows-msvc
+make CC=clang DFLAGS=--target=x86_64-pc-windows-msvc

@@ -17,9 +17,7 @@
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
-#ifdef __MINGW32__  /* FOLDERID_RoamingAppData defined */
 #include <knownfolders.h>
-#endif
 #include <process.h>
 #include <stdio.h>
 
@@ -86,6 +84,7 @@ WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
 static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
 #ifdef _MSC_VER
 #pragma data_seg()
+#pragma comment(linker,"/SECTION:.shrd,RWS")
 #endif
 
 bool

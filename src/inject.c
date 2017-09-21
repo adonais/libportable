@@ -150,7 +150,7 @@ bool inject32(void *mpara,RemotePara* func_param)
     SIZE_T   cbSize,tsize;
     bool     exitCode = false;
     PROCESS_INFORMATION pi = *(LPPROCESS_INFORMATION)mpara;
-    if ( !NT_SUCCESS(pNtSuspendThread(pi.hThread,&old_protect)) );
+    pNtSuspendThread(pi.hThread,&old_protect);
     ctx.ContextFlags = CONTEXT_CONTROL;
     if ( !GetThreadContext(pi.hThread, &ctx) )
     {
@@ -260,7 +260,7 @@ bool inject64(void *mpara,RemotePara* func_param)
     code_size = sizeof(codeToInject);
     /* 需要在进程内部申请的总空间尺寸 */
     t_size = param_size+func_size+code_size;
-    if ( !NT_SUCCESS(pNtSuspendThread(pi.hThread,&old_protect)) );
+    pNtSuspendThread(pi.hThread,&old_protect);
     if ( func_size < 1 || func_size > 16384)
     {
     #ifdef _LOGDEBUG

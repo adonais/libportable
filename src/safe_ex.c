@@ -197,7 +197,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                                   CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                   CreateInfo, AttributeList);
     /* 静态编译或者启用GCC lto时,不能启用远程注入 */
-#if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) )
+#if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) || defined(__clang__) )
     if ( NT_SUCCESS(status) && tohook )
     {
         PROCESS_INFORMATION ProcessInformation;
@@ -249,7 +249,7 @@ HookCreateProcessInternalW (HANDLE hToken,
          stristrW(lpfile, L"jp2launcher.exe"))
     {
         /* 静态编译或者启用GCC lto时,不能启用远程注入 */
-    #if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) )
+    #if !( defined(LIBPORTABLE_STATIC) || defined(__LTO__) || defined(__clang__) )
         tohook = true;
     #endif
     }
