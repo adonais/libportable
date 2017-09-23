@@ -179,10 +179,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         #ifndef LIBPORTABLE_STATIC
            is_specialdll(dwCaller, dllname)                       ||
         #endif
-        #ifndef _M_X64
-           is_specialdll(dwCaller, L"*\\FlashPlayerPlugin_*.exe") ||
-        #endif
-           is_specialdll(dwCaller, L"*\\npswf*.dll");
+           is_flash_plugins(dwCaller);
     if ( !dwFf )
     {
         return sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
@@ -224,11 +221,7 @@ HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreat
 {
     bool       internal;
     uintptr_t  dwCaller = (uintptr_t)_ReturnAddress();
-    internal = is_specialdll(dwCaller, L"*\\xul.dll")                ||
-           #ifndef _M_X64
-               is_specialdll(dwCaller, L"*\\FlashPlayerPlugin_*.exe")||
-           #endif
-               is_specialdll(dwCaller, L"*\\npswf*.dll");
+    internal = is_specialdll(dwCaller, L"*\\xul.dll") || is_flash_plugins(dwCaller);
     if ( !internal )
     {
         return sSHGetSpecialFolderPathWStub(hwndOwner,lpszPath,csidl,fCreate);

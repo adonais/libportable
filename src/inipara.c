@@ -203,7 +203,7 @@ init_verinfo(void)          /* 初始化version.dll里面的三个函数 */
 }
 
 static bool 
-get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
+get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
 {
     HMODULE  h_ver = NULL;
     bool     ret = false;
@@ -249,12 +249,23 @@ get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len)
         }
         for ( i=0; i < (cbTranslate/sizeof(LANGANDCODEPAGE)); i++ )
         {
-            wnsprintfW(dwBlock,
-                       NAMES_LEN,
-                       L"\\StringFileInfo\\%04x%04x\\ProductName",
-                       lpTranslate[i].wLanguage, 
-                       lpTranslate[i].wCodePage
-                      );
+            if ( plugin )
+            {
+                wnsprintfW(dwBlock,
+                           NAMES_LEN,
+                           L"\\StringFileInfo\\%ls\\ProductName",
+                           L"040904e4"
+                          );
+            }
+            else
+            {
+                wnsprintfW(dwBlock,
+                           NAMES_LEN,
+                           L"\\StringFileInfo\\%04x%04x\\ProductName",
+                           lpTranslate[i].wLanguage, 
+                           lpTranslate[i].wCodePage
+                          );
+            }
             ret = pfnVerQueryValueW((LPCVOID)pBuffer,
                                     (LPCWSTR)dwBlock,
                                     (LPVOID *)&pTmp, 
@@ -327,18 +338,6 @@ exists_dir(LPCWSTR path)
         return (fileattr & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
     return false;
-}
-
-bool WINAPI 
-create_dir2(LPCWSTR full_path) 
-{
-    int err;
-    if (exists_dir(full_path))
-    {
-        return true;
-    }
-    err = SHCreateDirectoryExW(NULL, full_path, NULL);
-    return err == ERROR_SUCCESS;
 }
 
 bool WINAPI 
@@ -533,20 +532,45 @@ GetCurrentWorkDirA(LPSTR lpstrName, DWORD len)
     return (i>0 && i<(int)len);
 }
 
-static LIB_INLINE bool is_ff_dev(void)
+LIB_INLINE
+static bool 
+is_ff_dev(void)
 {
     bool     ret = false;
     WCHAR    process_name[VALUE_LEN+1];
     WCHAR    product_name[NAMES_LEN+1] = {0};
     if ( GetCurrentProcessName(process_name,VALUE_LEN) && \
-         get_productname(process_name, product_name, NAMES_LEN) )
+         get_productname(process_name, product_name, NAMES_LEN, false) )
     {
         ret = _wcsicmp(L"FirefoxDeveloperEdition", product_name) == 0;
     }
     return ret;
 }
 
-bool WINAPI is_browser(void)
+static bool 
+get_module_name(uintptr_t caller, WCHAR *out, int len)
+{
+    bool    res = false;
+    HMODULE module = NULL;
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, 
+                          (LPCWSTR)caller, 
+                          &module))
+    {
+        *out = L'\0';
+        if ( GetModuleFileNameW(module, out, len) > 0 )
+        {
+            res = true;
+        }
+    }
+    if ( module )
+    {
+        res = FreeLibrary(module);
+    }
+    return res;
+}
+
+bool WINAPI 
+is_browser(void)
 {
     return ( nMainPid == GetCurrentProcessId() && !is_specialapp(L"plugin-container.exe") );
 }
@@ -560,35 +584,39 @@ is_specialapp(LPCWSTR appname)
 }
 
 bool WINAPI 
-is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file)
+is_specialdll(uintptr_t caller,LPCWSTR files)
 {
-    bool    ret = false;
-    HMODULE hCallerModule = NULL;
-    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, 
-                          (LPCWSTR)callerAddress, 
-                          &hCallerModule))
+    bool  res = false;
+    WCHAR module[VALUE_LEN+1] = {0};
+    if (get_module_name(caller, module, VALUE_LEN))
     {
-        WCHAR szModuleName[VALUE_LEN+1] = {0};
-        if ( GetModuleFileNameW(hCallerModule, szModuleName, VALUE_LEN) )
+        if ( StrChrW(files,L'*') || StrChrW(files,L'?') )
         {
-            if ( StrChrW(dll_file,L'*') || StrChrW(dll_file,L'?') )
+            if ( PathMatchSpecW(module, files) )
             {
-                if ( PathMatchSpecW(szModuleName, dll_file) )
-                {
-                    ret = true;
-                }
-            }
-            else if ( stristrW(szModuleName, dll_file) )
-            {
-                ret = true;
+                res = true;
             }
         }
+        else if ( stristrW(module, files) )
+        {
+            res = true;
+        }
     }
-    if ( hCallerModule )
+    return res;
+}
+
+bool WINAPI
+is_flash_plugins(uintptr_t caller)
+{
+    bool     res = false;
+    WCHAR    dll_name[VALUE_LEN+1];
+    WCHAR    product_name[NAMES_LEN+1] = {0};
+    if ( get_module_name(caller, dll_name, VALUE_LEN) &&
+         get_productname(dll_name, product_name, NAMES_LEN, true) )
     {
-        FreeLibrary(hCallerModule);
+        res = _wcsicmp(L"Shockwave Flash", product_name) == 0;
     }
-    return ret;
+    return res;
 }
 
 /* 获取profiles.ini文件绝对路径,保存到in_dir数组 */

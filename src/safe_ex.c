@@ -397,7 +397,6 @@ unsigned WINAPI init_safed(void * pParam)
         pNtCreateUserProcess = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
         if (!creator_hook(pNtCreateUserProcess, HookNtCreateUserProcess, (LPVOID*)&sNtCreateUserProcess))
         {
-        
         #ifdef _LOGDEBUG
             logmsg("NtCreateUserProcess hook failed!\n");
         #endif

@@ -74,6 +74,7 @@ extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini å
                                        );
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void);
+extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern bool     WINAPI GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen);
 extern bool     WINAPI GetCurrentWorkDirA(LPSTR lpstrName, DWORD len);
 extern unsigned WINAPI WaitWriteFile(void * pParam);
