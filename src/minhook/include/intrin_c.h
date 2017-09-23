@@ -26,6 +26,11 @@ unsigned long long _xgetbv(unsigned int __xcr_no)
     __asm__ ("xgetbv" : "=a" (__eax), "=d" (__edx) : "c" (__xcr_no));
     return ((unsigned long long)__edx << 32) | __eax;
 }
+extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
+void __nop(void)
+{
+    __asm__ __volatile__("nop");
+}
 #endif
 #endif
 
