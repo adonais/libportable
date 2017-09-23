@@ -21,7 +21,7 @@
 #include <process.h>
 #include <stdio.h>
 
-#if defined(VC12_CRT)
+#if defined(VC12_CRT) || defined(__clang__)
 #undef _DllMainCRTStartup
 #define _DllMainCRTStartup DllMain
 #endif
@@ -412,7 +412,9 @@ do_it(void)
         }
         if ( !init_global_env() )
         {
-            ;
+        #ifdef _LOGDEBUG
+            logmsg("init_global_env return false!\n");
+        #endif 
         }
     }
     if ( true )

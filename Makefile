@@ -40,7 +40,7 @@ CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-decl
 ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc)) 
 CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
 MSCRT    =
-LDFLAGS  += -fuse-ld=lld
+LDFLAGS := $(filter-out -s,$(LDFLAGS)) -fuse-ld=lld
 endif   #target x86_64 or i686
 ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows --target=i686-pc-windows-msvc --target=i686-pc-windows-gnu))
 BITS	 = 32
@@ -93,7 +93,7 @@ OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
 DEPLIBS  = -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 -lole32 $(MSCRT)
-LDFLAGS  += -L$(DISTDIR) $(DEPLIBS) -lkernel32 -luser32
+LDFLAGS  += -L$(DISTDIR) $(DEPLIBS) -lkernel32 -luser32 -s
 DLLFLAGS += -fPIC -shared
 RCFLAGS  = --define UNICODE -J rc -O coff
 ifeq ($(BITS),32)
@@ -104,10 +104,10 @@ OBJS     = $(OBJECTS)
 endif
 
 ifeq ($(CC), clang)
-LDFLAGS += -Wno-unused-command-line-argument -v
+LDFLAGS += -static -Wno-unused-command-line-argument -v
 else
 LDLIBS  += --entry=$(DLL_MAIN_STDCALL_NAME)
-LDFLAGS += -nostdlib -lmingw32 -lmingwex -lgcc -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a  -Wl,-s
+LDFLAGS += -nostdlib -lmingw32 -lmingwex -lgcc -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 endif
 
 ifeq ($(LTO), 1)

@@ -3,7 +3,8 @@
 
 /* do not have a C99 compiler */
 #if (defined _MSC_VER && _MSC_VER < 1800 && !(defined __cplusplus)) ||\
-    (defined __GNUC__&& __STDC_VERSION__ < 199901L && __GNUC__ < 3)
+    (defined __GNUC__&& __STDC_VERSION__ < 199901L && __GNUC__ < 3) ||\
+    !defined(__clang__)
 typedef unsigned char _Bool;
 #  define bool _Bool
 #  define true 1
