@@ -188,11 +188,14 @@ pentadactyl_fixed(void)
         {
             envPtrW(m_env);
         }
-        if (rc_path[1] == L':' && !exists_dir(rc_path))
+        if (rc_path[1] == L':' && !PathFileExistsW(rc_path))
         {
             const char *desc = "\" File created by libportable.\r\n"
                                "loadplugins \'\\.(js|penta)$\'\r\n";
             HANDLE h_file = CreateFileW(rc_path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        #ifdef _LOGDEBUG
+            logmsg("exists_dir(%ls) return false. h_file = 0x%x\n", rc_path, h_file);
+        #endif
             if (goodHandle(h_file))
             {
                 DWORD m_bytes;

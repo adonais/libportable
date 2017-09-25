@@ -693,34 +693,64 @@ search_section_names(LPCWSTR moz_profile,
     return ret;
 }
 
+static void 
+write_ini_file(LPCWSTR path)
+{
+    WritePrivateProfileSectionW(L"General",L"StartWithLastProfile=1\r\n\0",path);
+    if (is_specialapp(L"thunderbird.exe"))
+    {
+        WritePrivateProfileSectionW(\
+        L"Profile0",
+        L"Name=default\r\nIsRelative=1\r\nPath=../../\r\nDefault=1\r\n\0",
+        path);
+    }
+    else if (is_ff_dev())
+    {
+        WritePrivateProfileSectionW(\
+        L"Profile0",
+        L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0",
+        path);
+    }
+    else
+    {
+        WritePrivateProfileSectionW(\
+        L"Profile0",
+        L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0",
+        path);
+    }
+}
+
 unsigned WINAPI 
 WaitWriteFile(void * pParam)
 {
     bool   ret   = false;
     LPWSTR szDir = NULL;
     WCHAR  moz_profile[MAX_PATH+1] = {0};
-
-    if ( !get_mozilla_profile(moz_profile, MAX_PATH) )
+    if (!get_mozilla_profile(moz_profile, MAX_PATH))
     {
         return (0);
     }  
-    if ( exists_dir(moz_profile) )
+    if (PathFileExistsW(moz_profile))
     {
         WCHAR app_names[MAX_PATH+1] = {0};
         WCHAR m_profile[10] = {L'P',L'r',L'o',L'f',L'i',L'l',L'e',};
-        search_section_names(moz_profile, L"default", app_names, SECTION_NAMES);
-        if ( is_specialapp(L"thunderbird.exe") )
+        int f = search_section_names(moz_profile, L"default", app_names, SECTION_NAMES);
+        if (f)
+        {
+            write_ini_file(moz_profile);
+        }
+        else if (is_specialapp(L"thunderbird.exe"))
         {
             ret = WritePrivateProfileStringW(app_names,L"Path",L"../../",moz_profile);
         }
-        else if ( is_ff_dev() )
+        else if (is_ff_dev())
         {
             int m = search_section_names(\
                     moz_profile, 
                     L"dev-edition-default", 
                     app_names, 
                     SECTION_NAMES);
-            if ( m > 0 )
+            if (m > 0)
             {
                 /* 更新dev版配置文件 */
                 wnsprintfW(m_profile+wcslen(m_profile), 2, L"%d", m);
@@ -730,53 +760,32 @@ WaitWriteFile(void * pParam)
                       moz_profile);
             }
         }
-        ret = WritePrivateProfileStringW(app_names,
-                                         L"IsRelative",
-                                         L"1",
-                                         moz_profile
-                                        );
-        ret = WritePrivateProfileStringW(app_names,
-                                         L"Path",
-                                         L"../../../",
-                                         moz_profile
-                                        );
+        else
+        {
+            ret = WritePrivateProfileStringW(app_names,
+                                             L"IsRelative",
+                                             L"1",
+                                             moz_profile
+                                            );
+            ret = WritePrivateProfileStringW(app_names,
+                                             L"Path",
+                                             L"../../../",
+                                             moz_profile
+                                            );
+        }
     }
     else
     {
-        if ( (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL )
+        if ((szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL)
         {
             wcsncpy(szDir, moz_profile, MAX_PATH);
         }
-        if ( szDir && PathRemoveFileSpecW( szDir ) && create_dir( szDir ) )
+        if (szDir && PathRemoveFileSpecW( szDir ) && create_dir( szDir ))
         {
-            ret = WritePrivateProfileSectionW(\
-                  L"General",
-                  L"StartWithLastProfile=1\r\n\0",
-                  moz_profile);
-            if ( is_specialapp(L"thunderbird.exe") )
-            {
-                ret = WritePrivateProfileSectionW(\
-                      L"Profile0",
-                      L"Name=default\r\nIsRelative=1\r\nPath=../../\r\nDefault=1\r\n\0",
-                      moz_profile);
-            }
-            else if ( is_ff_dev() )
-            {
-                ret = WritePrivateProfileSectionW(\
-                      L"Profile0",
-                      L"Name=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\0",
-                      moz_profile);
-            }
-            else
-            {
-                ret = WritePrivateProfileSectionW(\
-                      L"Profile0",
-                      L"Name=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\0",
-                      moz_profile);
-            }
+            write_ini_file(moz_profile);
         }
     }
-    if ( szDir ) SYS_FREE(szDir);
+    if (szDir) SYS_FREE(szDir);
     return (1);
 }
 
