@@ -63,15 +63,13 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
            )
 {
     DWORD   res = 0;
-    LPWSTR  lpstring;
     LPCWSTR pfile = (LPCWSTR)filename;
-    lpstring = (LPWSTR)SYS_MALLOC(bufsize);
     if ( pfile == NULL )
     {
         res = GetPrivateProfileStringW(lpappname, 
                                        lpkey ,
                                        L"", 
-                                       lpstring, 
+                                       prefstring, 
                                        bufsize, 
                                        ini_path);
     }
@@ -80,16 +78,14 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
         res = GetPrivateProfileStringW(lpappname, 
                                        lpkey ,
                                        L"", 
-                                       lpstring, 
+                                       prefstring, 
                                        bufsize, 
                                        pfile);
     }
     if (res == 0 && GetLastError() != 0x0)
     {
-        SYS_FREE(lpstring);
         return false;
     }
-    wcsncpy(prefstring,lpstring,bufsize/sizeof(WCHAR)-1);
     prefstring[res] = L'\0';
     return ( res>0 );
 }
