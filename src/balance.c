@@ -149,7 +149,7 @@ set_cpu_balance(void *fx_info)
     LPCWSTR       m_pref  = L"cpu_pri_timer";
     WCHAR         m_name[32] = {0};
     int           m_cpu   = 0;
-    int           value   = read_appint(L"attach ", L"CpuUse");
+    int           value   = read_appint(L"attach", L"CpuUse");
     wnsprintfW(m_name, 32, L"%ls_%lu",m_pref, GetCurrentProcessId());
     m_timer = CreateWaitableTimerW(NULL, false, m_name);
     if ( !m_timer )
