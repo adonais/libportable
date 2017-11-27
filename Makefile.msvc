@@ -22,7 +22,7 @@ CRTFLAGS =
 CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
-!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64"
+!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || $(TARGET_ARCH)==x64
 PLATFORM = X64
 BITS	 = 64
 CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
