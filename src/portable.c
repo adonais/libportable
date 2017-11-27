@@ -14,6 +14,7 @@
 #include "balance.h"
 #include "set_env.h"
 #include "win_registry.h"
+#include "on_tabs.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -372,6 +373,7 @@ undo_it(void)
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
+    un_uia();
     MH_Uninitialize();
     return;
 }
@@ -442,6 +444,10 @@ do_it(void)
         if ( read_appint(L"General", L"DisableScan") > 0 )
         {
             init_winreg(NULL);
+        }
+        if ( read_appint(L"General",L"OnTabs") > 0 )
+        {
+            tab_threads(NULL);
         }
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {

@@ -5,7 +5,7 @@ CPP	 = cl.exe
 MSVC_CRT =
 TCMALLOC =
 
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /TC /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS"
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -22,7 +22,7 @@ CRTFLAGS =
 CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
-!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || $(TARGET_ARCH)==x64
+!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
 PLATFORM = X64
 BITS	 = 64
 CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
@@ -52,7 +52,7 @@ MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
-	   $(DEP)\win_registry.obj $(DEP)\set_env.obj
+	   $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -126,6 +126,8 @@ $(DEP)\win_registry.obj : $(SRC)\win_registry.c $(SRC)\win_registry.h
 	$(CC) $(CFLAGS) /c $(SRC)\win_registry.c /Fo$@
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
+$(DEP)\on_tabs.obj      : $(SRC)\on_tabs.c $(SRC)\on_tabs.h
+	$(CC) $(CFLAGS) /TP /c $(SRC)\on_tabs.c /Fo$@
 !if "$(TCMALLOC)"=="" && "$(VC12_CRT)"=="" && "$(MSVC_CRT)"<"1900"
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
