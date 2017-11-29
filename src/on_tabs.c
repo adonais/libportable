@@ -5,11 +5,24 @@
 #include <windows.h>
 #include <UIAutomation.h>
 
+typedef HHOOK (WINAPI *SetWindowsHookExPtr)(int idHook,
+              HOOKPROC  lpfn,
+              HINSTANCE hMod,
+              DWORD     dwThreadId);
+
+typedef struct _thread_data
+{
+    int code;
+    DWORD id;
+}thread_data;
+
+static SetWindowsHookExPtr pSetWindowsHookEx,sSetWindowsHookExStub;
 static HHOOK message_hook;
 static IUIAutomation* g_uia;
 static IUIAutomationElement* tab_bar;
 static int mouse_time;
 volatile long g_wait = 0;
+volatile long g_once = 0;
 
 void cli_mouse(int mouse)
 {
@@ -87,6 +100,10 @@ bool mouse_on_close(RECT *pr, POINT *pt)
     IUIAutomationElement *tmp = NULL;
     VARIANT var;
     bool res = false;
+    if (tab_bar == NULL)
+    {
+        return res;
+    }
     do
     {
         int c = 0;
@@ -150,6 +167,10 @@ bool mouse_on_tab(RECT *pr, POINT *pt)
     IUIAutomationElement *tmp = NULL;
     VARIANT var;
     bool res = false;
+    if (tab_bar == NULL)
+    {
+        return res;
+    }
     do
     {
         int c = 0;
@@ -331,7 +352,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             break;
         case WM_RBUTTONUP:
             RECT rc;
-            if (!mouse_on_tab(&rc, &msg->pt))
+            if (g_wait && !mouse_on_tab(&rc, &msg->pt))
             {
                 *(long volatile*)&g_wait = 0;
             }
@@ -349,6 +370,25 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
 bool init_uia(void)
 {
     HRESULT hr;
+    if (message_hook != NULL)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("message_hook used\n");
+    #endif
+        return false;
+    }
+    mouse_time = read_appint(L"tabs", L"mouse_time");
+    if (mouse_time < 0)
+    {
+        mouse_time = 300; 
+    }
+    if (!mouse_time)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("mouse_time = 0, OnTabs will be disabled!\n");
+    #endif
+        return false;
+    }
     CoInitialize(NULL);
     hr = CoCreateInstance(__uuidof(CUIAutomation), NULL, CLSCTX_INPROC_SERVER, 
          __uuidof(IUIAutomation), (void**)&g_uia);
@@ -373,20 +413,57 @@ un_uia(void)
     }
 }
 
-unsigned WINAPI
-tab_threads(void *lparam)
+static HHOOK WINAPI 
+HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId)
 {
-    if (message_hook == NULL && GetOsVersion() > 503 && init_uia())
+    if (idHook == WH_GETMESSAGE && !g_once)
     {
-        mouse_time = read_appint(L"tabs", L"mouse_time");
-        if (mouse_time < 0)
+        *(long volatile*)&g_once = 1;
+        sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
+    }
+    return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
+}
+
+void WINAPI
+threads_on_win7(void)
+{
+    if (!init_uia())
+    {
+        return;
+    }
+    message_hook = SetWindowsHookExW(WH_GETMESSAGE, mouse_message, dll_module, GetCurrentThreadId());
+    if (message_hook == NULL)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
+    #endif
+        return;
+    }
+}
+
+unsigned WINAPI
+threads_on_win10(void *lparam)
+{
+    if (init_uia())
+    {
+        HMODULE m_user32 = GetModuleHandleW(L"user32.dll");
+        if (!m_user32)
         {
-            mouse_time = 300; 
+            return 0;
         }
-        if (mouse_time)
+        if ((pSetWindowsHookEx = (SetWindowsHookExPtr)GetProcAddress(m_user32, "SetWindowsHookExW")) == NULL )
         {
-            message_hook = SetWindowsHookExW(WH_GETMESSAGE, mouse_message, 0, GetCurrentThreadId());
+            return 0;
+        }
+        if (!creator_hook(pSetWindowsHookEx, HookSetWindowsHookEx, (LPVOID*)&sSetWindowsHookExStub))
+        {
+
+        #ifdef _LOGDEBUG
+            logmsg("creator_hook return false!\n", GetLastError());
+        #endif
+            return 0;
         }
     }
     return (1);
 }
+

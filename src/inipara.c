@@ -27,7 +27,7 @@ typedef struct _LANGANDCODEPAGE
 extern WCHAR      appdata_path[VALUE_LEN+1];
 extern WCHAR      ini_path[MAX_PATH+1];
 extern char       logfile_buf[MAX_PATH+1];
-extern volatile   uint32_t nMainPid;
+extern volatile   uint32_t main_pid;
 
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
@@ -148,6 +148,16 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
 }
 
 #ifdef _LOGDEBUG
+void WINAPI 
+init_logs(void)
+{
+    if ( *logfile_buf == '\0' && GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
+    {
+        strncat(logfile_buf,"\\",1);
+        strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
+    }
+}
+
 void __cdecl 
 logmsg(const char * format, ...)
 {
@@ -568,7 +578,7 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
 bool WINAPI 
 is_browser(void)
 {
-    return ( nMainPid == GetCurrentProcessId() && !is_specialapp(L"plugin-container.exe") );
+    return ( main_pid == GetCurrentProcessId() && !is_specialapp(L"plugin-container.exe") );
 }
 
 bool WINAPI 

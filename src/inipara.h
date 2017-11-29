@@ -55,6 +55,7 @@ extern bool creator_hook(void* target, void* func, void **original);
 
 #ifdef _LOGDEBUG
 extern void     __cdecl logmsg(const char * format, ...);
+extern void     WINAPI  init_logs(void);
 #endif  /* _LOGDEBUG */
 
 extern DWORD    WINAPI GetOsVersion(void);

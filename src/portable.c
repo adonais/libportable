@@ -76,9 +76,10 @@ typedef struct _dyn_link_desc
 #ifdef _MSC_VER
 #pragma data_seg(".shrd")
 #endif
-volatile long nRunOnce SHARED = 0;
-volatile long nProCout SHARED = -1;
-volatile uint32_t nMainPid SHARED = 0;
+volatile long process_cout SHARED = -1;
+volatile long run_once SHARED = 0;
+volatile uint32_t main_pid SHARED = 0;
+volatile uint32_t new_main_pid SHARED = 0;
 WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
 char     logfile_buf[MAX_PATH+1] SHARED = {0};
 WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
@@ -100,27 +101,27 @@ creator_hook(void* target, void* func, void **original)
 
 /* AVX memset with non-temporal instructions */
 TETE_EXT_CLASS void * __cdecl 
-memset_nontemporal_tt ( void *dest, int c, size_t count )
+memset_nontemporal_tt (void *dest, int c, size_t count)
 {
     return memset_avx(dest, c, count);
 }
 
 /* Get the second level cache size */
 TETE_EXT_CLASS uint32_t
-GetNonTemporalDataSizeMin_tt( void )
+GetNonTemporalDataSizeMin_tt(void)
 {
     return get_level_size();
 }
 
 /* Never used,to be compatible with tete's patch */
 TETE_EXT_CLASS int
-GetCpuFeature_tt( void )
+GetCpuFeature_tt(void)
 {
     return 0;
 }
 
 TETE_EXT_CLASS intptr_t 
-GetAppDirHash_tt( void )
+GetAppDirHash_tt(void)
 {
     return 0;
 }
@@ -321,14 +322,14 @@ static bool
 init_global_env(void)
 {   
     /* 如果ini文件里的appdata设置路径为相对路径 */
-    if (appdata_path[1] != L':')
+    if ( appdata_path[1] != L':' )
     {
         PathToCombineW(appdata_path,VALUE_LEN);
     }
     if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path),NULL) )
     {
         /* 修正相对路径问题 */
-        if (localdata_path[1] != L':')
+        if ( localdata_path[1] != L':' )
         {
             PathToCombineW(localdata_path,VALUE_LEN);
         }
@@ -358,14 +359,23 @@ init_global_env(void)
 void WINAPI 
 undo_it(void)
 {
-    /* 计数器复位 */
-    if ( --nProCout == -1 || nMainPid == ff_info.hPid )
+    if ( process_cout == -1 )
     {
-        _InterlockedExchange(&nRunOnce, 0);
-        *(long volatile*)&nProCout = -1;
+    #ifdef _LOGDEBUG
+        logmsg("all process clear. \n");
+    #endif
+        _InterlockedExchange(&run_once, 0);
+    }
+    else if ( main_pid == GetCurrentProcessId() )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("main_pid = %u exit. \n", main_pid);
+    #endif
+        main_pid = new_main_pid;
+        new_main_pid = 0;
     }
     /* 解除快捷键 */
-    if (ff_info.atom_str)
+    if ( ff_info.atom_str )
     {
         UnregisterHotKey(NULL, ff_info.atom_str);
         GlobalDeleteAtom(ff_info.atom_str);
@@ -373,21 +383,22 @@ undo_it(void)
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
-    un_uia();
     MH_Uninitialize();
+    /* 反注册IUIAutomation接口 */
+    un_uia();
     return;
 }
 
 void WINAPI 
 do_it(void)
 {
-    if ( ++nProCout>2048 || !nRunOnce )
+    if ( process_cout>2048 || !run_once )
     {
         if ( !init_parser(ini_path, MAX_PATH) )
         {
             return;
         }
-        if ( (nMainPid = GetCurrentProcessId()) < 0x4 )
+        if ( (main_pid = GetCurrentProcessId()) < 0x4 )
         {
             return;
         }  
@@ -414,9 +425,11 @@ do_it(void)
     }
     if ( true )
     {
-        fzero(&ff_info, sizeof(WNDINFO));
-        ff_info.hPid = GetCurrentProcessId();
-        if (MH_Initialize() != MH_OK)
+        if ( ff_info.hPid == 0 )
+        {
+            ff_info.hPid = GetCurrentProcessId();
+        }
+        if ( MH_Initialize() != MH_OK )
         {
         #ifdef _LOGDEBUG
             logmsg("MH_Initialize false!!!!\n");
@@ -437,18 +450,47 @@ do_it(void)
         {
             init_exeception(NULL);
         }
+
     }
-    /* 使用计数器方式判断是否浏览器重启? */
-    if ( !nRunOnce )
-    { 
+    if ( new_main_pid?!is_child_of(new_main_pid):!is_child_of(main_pid) )
+    {
+        if ( run_once )
+        {
+            new_main_pid = ff_info.hPid;
+        }
+        if ( new_main_pid )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("set new environment!\n");
+        #endif 
+            set_envp(NULL);
+        }
+        if ( read_appint(L"General",L"OnTabs") > 0 )
+        {
+            DWORD ver = GetOsVersion();
+            if (ver > 601)
+            {
+                CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
+            #ifdef _LOGDEBUG
+                logmsg("win8--win10!\n");
+            #endif
+            }
+            else if ( ver > 503 && ver < 602 )
+            {
+                threads_on_win7();
+            #ifdef _LOGDEBUG
+                logmsg("vista--win7!\n");
+            #endif
+            }
+        }
         if ( read_appint(L"General", L"DisableScan") > 0 )
         {
             init_winreg(NULL);
         }
-        if ( read_appint(L"General",L"OnTabs") > 0 )
-        {
-            tab_threads(NULL);
-        }
+    }
+    /* 使用计数器方式判断是否浏览器重启? */
+    if ( !run_once )
+    {
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
@@ -462,7 +504,7 @@ do_it(void)
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
         }
     }
-    *(long volatile*)&nRunOnce = 1;
+    *(long volatile*)&run_once = 1;
 }
 
 #if defined(__GNUC__) && defined(__LTO__)
@@ -483,13 +525,8 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
     case DLL_PROCESS_ATTACH:
         dll_module = (HMODULE)hModule;
         DisableThreadLibraryCalls(hModule);
-    #ifdef _LOGDEBUG          /* 初始化日志记录文件 */
-        if ( *logfile_buf == '\0' && \
-             GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
-        {
-            strncat(logfile_buf,"\\",1);
-            strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
-        }
+    #ifdef _LOGDEBUG
+        init_logs();
     #endif
         do_it();
         break;
