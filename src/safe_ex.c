@@ -379,6 +379,81 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     return sLoadLibraryExWStub(lpFileName, hFile, dwFlags);
 }
 
+/* 获得自身父线程PID */
+static uint32_t 
+get_parent_pid(void)
+{
+    NTSTATUS  status;
+    uint32_t  dwParent = 0;
+    PROCESS_BASIC_INFORMATION pbi;
+    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
+    do
+    {
+        if( !hNtdll )
+        {
+            break;
+        }
+        pNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+        if ( !pNtQueryInformationProcess )
+        {
+            break;
+        }
+        status = pNtQueryInformationProcess(GetCurrentProcess(),
+                 ProcessBasicInformation,
+                 (PVOID)&pbi,
+                 sizeof(PROCESS_BASIC_INFORMATION),
+                 NULL
+                 );
+        if ( NT_SUCCESS(status) )
+        {
+            dwParent = (uint32_t)(uintptr_t)pbi.Reserved3;
+        }
+    }while(0);
+    return dwParent;
+}
+
+bool WINAPI is_child_of(const uint32_t parent)
+{
+    bool   res = false;
+    HANDLE hProcess = NULL;
+    uint32_t dwProcessId = get_parent_pid();
+    if (dwProcessId == parent)
+    {
+        return true;
+    }
+    do
+    {
+        NTSTATUS status;
+        PROCESS_BASIC_INFORMATION pbi;
+        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, dwProcessId);
+        if (!hProcess)
+        {
+            break;
+        }
+        status = pNtQueryInformationProcess(hProcess,
+                 ProcessBasicInformation,
+                 (PVOID)&pbi,
+                 sizeof(PROCESS_BASIC_INFORMATION),
+                 NULL
+                 );
+        if ( !NT_SUCCESS(status) )
+        {
+            break;
+        }
+        if ((dwProcessId = (uint32_t)(uintptr_t)pbi.Reserved3) == parent)
+        {
+            res = true;
+            break;
+        }
+        CloseHandle(hProcess),hProcess = NULL;
+    } while (dwProcessId != parent);
+    if ( hProcess )
+    {
+        CloseHandle(hProcess);
+    }
+    return res;
+}
+
 unsigned WINAPI init_safed(void * pParam)
 {
     HMODULE		hNtdll, hKernel;
