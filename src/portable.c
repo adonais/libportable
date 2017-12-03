@@ -355,6 +355,25 @@ init_global_env(void)
 #pragma GCC optimize ("O3")
 #endif
 
+unsigned watch_thread(void *lparam)
+{
+    WNDINFO *pfx = (WNDINFO *)lparam;
+    bool    is_child = is_child_of(main_pid);
+    if ( main_pid == pfx->hPid || is_child )
+    {
+        return (1);
+    }
+    if ( new_main_pid?!is_child_of(new_main_pid):!is_child  )
+    {
+        new_main_pid = pfx->hPid;
+        set_envp(NULL);
+    #ifdef _LOGDEBUG
+        logmsg("set new environment, new_main_pid=%u\n", new_main_pid);
+    #endif  
+    }
+    return (1);
+}
+
 /* uninstall hook and clean up */
 void WINAPI 
 undo_it(void)
@@ -392,7 +411,7 @@ undo_it(void)
 void WINAPI 
 do_it(void)
 {
-    if ( process_cout>2048 || !run_once )
+    if ( ++process_cout>2048 || !run_once )
     {
         if ( !init_parser(ini_path, MAX_PATH) )
         {
@@ -423,48 +442,38 @@ do_it(void)
         #endif 
         }
     }
+    if ( ff_info.hPid == 0 )
+    {
+        ff_info.hPid = GetCurrentProcessId();
+    }
     if ( true )
     {
-        if ( ff_info.hPid == 0 )
-        {
-            ff_info.hPid = GetCurrentProcessId();
-        }
-        if ( MH_Initialize() != MH_OK )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("MH_Initialize false!!!!\n");
-        #endif 
-            return;
-        }
-        if ( appdata_path[1] == L':' )
-        {
-            init_portable();
-        }
-    #ifndef DISABLE_SAFE
-        if ( read_appint(L"General",L"SafeEx") > 0 )
-        {
-            init_safed(NULL);
-        }
-    #endif
-        if ( read_appint(L"General",L"CreateCrashDump") != 0 )
-        {
-            init_exeception(NULL);
-        }
-
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&watch_thread,&ff_info,0,NULL));
     }
-    if ( new_main_pid?!is_child_of(new_main_pid):!is_child_of(main_pid) )
+    if ( MH_Initialize() != MH_OK )
     {
-        if ( run_once )
-        {
-            new_main_pid = ff_info.hPid;
-        }
-        if ( new_main_pid )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("set new environment!\n");
-        #endif 
-            set_envp(NULL);
-        }
+    #ifdef _LOGDEBUG
+        logmsg("MH_Initialize false!!!!\n");
+    #endif 
+        return;
+    }
+    if ( appdata_path[1] == L':' )
+    {
+        init_portable();
+    }
+#ifndef DISABLE_SAFE
+    if ( read_appint(L"General",L"SafeEx") > 0 )
+    {
+        init_safed(NULL);
+    }
+#endif
+    if ( read_appint(L"General",L"CreateCrashDump") != 0 )
+    {
+        init_exeception(NULL);
+    }
+    /* 使用计数器方式判断是否浏览器重启? */
+    if ( !run_once )
+    {
         if ( read_appint(L"General",L"OnTabs") > 0 )
         {
             DWORD ver = GetOsVersion();
@@ -487,10 +496,6 @@ do_it(void)
         {
             init_winreg(NULL);
         }
-    }
-    /* 使用计数器方式判断是否浏览器重启? */
-    if ( !run_once )
-    {
         if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
