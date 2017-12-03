@@ -10,17 +10,14 @@ typedef HHOOK (WINAPI *SetWindowsHookExPtr)(int idHook,
               HINSTANCE hMod,
               DWORD     dwThreadId);
 
-typedef struct _thread_data
-{
-    int code;
-    DWORD id;
-}thread_data;
-
 static SetWindowsHookExPtr pSetWindowsHookEx,sSetWindowsHookExStub;
 static HHOOK message_hook;
 static IUIAutomation* g_uia;
 static IUIAutomationElement* tab_bar;
 static int mouse_time;
+static bool activation;
+static bool double_click;
+static bool mouse_close;
 volatile long g_wait = 0;
 volatile long g_once = 0;
 
@@ -50,8 +47,21 @@ send_click(void *p)
     if (!g_wait)
     {
         g_wait = 1;
-        cli_mouse(MOUSEEVENTF_LEFTDOWN);
-        cli_mouse(MOUSEEVENTF_LEFTUP);
+        int mouse_up = 0;
+        int mouse_down = (int)(intptr_t)p;
+        if (mouse_down == MOUSEEVENTF_LEFTDOWN)
+        {
+            mouse_up = MOUSEEVENTF_LEFTUP;
+        }
+        else if (mouse_down == MOUSEEVENTF_MIDDLEDOWN)
+        {
+            mouse_up = MOUSEEVENTF_MIDDLEUP;
+        }
+        if (mouse_up)
+        {
+            cli_mouse(mouse_down);
+            cli_mouse(mouse_up);
+        }
         Sleep(1);
         *(long volatile*)&g_wait = 0;
     }
@@ -159,7 +169,7 @@ bool mouse_on_close(RECT *pr, POINT *pt)
     return res;
 }
 
-bool mouse_on_tab(RECT *pr, POINT *pt)
+bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
     HRESULT hr;
     IUIAutomationCondition * pCondition = NULL;
@@ -207,6 +217,7 @@ bool mouse_on_tab(RECT *pr, POINT *pt)
             hr = tmp->get_CurrentBoundingRectangle(pr); 
             if (SUCCEEDED(hr) && PtInRect(pr, *pt))
             {
+                tmp->get_CurrentIsKeyboardFocusable(active);
                 res = true;
                 break;
             }
@@ -313,6 +324,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
+        static int onclick = false;
         MSG* msg = (MSG*)lParam;
         switch (msg->message)
         {
@@ -321,15 +333,34 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             {
                 get_tab_bars(WindowFromPoint(msg->pt));
             }
+            if (!(activation || mouse_close))
+            {
+                break;
+            }
+            else if (onclick)
+            {
+                onclick = false;
+            }
             else
             {
                 RECT rc;
-                if (mouse_on_tab(&rc, &msg->pt) && !mouse_on_close(&rc, &msg->pt))
+                int active = 1;
+                if (!onclick && mouse_on_tab(&rc, &msg->pt, &active))
                 {
                 #ifdef _LOGDEBUG
                     logmsg("mouse on tab!\n");
                 #endif
-                    CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,NULL,0,NULL));
+                    bool on_close_button = mouse_on_close(&rc, &msg->pt);
+                    if (mouse_close && on_close_button)
+                    {
+                        onclick = true;
+                        CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_LEFTDOWN,0,NULL));
+                    }
+                    else if (activation && !active && !on_close_button)
+                    {
+                        onclick = true;
+                        CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_LEFTDOWN,0,NULL));
+                    }
                 }
             }
             break;
@@ -341,9 +372,16 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                 MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
                 MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
                 MouseEvent.hwndTrack = WindowFromPoint(msg->pt);
-                MouseEvent.dwHoverTime = (DWORD)mouse_time;
+                if (mouse_time)
+                {
+                    MouseEvent.dwHoverTime = (DWORD)mouse_time;
+                }
+                else
+                {
+                    MouseEvent.dwHoverTime = 100;
+                }
                 TrackMouseEvent(&MouseEvent);
-                Sleep(1);
+                Sleep(0);
                 *(long volatile*)&g_wait = 0;
             }
             break; 
@@ -352,9 +390,22 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             break;
         case WM_RBUTTONUP:
             RECT rc;
-            if (g_wait && !mouse_on_tab(&rc, &msg->pt))
+            int tmp;
+            if (g_wait && !mouse_on_tab(&rc, &msg->pt, &tmp))
             {
                 *(long volatile*)&g_wait = 0;
+            }
+            break;
+        case WM_LBUTTONDBLCLK:
+            if (double_click)
+            {
+                RECT rc;
+                int active = 0;
+                if (mouse_on_tab(&rc, &msg->pt, &active) && active)
+                {
+                    CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_MIDDLEDOWN,0,NULL));
+                    onclick = true;
+                }
             }
             break;
         case WM_LBUTTONUP:
@@ -387,6 +438,22 @@ bool init_uia(void)
     #ifdef _LOGDEBUG
         logmsg("mouse_time = 0, OnTabs will be disabled!\n");
     #endif
+        activation = false;
+    }
+    else
+    {
+        activation = true;
+    }
+    if (read_appint(L"tabs", L"double_click_close") > 0)
+    {
+        double_click = true;
+    }
+    if (read_appint(L"tabs", L"mouse_hover_close") > 0)
+    {
+        mouse_close = true;
+    }
+    if (!(activation || double_click || mouse_close))
+    {
         return false;
     }
     CoInitialize(NULL);
@@ -466,4 +533,3 @@ threads_on_win10(void *lparam)
     }
     return (1);
 }
-
