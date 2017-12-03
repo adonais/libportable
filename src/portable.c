@@ -355,7 +355,8 @@ init_global_env(void)
 #pragma GCC optimize ("O3")
 #endif
 
-unsigned watch_thread(void *lparam)
+unsigned WINAPI
+watch_thread(void *lparam)
 {
     WNDINFO *pfx = (WNDINFO *)lparam;
     bool    is_child = is_child_of(main_pid);
@@ -403,8 +404,10 @@ undo_it(void)
     kill_trees();
     jmp_end();
     MH_Uninitialize();
+#if !(__GNUC__ || __clang__)
     /* 反注册IUIAutomation接口 */
     un_uia();
+#endif
     return;
 }
 
@@ -474,6 +477,7 @@ do_it(void)
     /* 使用计数器方式判断是否浏览器重启? */
     if ( !run_once )
     {
+    #if !(__GNUC__ || __clang__)    /* mingw-w64 crt does not implement IUIAutomation interface */
         if ( read_appint(L"General",L"OnTabs") > 0 )
         {
             DWORD ver = GetOsVersion();
@@ -492,6 +496,7 @@ do_it(void)
             #endif
             }
         }
+    #endif
         if ( read_appint(L"General", L"DisableScan") > 0 )
         {
             init_winreg(NULL);
