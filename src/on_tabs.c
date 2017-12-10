@@ -1,6 +1,7 @@
 #include "on_tabs.h"
 #include "inipara.h"
 #include <stdio.h>
+#include <time.h>
 #include <process.h>
 #include <windows.h>
 #include <UIAutomation.h>
@@ -18,54 +19,35 @@ static int mouse_time;
 static bool activation;
 static bool double_click;
 static bool mouse_close;
-volatile long g_wait = 0;
 volatile long g_once = 0;
 
-void cli_mouse(int mouse)
+void 
+send_click(int mouse)
 {
-    INPUT input[1];
-    if (GetSystemMetrics(SM_SWAPBUTTON) == 1)
+    INPUT input[2] = {0};
+    input[0].type=input[1].type=INPUT_MOUSE;
+    input[0].mi.dwFlags=mouse;
+    if (mouse == MOUSEEVENTF_LEFTDOWN)
     {
-        if (mouse == MOUSEEVENTF_RIGHTDOWN)
-        {
-            mouse = MOUSEEVENTF_LEFTDOWN;
-        }
-        else if (mouse == MOUSEEVENTF_RIGHTUP)
-        {
-            mouse = MOUSEEVENTF_LEFTUP;
-        }
+        input[1].mi.dwFlags=MOUSEEVENTF_LEFTUP;
     }
-    memset(input, 0, sizeof(input));
-    input[0].type = INPUT_MOUSE;
-    input[0].mi.dwFlags = mouse;
-    SendInput(1, input, sizeof(INPUT));
-}
-
-unsigned WINAPI
-send_click(void *p)
-{
-    if (!g_wait)
+    else if (mouse == MOUSEEVENTF_MIDDLEDOWN)
     {
-        g_wait = 1;
-        int mouse_up = 0;
-        int mouse_down = (int)(intptr_t)p;
-        if (mouse_down == MOUSEEVENTF_LEFTDOWN)
-        {
-            mouse_up = MOUSEEVENTF_LEFTUP;
-        }
-        else if (mouse_down == MOUSEEVENTF_MIDDLEDOWN)
-        {
-            mouse_up = MOUSEEVENTF_MIDDLEUP;
-        }
-        if (mouse_up)
-        {
-            cli_mouse(mouse_down);
-            cli_mouse(mouse_up);
-        }
-        Sleep(1);
-        *(long volatile*)&g_wait = 0;
+        input[1].mi.dwFlags=MOUSEEVENTF_MIDDLEUP;
     }
-    return (1);
+    else
+    {
+        return;
+    }
+    if (mouse == MOUSEEVENTF_LEFTDOWN)
+    {
+        SendInput(2,input,sizeof(INPUT));
+    }
+    /* 增加一次点击,避免与双击关闭标签功能冲突 */
+    if (double_click)
+    {
+        SendInput(2,input,sizeof(INPUT));
+    }
 }
 
 bool find_next_child(IUIAutomationElement *pElement)
@@ -169,6 +151,7 @@ bool mouse_on_close(RECT *pr, POINT *pt)
     return res;
 }
 
+/* 得到标签页的事件指针, 当标签已激活时把active参数设为1 */
 bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
     HRESULT hr;
@@ -217,7 +200,10 @@ bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
             hr = tmp->get_CurrentBoundingRectangle(pr); 
             if (SUCCEEDED(hr) && PtInRect(pr, *pt))
             {
-                tmp->get_CurrentIsKeyboardFocusable(active);
+                if (active != NULL)
+                {
+                    tmp->get_CurrentIsKeyboardFocusable(active);
+                }
                 res = true;
                 break;
             }
@@ -301,21 +287,15 @@ bool get_tab_bars(HWND hwnd)
     HRESULT hr;
     bool res = false;
     IUIAutomationElement *root = NULL;
-    if (!g_wait)
+    hr = g_uia->ElementFromHandle(hwnd, &root);
+    if (SUCCEEDED(hr))
     {
-        g_wait = 1;
-        hr = g_uia->ElementFromHandle(hwnd, &root);
-        if (SUCCEEDED(hr))
-        {
-            res = find_ui_child(root);
-        }
-        Sleep(1);
+        res = find_ui_child(root);
     }
     if (root)
     {
         root->Release();
     }
-    *(long volatile*)&g_wait = 0;
     return res;
 }
 
@@ -324,92 +304,94 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
-        static int onclick = false;
+        /* 忽略多余控件产生的鼠标消息 */
+        static bool m_ingore = false;
+        /* 当鼠标在同一区域移动时,不产生多余的开销 */
+        static bool b_track = true;
         MSG* msg = (MSG*)lParam;
+        if ((msg->message == WM_MOUSEMOVE) && b_track)
+        {
+            b_track =  false;
+            m_ingore = false;
+            TRACKMOUSEEVENT MouseEvent;
+            MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
+            MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
+            MouseEvent.hwndTrack = WindowFromPoint(msg->pt);
+            if (mouse_time)
+            {
+                MouseEvent.dwHoverTime = (DWORD)mouse_time;
+            }
+            else
+            {
+                MouseEvent.dwHoverTime = HOVER_DEFAULT;
+            }
+            TrackMouseEvent(&MouseEvent);
+            Sleep(0);
+            return CallNextHookEx(message_hook, nCode, wParam, lParam);
+        }   
+        if (m_ingore)
+        {
+            return CallNextHookEx(message_hook, nCode, wParam, lParam);
+        }
         switch (msg->message)
         {
-        case WM_MOUSEHOVER: 
-            if (tab_bar == NULL)
-            {
-                get_tab_bars(WindowFromPoint(msg->pt));
-            }
+        case WM_MOUSEHOVER:
             if (!(activation || mouse_close))
             {
                 break;
             }
-            else if (onclick)
+            if (tab_bar == NULL)
             {
-                onclick = false;
+                get_tab_bars(WindowFromPoint(msg->pt));
             }
-            else
+            if (!m_ingore)
             {
                 RECT rc;
                 int active = 1;
-                if (!onclick && mouse_on_tab(&rc, &msg->pt, &active))
+                if (mouse_on_tab(&rc, &msg->pt, &active))
                 {
-                #ifdef _LOGDEBUG
-                    logmsg("mouse on tab!\n");
-                #endif
-                    bool on_close_button = mouse_on_close(&rc, &msg->pt);
-                    if (mouse_close && on_close_button)
+                    if (mouse_close && mouse_on_close(&rc, &msg->pt))
                     {
-                        onclick = true;
-                        CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_LEFTDOWN,0,NULL));
+                        send_click(MOUSEEVENTF_LEFTDOWN);
                     }
-                    else if (activation && !active && !on_close_button)
+                    else if (activation && !active && !mouse_on_close(&rc, &msg->pt))
                     {
-                        onclick = true;
-                        CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_LEFTDOWN,0,NULL));
+                    #ifdef _LOGDEBUG
+                        logmsg("mouse on tab, send click message!\n");
+                    #endif
+                        send_click(MOUSEEVENTF_LEFTDOWN);
                     }
                 }
+                m_ingore = true;
             }
-            break;
-        case WM_MOUSEMOVE: 
-            if (!g_wait)
-            {
-                g_wait = 1;
-                TRACKMOUSEEVENT MouseEvent;
-                MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
-                MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
-                MouseEvent.hwndTrack = WindowFromPoint(msg->pt);
-                if (mouse_time)
-                {
-                    MouseEvent.dwHoverTime = (DWORD)mouse_time;
-                }
-                else
-                {
-                    MouseEvent.dwHoverTime = 100;
-                }
-                TrackMouseEvent(&MouseEvent);
-                Sleep(0);
-                *(long volatile*)&g_wait = 0;
-            }
-            break; 
-        case WM_RBUTTONDOWN:
-            InterlockedExchange(&g_wait,1);
-            break;
-        case WM_RBUTTONUP:
-            RECT rc;
-            int tmp;
-            if (g_wait && !mouse_on_tab(&rc, &msg->pt, &tmp))
-            {
-                *(long volatile*)&g_wait = 0;
-            }
+            b_track = true;
             break;
         case WM_LBUTTONDBLCLK:
-            if (double_click)
+            if (!m_ingore && double_click)
             {
+            #ifdef _LOGDEBUG
+                logmsg("WM_LBUTTONDBLCLK received!\n");
+            #endif
                 RECT rc;
-                int active = 0;
-                if (mouse_on_tab(&rc, &msg->pt, &active) && active)
+                if (tab_bar == NULL)
                 {
-                    CloseHandle((HANDLE)_beginthreadex(NULL,0,&send_click,(void *)MOUSEEVENTF_MIDDLEDOWN,0,NULL));
-                    onclick = true;
+                    get_tab_bars(WindowFromPoint(msg->pt));
                 }
+                if (mouse_on_tab(&rc, &msg->pt, NULL))
+                {
+                    send_click(MOUSEEVENTF_MIDDLEDOWN);
+                }
+                m_ingore = true;
             }
+            b_track = true;
             break;
         case WM_LBUTTONUP:
-            *(long volatile*)&g_wait = 0;
+            m_ingore = true;
+            b_track =  true;
+            break;
+        case WM_MOUSELEAVE:
+            m_ingore = true;
+            b_track =  true;
             break;
         default :
             break;
