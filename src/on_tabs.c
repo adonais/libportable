@@ -1,7 +1,6 @@
 #include "on_tabs.h"
 #include "inipara.h"
 #include <stdio.h>
-#include <time.h>
 #include <process.h>
 #include <windows.h>
 #include <UIAutomation.h>
