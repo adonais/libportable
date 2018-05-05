@@ -13,7 +13,6 @@ typedef HHOOK (WINAPI *SetWindowsHookExPtr)(int idHook,
 static SetWindowsHookExPtr pSetWindowsHookEx,sSetWindowsHookExStub;
 static HHOOK message_hook;
 static IUIAutomation* g_uia;
-static IUIAutomationElement* tab_bar;
 static int mouse_time;
 static bool activation;
 static bool double_click;
@@ -42,20 +41,19 @@ send_click(int mouse)
     {
         SendInput(2,input,sizeof(INPUT));
     }
-    /* Ôö¼ÓÒ»´Îµã»÷,±ÜÃâÓëË«»÷¹Ø±Õ±êÇ©¹¦ÄÜ³åÍ» */
+    /* å¢žåŠ ä¸€æ¬¡ç‚¹å‡»,é¿å…ä¸ŽåŒå‡»å…³é—­æ ‡ç­¾åŠŸèƒ½å†²çª */
     if (double_click)
     {
         SendInput(2,input,sizeof(INPUT));
     }
 }
 
-bool find_next_child(IUIAutomationElement *pElement)
+IUIAutomationElement* find_next_child(IUIAutomationElement *pElement)
 {
     HRESULT hr;
-    IUIAutomationCondition * pCondition;
-    IUIAutomationElement * pFound = NULL;
+    IUIAutomationCondition* pCondition;
+    IUIAutomationElement* pFound = NULL;
     VARIANT var;
-    bool res = false;
     do
     {
         var.vt = VT_I4;
@@ -70,28 +68,98 @@ bool find_next_child(IUIAutomationElement *pElement)
         {
             break;
         }
-        if (pFound != NULL)
+    }while (0);
+    if (pCondition)
+    {
+        pCondition->Release();
+    }
+    return pFound;
+}
+
+IUIAutomationElement* find_ui_child(IUIAutomationElement *pElement)
+{
+    HRESULT hr;
+    IUIAutomationElement* tmp = NULL;
+    IUIAutomationCondition* pCondition = NULL;
+    IUIAutomationElementArray* pFoundArray = NULL;
+    IUIAutomationElement* pFound = NULL;
+    VARIANT var;
+    do
+    {
+        int c = 0;
+        var.vt = VT_I4;
+        var.lVal = UIA_ToolBarControlTypeId;
+        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
+        if (FAILED(hr))
         {
-            tab_bar = pFound;
-            res = true;
+            break;
+        }
+        hr = pElement->FindAll(TreeScope_Children,pCondition, &pFoundArray);
+        if (FAILED(hr))
+        {
+            break;
+        }
+        hr = pFoundArray->get_Length(&c);
+        if (FAILED(hr))
+        {
+            break;
+        }
+        for (int idx = 0; idx < c; idx++)
+        {
+            hr = pFoundArray->GetElement(idx, &tmp);
+            if (FAILED(hr))
+            {
+                break;
+            }        
+            if ((pFound = find_next_child(tmp)) != NULL)
+            {
+                break;
+            }
         }
     }while (0);
     if (pCondition)
     {
         pCondition->Release();
     }
-    return res;
+    if (tmp)
+    {
+        tmp->Release();
+    }
+    if (pFoundArray)
+    {
+        pFoundArray->Release();
+    }
+    return pFound;
 }
 
+IUIAutomationElement* get_tab_bars(HWND hwnd)
+{
+    HRESULT hr;
+    IUIAutomationElement* pFound = NULL;
+    IUIAutomationElement* root = NULL;
+    hr = g_uia->ElementFromHandle(hwnd, &root);
+    if (SUCCEEDED(hr))
+    {
+        pFound = find_ui_child(root);
+    }
+    if (root)
+    {
+        root->Release();
+    }
+    return pFound;
+}
+
+/* æ­¤å‡½æ•°ä¸å…¼å®¹firefox 59.0æˆ–ä»¥ä¸Šç‰ˆæœ¬ 
 bool mouse_on_close(RECT *pr, POINT *pt)
 {
     HRESULT hr;
-    IUIAutomationCondition * pCondition = NULL;
-    IUIAutomationElementArray * pFoundArray = NULL;
-    IUIAutomationElement *tmp = NULL;
+    IUIAutomationCondition* pCondition = NULL;
+    IUIAutomationElementArray* pFoundArray = NULL;
+    IUIAutomationElement* tmp = NULL;
+    IUIAutomationElement* tab_bar = NULL;
     VARIANT var;
     bool res = false;
-    if (tab_bar == NULL)
+    if ((tab_bar = get_tab_bars(WindowFromPoint(*pt))) == NULL)
     {
         return res;
     }
@@ -147,20 +215,29 @@ bool mouse_on_close(RECT *pr, POINT *pt)
     {
         pFoundArray->Release();
     }
+    if (tab_bar)
+    {
+        tab_bar->Release();
+    }
     return res;
 }
+*/
 
-/* µÃµ½±êÇ©Ò³µÄÊÂ¼þÖ¸Õë, µ±±êÇ©ÒÑ¼¤»îÊ±°Ñactive²ÎÊýÉèÎª1 */
+/* å¾—åˆ°æ ‡ç­¾é¡µçš„äº‹ä»¶æŒ‡é’ˆ, å½“æ ‡ç­¾å·²æ¿€æ´»æ—¶æŠŠactiveå‚æ•°è®¾ä¸º1 */
 bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
     HRESULT hr;
-    IUIAutomationCondition * pCondition = NULL;
-    IUIAutomationElementArray * pFoundArray = NULL;
-    IUIAutomationElement *tmp = NULL;
+    IUIAutomationCondition* pCondition = NULL;
+    IUIAutomationElementArray* pFoundArray = NULL;
+    IUIAutomationElement* tmp = NULL;
+    IUIAutomationElement* tab_bar = NULL;
     VARIANT var;
     bool res = false;
-    if (tab_bar == NULL)
+    if ((tab_bar = get_tab_bars(WindowFromPoint(*pt))) == NULL)
     {
+    #ifdef _LOGDEBUG
+        logmsg("tab_bar is null from mouse_on_tab, res return false!\n");
+    #endif
         return res;
     }
     do
@@ -220,80 +297,9 @@ bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
     {
         pFoundArray->Release();
     }
-    return res;
-}
-
-bool find_ui_child(IUIAutomationElement *pElement)
-{
-    HRESULT hr;
-    IUIAutomationElement *tmp = NULL;
-    IUIAutomationCondition *pCondition = NULL;
-    IUIAutomationElementArray *pFoundArray = NULL;
-    VARIANT var;
-    bool res = false;
-    do
+    if (tab_bar)
     {
-        int c = 0;
-        var.vt = VT_I4;
-        var.lVal = UIA_ToolBarControlTypeId;
-        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
-        if (FAILED(hr))
-        {
-            break;
-        }
-        hr = pElement->FindAll(TreeScope_Children,pCondition, &pFoundArray);
-        if (FAILED(hr))
-        {
-            break;
-        }
-        hr = pFoundArray->get_Length(&c);
-        if (FAILED(hr))
-        {
-            break;
-        }
-        for (int idx = 0; idx < c; idx++)
-        {
-            CONTROLTYPEID type = 0;
-            hr = pFoundArray->GetElement(idx, &tmp);
-            if (FAILED(hr))
-            {
-                break;
-            }        
-            if (find_next_child(tmp))
-            {
-                res = true;
-                break;
-            }
-        }
-    }while (0);
-    if (pCondition)
-    {
-        pCondition->Release();
-    }
-    if (tmp)
-    {
-        tmp->Release();
-    }
-    if (pFoundArray)
-    {
-        pFoundArray->Release();
-    }
-    return res;
-}
-
-bool get_tab_bars(HWND hwnd)
-{
-    HRESULT hr;
-    bool res = false;
-    IUIAutomationElement *root = NULL;
-    hr = g_uia->ElementFromHandle(hwnd, &root);
-    if (SUCCEEDED(hr))
-    {
-        res = find_ui_child(root);
-    }
-    if (root)
-    {
-        root->Release();
+        tab_bar->Release();
     }
     return res;
 }
@@ -303,9 +309,9 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
-        /* ºöÂÔ¶àÓà¿Ø¼þ²úÉúµÄÊó±êÏûÏ¢ */
+        /* å¿½ç•¥å¤šä½™æŽ§ä»¶äº§ç”Ÿçš„é¼ æ ‡æ¶ˆæ¯ */
         static bool m_ingore = false;
-        /* µ±Êó±êÔÚÍ¬Ò»ÇøÓòÒÆ¶¯Ê±,²»²úÉú¶àÓàµÄ¿ªÏú */
+        /* å½“é¼ æ ‡åœ¨åŒä¸€åŒºåŸŸç§»åŠ¨æ—¶,ä¸äº§ç”Ÿå¤šä½™çš„å¼€é”€ */
         static bool b_track = true;
         MSG* msg = (MSG*)lParam;
         if ((msg->message == WM_MOUSEMOVE) && b_track)
@@ -327,10 +333,6 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             TrackMouseEvent(&MouseEvent);
             Sleep(0);
             return CallNextHookEx(message_hook, nCode, wParam, lParam);
-        }   
-        if (m_ingore)
-        {
-            return CallNextHookEx(message_hook, nCode, wParam, lParam);
         }
         switch (msg->message)
         {
@@ -339,21 +341,17 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             {
                 break;
             }
-            if (tab_bar == NULL)
-            {
-                get_tab_bars(WindowFromPoint(msg->pt));
-            }
             if (!m_ingore)
             {
-                RECT rc;
+                RECT rc, rc_t;
                 int active = 1;
                 if (mouse_on_tab(&rc, &msg->pt, &active))
                 {
-                    if (mouse_close && mouse_on_close(&rc, &msg->pt))
-                    {
-                        send_click(MOUSEEVENTF_LEFTDOWN);
-                    }
-                    else if (activation && !active && !mouse_on_close(&rc, &msg->pt))
+                    bool in;
+                    rc_t = rc;
+                    rc_t.right -= 28;
+                    in = PtInRect(&rc_t, msg->pt);
+                    if ((activation && !active && in) || (mouse_close && !in))
                     {
                     #ifdef _LOGDEBUG
                         logmsg("mouse on tab, send click message!\n");
@@ -361,8 +359,8 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         send_click(MOUSEEVENTF_LEFTDOWN);
                     }
                 }
-                m_ingore = true;
             }
+            m_ingore = true;
             b_track = true;
             break;
         case WM_LBUTTONDBLCLK:
@@ -372,10 +370,6 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                 logmsg("WM_LBUTTONDBLCLK received!\n");
             #endif
                 RECT rc;
-                if (tab_bar == NULL)
-                {
-                    get_tab_bars(WindowFromPoint(msg->pt));
-                }
                 if (mouse_on_tab(&rc, &msg->pt, NULL))
                 {
                     send_click(MOUSEEVENTF_MIDDLEDOWN);
@@ -446,10 +440,6 @@ bool init_uia(void)
 void WINAPI
 un_uia(void)
 {
-    if (tab_bar)
-    {
-        tab_bar->Release();
-    }
     if (g_uia)
     {
         g_uia->Release();

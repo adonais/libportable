@@ -32,6 +32,7 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"CommandExecuteHandler.exe",
                               L"maintenanceservice.exe",
                               L"maintenanceservice_installer.exe",
+                              L"minidump-analyzer.exe",
                               L"updater.exe",
                               L"wow_helper.exe",
                               L"pingsender.exe"
