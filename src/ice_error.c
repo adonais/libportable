@@ -77,7 +77,7 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
 unsigned WINAPI init_exeception(void * pParam)
 {
     HMODULE  m_kernel;
-    m_dbg = sLoadLibraryExWStub?sLoadLibraryExWStub(L"dbghelp.dll",NULL,0):LoadLibraryExW(L"dbghelp.dll",NULL,0);
+    m_dbg = sLoadLibraryExStub?sLoadLibraryExStub(L"dbghelp.dll",NULL,0):LoadLibraryExW(L"dbghelp.dll",NULL,0);
     m_kernel =  GetModuleHandleW(L"kernel32.dll");
     if ( m_dbg == NULL || m_kernel == NULL ||  
         (sMiniDumpWriteDumpStub = (MiniDumpWriteDumpPtr)GetProcAddress(m_dbg, "MiniDumpWriteDump")) == NULL)

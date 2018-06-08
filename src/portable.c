@@ -15,6 +15,8 @@
 #include "set_env.h"
 #include "win_registry.h"
 #include "on_tabs.h"
+#include "share_lock.h"
+#include "updates.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -30,6 +32,8 @@
 #ifndef SHSTDAPI
 #define SHSTDAPI STDAPI
 #endif
+
+#define _UPDATE L"upcheck.exe "
 
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 
@@ -71,23 +75,6 @@ typedef struct _dyn_link_desc
     void* hook;
     pointer_to_handler* original;
 }dyn_link_desc;
-
-/* Shared data segments(data lock),the running process acquired the lock */
-#ifdef _MSC_VER
-#pragma data_seg(".shrd")
-#endif
-volatile long process_cout SHARED = -1;
-volatile long run_once SHARED = 0;
-volatile uint32_t main_pid SHARED = 0;
-volatile uint32_t new_main_pid SHARED = 0;
-WCHAR    ini_path[MAX_PATH+1] SHARED = {0};
-char     logfile_buf[MAX_PATH+1] SHARED = {0};
-WCHAR    appdata_path[VALUE_LEN+1] SHARED = {0};
-static   WCHAR localdata_path[VALUE_LEN+1] SHARED = {0} ;
-#ifdef _MSC_VER
-#pragma data_seg()
-#pragma comment(linker,"/SECTION:.shrd,RWS")
-#endif
 
 bool
 creator_hook(void* target, void* func, void **original)
@@ -138,6 +125,11 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
         {
             case CSIDL_APPDATA:
             {
+                WCHAR appdata_path[MAX_PATH+1] = {0};
+                if (!get_appdt_path(appdata_path, MAX_PATH))
+                {
+                    return result;
+                }
                 if ( appdata_path[0] != L'\0' )
                 {
                     result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
@@ -146,9 +138,14 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
             }
             case CSIDL_LOCAL_APPDATA:
             {
-                if ( localdata_path[0] != L'\0' && create_dir(localdata_path) )
+                WCHAR localdt_path[MAX_PATH+1] = {0};
+                if (!get_localdt_path(localdt_path, MAX_PATH))
                 {
-                    result = SHILCreateFromPath(localdata_path, &pidlnew, NULL);
+                    break;
+                }
+                if ( localdt_path[0] != L'\0' && create_dir(localdt_path) )
+                {
+                    result = SHILCreateFromPath(localdt_path, &pidlnew, NULL);
                 }
                 break;
             }
@@ -168,10 +165,10 @@ HRESULT WINAPI
 HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
                      DWORD dwFlags,LPWSTR pszPath)
 {
-    uintptr_t   dwCaller;
-    bool        dwFf = false;
-    int         folder = nFolder & 0xff;
-    HRESULT     ret = E_FAIL;
+    uintptr_t dwCaller;
+    bool      dwFf = false;
+    int       folder = nFolder & 0xff;
+    HRESULT   ret = E_FAIL;
 #ifndef LIBPORTABLE_STATIC
     WCHAR		dllname[VALUE_LEN+1];
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
@@ -186,11 +183,15 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     {
         return sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
     }
-
     switch (folder)
     {
         case CSIDL_APPDATA:
         {
+            WCHAR appdata_path[MAX_PATH+1] = {0};
+            if (!get_appdt_path(appdata_path, MAX_PATH))
+            {
+                break;
+            }
             if ( appdata_path[0] != L'\0' )
             {
                 int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",appdata_path);
@@ -200,10 +201,16 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         }
         case CSIDL_LOCAL_APPDATA:
         {
-            if ( localdata_path[0] != L'\0' && create_dir(localdata_path) )
+            WCHAR localdt_path[MAX_PATH+1] = {0};
+            if (!get_localdt_path(localdt_path, MAX_PATH))
             {
-                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdata_path);
-                if ( num>0 && num<MAX_PATH ) ret = S_OK;
+                break;
+            }
+            if (localdt_path[0] != L'\0' && create_dir(localdt_path))
+            {
+                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdt_path);
+                if (num>0 && num<MAX_PATH ) 
+                    ret = S_OK;
             }
             break;
         }
@@ -256,6 +263,11 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
     *ppszPath = NULL;
     if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
     {
+        WCHAR appdata_path[MAX_PATH+1] = {0};
+        if (!get_appdt_path(appdata_path, MAX_PATH))
+        {
+            return S_FALSE;
+        }
         *ppszPath = CoTaskMemAlloc((wcslen(appdata_path) + 1) * sizeof(WCHAR));
         if (!*ppszPath) 
         {
@@ -270,12 +282,17 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
     }
     else if ( IsEqualGUID(rfid, &FOLDERID_LocalAppData) )
     {
-        *ppszPath = CoTaskMemAlloc((wcslen(localdata_path) + 1) * sizeof(WCHAR));
+        WCHAR localdt_path[MAX_PATH+1] = {0};
+        if (!get_localdt_path(localdt_path, MAX_PATH))
+        {
+            return S_FALSE;
+        }
+        *ppszPath = CoTaskMemAlloc((wcslen(localdt_path) + 1) * sizeof(WCHAR));
         if (!*ppszPath)
         {
             return E_OUTOFMEMORY;
         }
-        wcscpy(*ppszPath, localdata_path);
+        wcscpy(*ppszPath, localdt_path);
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
@@ -319,35 +336,35 @@ init_portable(void)
 
 /* 初始化全局变量 */
 static bool
-init_global_env(void)
+init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
 {   
     /* 如果ini文件里的appdata设置路径为相对路径 */
-    if ( appdata_path[1] != L':' )
+    if (appdt[1] != L':')
     {
-        PathToCombineW(appdata_path,VALUE_LEN);
+        path_to_absolute(appdt,len);
     }
-    if ( read_appkey(L"Env",L"TmpDataPath",localdata_path,sizeof(appdata_path),NULL) )
+    if (read_appkey(L"Env",L"TmpDataPath",localdt,sizeof(WCHAR)*len,ini))
     {
         /* 修正相对路径问题 */
-        if ( localdata_path[1] != L':' )
+        if (localdt[1] != L':')
         {
-            PathToCombineW(localdata_path,VALUE_LEN);
+            path_to_absolute(localdt,len);
         }
     }
     else
     {
-        wcsncpy(localdata_path,appdata_path,VALUE_LEN);
+        wcsncpy(localdt,appdt,len);
     }
     
-    if ( appdata_path[0] != L'\0' )
+    if ( appdt[0] != L'\0' )
     {
-        wcsncat(appdata_path,L"\\AppData",VALUE_LEN);
+        wcsncat(appdt,L"\\AppData",len);
     }
-    if ( localdata_path[0] != L'\0' )
+    if ( localdt[0] != L'\0' )
     {
-        wcsncat(localdata_path,L"\\LocalAppData\\Temp\\Fx",VALUE_LEN);
+        wcsncat(localdt,L"\\LocalAppData\\Temp\\Fx",len);
     }
-    return WaitWriteFile(NULL);
+    return write_file(appdt);
 }
 
 #if defined(__GNUC__) && defined(__LTO__)
@@ -356,49 +373,177 @@ init_global_env(void)
 #endif
 
 unsigned WINAPI
-watch_thread(void *lparam)
+update_thread(void *lparam)
 {
-    WNDINFO *pfx = (WNDINFO *)lparam;
-    bool    is_child = is_child_of(main_pid);
-    if ( main_pid == pfx->hPid || is_child )
+    DWORD pid = 0;
+    WCHAR temp[MAX_PATH+1] = {0};
+    if (!get_localdt_path(temp, MAX_PATH))
     {
-        return (1);
+        return (0);
     }
-    if ( new_main_pid?!is_child_of(new_main_pid):!is_child  )
+    if ((pid = get_process_pid()) < 5)
     {
-        new_main_pid = pfx->hPid;
-        set_envp(NULL);
-    #ifdef _LOGDEBUG
-        logmsg("set new environment, new_main_pid=%u\n", new_main_pid);
-    #endif  
+        return (0);
+    }
+    wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
+    if (read_appint(L"update", L"be_ready") > 0)
+    {
+        WCHAR path[VALUE_LEN+1] = {0};
+        WCHAR wcmd[MAX_PATH+1] = {0};
+        GetModuleFileNameW(NULL, path, VALUE_LEN);
+        wnsprintfW(wcmd, MAX_PATH, _UPDATE L"-k %lu -e %ls -s %ls -u 1", pid, temp, path);
+        CloseHandle(create_new(wcmd, NULL, 2, NULL));
+    }
+    else
+    {
+        WCHAR wcmd[MAX_PATH+1] = {0};
+        wnsprintfW(wcmd, MAX_PATH, _UPDATE L"-i auto -k %lu -e %ls", pid, temp);
+        CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
     return (1);
+}
+
+static bool 
+init_share_data(void)
+{
+    s_data sdata;
+    s_data *memory = NULL;
+    bool res = false;
+    memset(&sdata, 0, sizeof(s_data));
+    sdata.count = 1;
+    if (!init_parser(sdata.ini, MAX_PATH))
+    {
+        return res;
+    }
+    if ((sdata.main = GetCurrentProcessId()) < 0x4)
+    {
+        return res;
+    }
+    if (!GetModuleFileNameW(NULL,sdata.process,MAX_PATH))
+    {
+        return res;
+    }
+    if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,
+        sizeof(sdata.appdt),sdata.ini))
+    {
+        wnsprintfW(sdata.appdt, MAX_PATH, L"%ls", L"../Profiles");
+    }
+    if (!init_global_env(sdata.appdt, sdata.localdt, sdata.ini, MAX_PATH))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("init_global_env return false!\n");
+    #endif
+        return false;
+    }
+    if (share_create(false, sizeof(sdata)))
+    {
+        memory = share_map(sizeof(s_data), false);
+        if (memory != NULL)
+        {
+            memcpy(memory,&sdata, sizeof(s_data));
+            share_unmap(memory);
+            res = true;
+        }
+    }
+    return res;
+}
+
+static void local_hook(void)
+{
+    if (MH_Initialize() != MH_OK)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("MH_Initialize false!!!!\n");
+    #endif 
+        return;
+    }
+    if (read_appint(L"General", L"Portable") > 0)
+    {
+        init_portable();
+    }
+#ifndef DISABLE_SAFE
+    if (read_appint(L"General",L"SafeEx") > 0)
+    {
+        init_safed(NULL);
+    }
+#endif
+}
+
+static void other_hook(void)
+{
+    DWORD ver = get_os_version();
+    if (ver > 503 && read_appint(L"General", L"Update") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
+    }
+    if (ff_info.hPid == 0)
+    {
+        ff_info.hPid = GetCurrentProcessId();
+    }
+    if (read_appint(L"General",L"CreateCrashDump") != 0)
+    {
+        init_exeception(NULL);
+    }
+#if !(__GNUC__ || __clang__)    /* mingw-w64 crt does not implement IUIAutomation interface */
+    if (read_appint(L"General",L"OnTabs") > 0)
+    {
+        if (ver > 601)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
+        #ifdef _LOGDEBUG
+            logmsg("win8--win10!\n");
+        #endif
+        }
+        else if (ver > 503 && ver < 602)
+        {
+            threads_on_win7();
+        #ifdef _LOGDEBUG
+            logmsg("vista--win7!\n");
+        #endif
+        }
+    }
+#endif
+    if (!init_watch())
+    {
+    #ifdef _LOGDEBUG
+        logmsg("init_watch return false!\n");
+    #endif
+    }
+    if (read_appint(L"General", L"DisableScan") > 0)
+    {
+        init_winreg(NULL);
+    }
+    if (read_appint(L"General",L"ProcessAffinityMask") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+    }
+    if (read_appint(L"General", L"Bosskey") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+    }
+    if (read_appint(L"General", L"ProxyExe") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+    }
 }
 
 /* uninstall hook and clean up */
 void WINAPI 
 undo_it(void)
 {
-    if ( process_cout == -1 )
+    if (GetCurrentProcessId() == get_process_pid())
     {
     #ifdef _LOGDEBUG
-        logmsg("all process clear. \n");
+        logmsg("main process[id = %lu] exit\n", GetCurrentProcessId());
     #endif
-        _InterlockedExchange(&run_once, 0);
-    }
-    else if ( main_pid == GetCurrentProcessId() )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("main_pid = %u exit. \n", main_pid);
-    #endif
-        main_pid = new_main_pid;
-        new_main_pid = 0;
+        share_close();
     }
     /* 解除快捷键 */
     if ( ff_info.atom_str )
     {
         UnregisterHotKey(NULL, ff_info.atom_str);
         GlobalDeleteAtom(ff_info.atom_str);
+        memset(&ff_info, 0, sizeof(ff_info));
     }
     /* 清理启动过的进程树 */
     kill_trees();
@@ -414,107 +559,42 @@ undo_it(void)
 void WINAPI 
 do_it(void)
 {
-    if ( ++process_cout>2048 || !run_once )
+    bool      res = false;
+    HANDLE    mapped_file = NULL;
+    if ((mapped_file = share_open(false)) == NULL)
     {
-        if ( !init_parser(ini_path, MAX_PATH) )
-        {
-            return;
-        }
-        if ( (main_pid = GetCurrentProcessId()) < 0x4 )
-        {
-            return;
-        }  
-        if ( read_appint(L"General", L"Portable") <= 0 )
-        {
-            return;
-        }
-        if ( true )
-        {
-            /* 如果存在MOZ_NO_REMOTE宏,环境变量需要优先导入 */
-            set_envp(NULL); 
-        }
-        if ( !read_appkey(L"General",L"PortableDataPath",appdata_path,sizeof(appdata_path),NULL) )
-        {
-            /* 预设默认的配置文件所在路径 */
-            wnsprintfW(appdata_path, VALUE_LEN, L"%ls", L"../Profiles");
-        }
-        if ( !init_global_env() )
+        if (!(res = init_share_data()))
         {
         #ifdef _LOGDEBUG
-            logmsg("init_global_env return false!\n");
-        #endif 
+            logmsg("init_share_data return false!\n");
+        #endif
         }
     }
-    if ( ff_info.hPid == 0 )
+    if (mapped_file)
     {
-        ff_info.hPid = GetCurrentProcessId();
-    }
-    if ( true )
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&watch_thread,&ff_info,0,NULL));
-    }
-    if ( MH_Initialize() != MH_OK )
-    {
-    #ifdef _LOGDEBUG
-        logmsg("MH_Initialize false!!!!\n");
-    #endif 
-        return;
-    }
-    if ( appdata_path[1] == L':' )
-    {
-        init_portable();
-    }
-#ifndef DISABLE_SAFE
-    if ( read_appint(L"General",L"SafeEx") > 0 )
-    {
-        init_safed(NULL);
-    }
-#endif
-    if ( read_appint(L"General",L"CreateCrashDump") != 0 )
-    {
-        init_exeception(NULL);
-    }
-    /* 使用计数器方式判断是否浏览器重启? */
-    if ( !run_once )
-    {
-    #if !(__GNUC__ || __clang__)    /* mingw-w64 crt does not implement IUIAutomation interface */
-        if ( read_appint(L"General",L"OnTabs") > 0 )
+        /* 进程共享开启,关闭之前的句柄 */
+        share_close();
+        set_share_handle(mapped_file);
+        if (is_browser(NULL))
         {
-            DWORD ver = GetOsVersion();
-            if (ver > 601)
+            if (get_process_flags())
             {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
-            #ifdef _LOGDEBUG
-                logmsg("win8--win10!\n");
-            #endif
-            }
-            else if ( ver > 503 && ver < 602 )
-            {
-                threads_on_win7();
-            #ifdef _LOGDEBUG
-                logmsg("vista--win7!\n");
-            #endif
+                set_process_flags(false);
+                local_hook();
+                other_hook();
             }
         }
-    #endif
-        if ( read_appint(L"General", L"DisableScan") > 0 )
+        else
         {
-            init_winreg(NULL);
-        }
-        if ( read_appint(L"General",L"ProcessAffinityMask") > 0 )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
-        }
-        if ( read_appint(L"General", L"Bosskey") > 0 )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
-        }
-        if ( read_appint(L"General", L"ProxyExe") > 0 )
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+            local_hook();
         }
     }
-    *(long volatile*)&run_once = 1;
+    if (res)
+    {
+        set_envp(NULL); 
+        local_hook();
+        other_hook();
+    }
 }
 
 #if defined(__GNUC__) && defined(__LTO__)

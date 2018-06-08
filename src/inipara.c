@@ -1,15 +1,17 @@
-#include "inipara.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
+#include "inipara.h"
+#include "share_lock.h"
 #ifdef _MSC_VER
 #include <stdarg.h>
 #endif
 
+#define MAX_MESSAGE 1024
 #define MAX_ALLSECTIONS 320
 #define SECTION_NAMES 32
 #define MAX_SECTION 10
@@ -24,31 +26,64 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
-extern WCHAR      appdata_path[VALUE_LEN+1];
-extern WCHAR      ini_path[MAX_PATH+1];
-extern char       logfile_buf[MAX_PATH+1];
-extern volatile   uint32_t main_pid;
-
 static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
 static PFNVQVW    pfnVerQueryValueW;
-LoadLibraryExWPtr sLoadLibraryExWStub = NULL;
+LoadLibraryExPtr  sLoadLibraryExStub = NULL;
 HMODULE           dll_module         = NULL;
+static char       logfile_buf[MAX_PATH+1];
+
+#ifdef _LOGDEBUG
+void WINAPI 
+init_logs(void)
+{
+    if ( *logfile_buf == '\0' && GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
+    {
+        strncat(logfile_buf,"\\",MAX_PATH);
+        strncat(logfile_buf,LOG_FILE,MAX_PATH);
+    }
+}
+
+void __cdecl 
+logmsg(const char * format, ...)
+{
+    va_list args;
+    char    buffer[MAX_MESSAGE];
+    va_start (args, format);
+    if (strlen(logfile_buf) > 0)
+    {
+        FILE *pFile = NULL;
+        int  len = wvnsprintfA(buffer,MAX_MESSAGE,format, args);
+        if ( len > 0 && len < MAX_MESSAGE )
+        {
+            buffer[len] = '\n';
+            buffer[len+1] = '\0';
+            if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
+            {
+                fwrite(buffer,strlen(buffer),1,pFile);
+                fclose(pFile);
+            }
+        }
+    }
+    va_end(args);
+    return;
+}
+#endif
 
 bool WINAPI
-init_parser(LPWSTR inifull_name,DWORD len)
+init_parser(LPWSTR ini,DWORD len)
 {
     bool ret = false;
-    GetModuleFileNameW(dll_module,inifull_name,len);
-    PathRemoveFileSpecW(inifull_name);
-    PathAppendW(inifull_name,L"portable.ini");
-    ret = PathFileExistsW(inifull_name);
+    GetModuleFileNameW(dll_module,ini,len);
+    PathRemoveFileSpecW(ini);
+    PathAppendW(ini,L"portable.ini");
+    ret = PathFileExistsW(ini);
     if (!ret)
     {
-        if ( PathRemoveFileSpecW(inifull_name) )
+        if (PathRemoveFileSpecW(ini))
         {
-            PathAppendW(inifull_name,L"tmemutil.ini");
-            ret = PathFileExistsW(inifull_name);
+            PathAppendW(ini,L"tmemutil.ini");
+            ret = PathFileExistsW(ini);
         }
     }
     return ret;
@@ -64,16 +99,12 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
 {
     DWORD   res = 0;
     LPCWSTR pfile = (LPCWSTR)filename;
-    if ( pfile == NULL )
+    WCHAR   ini[MAX_PATH] = {0};
+    if (!pfile)
     {
-        res = GetPrivateProfileStringW(lpappname, 
-                                       lpkey ,
-                                       L"", 
-                                       prefstring, 
-                                       bufsize, 
-                                       ini_path);
+        pfile = get_ini_path(ini, MAX_PATH)? ini: NULL;
     }
-    else
+    if (pfile != NULL)
     {
         res = GetPrivateProfileStringW(lpappname, 
                                        lpkey ,
@@ -87,22 +118,18 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
         return false;
     }
     prefstring[res] = L'\0';
-    return ( res>0 );
+    return (res>0);
 }
 
 int WINAPI 
 read_appint(LPCWSTR cat,LPCWSTR name)
 {
-    int ret = -1;
-    if ( ini_path[1] != L':' )
+    WCHAR pfile[MAX_PATH] = {0};
+    if (!get_ini_path(pfile, MAX_PATH))
     {
-        if (!init_parser(ini_path,MAX_PATH))
-        {
-            return ret;
-        }
+        return -1;
     }
-    ret = GetPrivateProfileIntW(cat, name, -1, ini_path);
-    return ret;
+    return GetPrivateProfileIntW(cat, name, -1, pfile);
 }
 
 bool WINAPI
@@ -117,72 +144,36 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
     int		i = 0;
     const	WCHAR delim[] = L"=";
     DWORD	num = VALUE_LEN*sizeof(WCHAR)*line;
+    WCHAR   pfile[MAX_PATH] = {0};
+    if (!get_ini_path(pfile, MAX_PATH))
+    {
+        return false;
+    }
     if ( (lpstring = (LPWSTR)SYS_MALLOC(num)) != NULL )
     {
-        if ( (res = GetPrivateProfileSectionW(cat, 
-                                              lpstring, 
-                                              num, 
-                                              ini_path)
-             ) > 0 
-           )
-        {
-            fzero(*lpdata,num);
-            m_key = lpstring;
-            while(*m_key != L'\0'&& i < line)
-            {
-                LPWSTR strtmp;
-                WCHAR t_str[VALUE_LEN] = {0};
-                wcsncpy(t_str,m_key,VALUE_LEN-1);
-                strtmp = StrStrW(t_str, delim);
-                if (strtmp)
-                {
-                    wcsncpy(lpdata[i],&strtmp[1],VALUE_LEN-1);
-                }
-                m_key += wcslen(m_key)+1;
-                ++i;
-            }
-        }
-        SYS_FREE(lpstring);
+        return false;
     }
+    if ((res = GetPrivateProfileSectionW(cat, lpstring, num, pfile)) > 0)
+    {
+        fzero(*lpdata,num);
+        m_key = lpstring;
+        while(*m_key != L'\0'&& i < line)
+        {
+            LPWSTR strtmp;
+            WCHAR t_str[VALUE_LEN+1] = {0};
+            wcsncpy(t_str,m_key,VALUE_LEN);
+            strtmp = StrStrW(t_str, delim);
+            if (strtmp)
+            {
+                wcsncpy(lpdata[i],&strtmp[1],VALUE_LEN);
+            }
+            m_key += wcslen(m_key)+1;
+            ++i;
+        }
+    }
+    SYS_FREE(lpstring);
     return ( res>0 );
 }
-
-#ifdef _LOGDEBUG
-void WINAPI 
-init_logs(void)
-{
-    if ( *logfile_buf == '\0' && GetEnvironmentVariableA("APPDATA",logfile_buf,MAX_PATH) > 0 )
-    {
-        strncat(logfile_buf,"\\",1);
-        strncat(logfile_buf,LOG_FILE,strlen((LPCSTR)LOG_FILE));
-    }
-}
-
-void __cdecl 
-logmsg(const char * format, ...)
-{
-    va_list args;
-    char    buffer[MAX_PATH];
-    va_start (args, format);
-    if (strlen(logfile_buf) > 0)
-    {
-        FILE *pFile = NULL;
-        int  len = wvnsprintfA(buffer,MAX_PATH,format, args);
-        if ( len > 0 && len < MAX_PATH )
-        {
-            buffer[len] = '\n';
-            buffer[len+1] = '\0';
-            if ( (pFile = fopen(logfile_buf,"a+")) != NULL )
-            {
-                fwrite(buffer,strlen(buffer),1,pFile);
-                fclose(pFile);
-            }
-        }
-    }
-    va_end(args);
-    return;
-}
-#endif
 
 static HMODULE 
 init_verinfo(void)          /* 初始化version.dll里面的三个函数 */
@@ -297,7 +288,7 @@ get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
 }
 
 LPWSTR WINAPI
-stristrW(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能同StrStrIW函数 */
+wcstristr(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能同StrStrIW函数 */
 {
     WCHAR *pptr, *sptr, *start;
 
@@ -318,7 +309,7 @@ stristrW(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能�
 }
 
 static void 
-replace_separator(LPWSTR path)        /* 替换unix风格的路径符号 */
+wchr_replace(LPWSTR path)        /* 替换unix风格的路径符号 */
 {
     LPWSTR   lp = NULL;
     intptr_t pos;
@@ -334,6 +325,26 @@ replace_separator(LPWSTR path)        /* 替换unix风格的路径符号 */
     return;
 }
 
+ /* c风格的unicode字符串替换函数 */
+LPWSTR  WINAPI         
+wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by)
+{
+    WCHAR *in_ptr = in;
+    WCHAR res[MAX_PATH + 1] = { 0 };
+    size_t resoffset = 0;
+    WCHAR *needle;
+    while ((needle = StrStrW(in, pattern)) && resoffset < in_size)
+    {
+        wcsncpy(res + resoffset, in, needle - in);
+        resoffset += needle - in;
+        in = needle + (int) wcslen(pattern);
+        wcsncpy(res + resoffset, by, wcslen(by));
+        resoffset += (int) wcslen(by);
+    }
+    wcscpy(res + resoffset, in);
+    wnsprintfW(in_ptr, (int) in_size, L"%ls", res);
+    return in_ptr;
+}
 
 bool WINAPI 
 exists_dir(LPCWSTR path) 
@@ -366,7 +377,7 @@ create_dir(LPCWSTR dir)
 }
 
 bool WINAPI 
-PathToCombineW(LPWSTR lpfile, int len)
+path_to_absolute(LPWSTR lpfile, int len)
 {
     int n = 1;
     if ( NULL == lpfile || *lpfile == L' ' )
@@ -400,7 +411,7 @@ PathToCombineW(LPWSTR lpfile, int len)
     if ( lpfile[1] != L':' )
     {
         WCHAR buf_modname[VALUE_LEN+1] = {0};
-        replace_separator(lpfile);
+        wchr_replace(lpfile);
         if ( GetModuleFileNameW( dll_module, buf_modname, VALUE_LEN) > 0)
         {
             WCHAR tmp_path[MAX_PATH] = {0};
@@ -441,7 +452,7 @@ get_moz_hwnd(LPWNDINFO pInfo)
 }
 
 bool WINAPI
-IsGUI(LPCWSTR lpFileName)
+is_gui(LPCWSTR lpFileName)
 {
     IMAGE_DOS_HEADER dos_header;
     IMAGE_NT_HEADERS pe_header;
@@ -504,7 +515,7 @@ GetCurrentProcessName(LPWSTR lpstrName, DWORD wlen)
 }
 
 bool WINAPI 
-GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen)
+getw_cwd(LPWSTR lpstrName, DWORD wlen)
 {
     int   i = 0;
     WCHAR lpFullPath[MAX_PATH+1] = {0};
@@ -524,18 +535,6 @@ GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen)
         }
     }
     return (i>0 && i<(int)wlen);
-}
-
-bool WINAPI 
-GetCurrentWorkDirA(LPSTR lpstrName, DWORD len)
-{
-    int   i = 0;
-    WCHAR wPath[MAX_PATH+1] = {0};
-    if ( GetCurrentWorkDirW(wPath,MAX_PATH) )
-    {
-        i = WideCharToMultiByte(CP_ACP, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
-    }
-    return (i>0 && i<(int)len);
 }
 
 LIB_INLINE
@@ -576,9 +575,24 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
 }
 
 bool WINAPI 
-is_browser(void)
+is_browser(void *path)
 {
-    return ( main_pid == GetCurrentProcessId() && !is_specialapp(L"plugin-container.exe") );
+    LPCWSTR cpath = (LPCWSTR)path;
+    WCHAR   remoter[MAX_PATH] = {0};
+    WCHAR   current[MAX_PATH] = {0};
+    if (!get_process_path(remoter, MAX_PATH))
+    {
+        return false;
+    }
+    if (cpath)
+    {
+        return (wcscmp(remoter, cpath) == 0);
+    }
+    else
+    {
+        GetModuleFileNameW(NULL,current,MAX_PATH);
+    }
+    return (wcscmp(remoter, current) == 0);
 }
 
 bool WINAPI 
@@ -603,7 +617,7 @@ is_specialdll(uintptr_t caller,LPCWSTR files)
                 res = true;
             }
         }
-        else if ( stristrW(module, files) )
+        else if ( wcstristr(module, files) )
         {
             res = true;
         }
@@ -626,8 +640,8 @@ is_flash_plugins(uintptr_t caller)
 }
 
 /* 获取profiles.ini文件绝对路径,保存到in_dir数组 */
-static LIB_INLINE bool 
-get_mozilla_profile(LPWSTR in_dir, int len)
+static bool 
+get_mozilla_profile(LPWSTR in_dir, int len, LPCWSTR appdt)
 {
     int m = 0;
     if (is_specialapp(L"thunderbird.exe"))
@@ -635,16 +649,16 @@ get_mozilla_profile(LPWSTR in_dir, int len)
         m = wnsprintfW(in_dir,
                        (size_t)len,
                        L"%ls%ls",
-                       appdata_path,
+                       appdt,
                        L"\\Thunderbird\\profiles.ini"
                       );
     }
-    else if (is_browser())
+    else
     {
         m = wnsprintfW(in_dir,
                        (size_t)len,
                        L"%ls%ls",
-                       appdata_path,
+                       appdt,
                        L"\\Mozilla\\Firefox\\profiles.ini"
                       );
     }
@@ -727,13 +741,17 @@ write_ini_file(LPCWSTR path)
 }
 
 unsigned WINAPI 
-WaitWriteFile(void * pParam)
+write_file(void *p)
 {
-    bool   ret   = false;
-    LPWSTR szDir = NULL;
-    WCHAR  moz_profile[MAX_PATH+1] = {0};
-    if (!get_mozilla_profile(moz_profile, MAX_PATH))
+    bool    ret   = false;
+    LPWSTR  szDir = NULL;
+    LPCWSTR appdt = (LPCWSTR)p;
+    WCHAR   moz_profile[MAX_PATH+1] = {0};
+    if (!get_mozilla_profile(moz_profile, MAX_PATH, appdt))
     {
+    #ifdef _LOGDEBUG
+        logmsg("get_mozilla_profile return false\n");
+    #endif
         return (0);
     }  
     if (PathFileExistsW(moz_profile))
@@ -796,7 +814,7 @@ WaitWriteFile(void * pParam)
 }
 
 DWORD WINAPI 
-GetOsVersion(void)
+get_os_version(void)
 {
     OSVERSIONINFOEXW    osvi;
     bool                bOs = false;

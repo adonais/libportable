@@ -1,37 +1,26 @@
-#include "set_env.h"
-#include "inipara.h"
+#include <stdio.h>
 #include <process.h>
 #include <shlobj.h>
 #include <shlwapi.h>
-#include <stdio.h>
 #include <windows.h>
+#include "set_env.h"
+#include "inipara.h"
+#include "share_lock.h"
 
 #define MAX_ENV_SIZE 8192
 typedef int(__cdecl *pSetEnv)(const wchar_t *env);
-extern WCHAR ini_path[MAX_PATH + 1];
 static pSetEnv envPtrW = NULL;
 
-static WCHAR *               /* c风格的unicode字符串替换函数 */
-dull_replace(WCHAR *in,      /* 目标字符串 */
-             size_t in_size, /* 字符串长度 */
-             const WCHAR *pattern,
-             const WCHAR *by)
+static bool
+get_cwd(LPSTR lpstrName, DWORD len)
 {
-    WCHAR *in_ptr = in;
-    WCHAR res[MAX_PATH + 1] = { 0 };
-    size_t resoffset = 0;
-    WCHAR *needle;
-    while ((needle = StrStrW(in, pattern)) && resoffset < in_size)
+    int   i = 0;
+    WCHAR wPath[MAX_PATH+1] = {0};
+    if ( getw_cwd(wPath,MAX_PATH) )
     {
-        wcsncpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
-        in = needle + (int) wcslen(pattern);
-        wcsncpy(res + resoffset, by, wcslen(by));
-        resoffset += (int) wcslen(by);
+        i = WideCharToMultiByte(CP_ACP, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
     }
-    wcscpy(res + resoffset, in);
-    wnsprintfW(in_ptr, (int) in_size, L"%ls", res);
-    return in_ptr;
+    return (i>0 && i<(int)len);
 }
 
 int WINAPI /* 在PE 输入表查找crt文件 */ 
@@ -88,7 +77,7 @@ find_ucrt(char *crt_path, int len)
           NULL
     };
     *crt_path = '\0';
-    if (!GetCurrentWorkDirA(crt_path, len))
+    if (!get_cwd(crt_path, len))
     {
         return ret;
     }
@@ -117,8 +106,13 @@ void  WINAPI /* 导入env字段下的环境变量 */
 foreach_env(void)
 {
     LPWSTR m_key;
+    WCHAR  ini[MAX_PATH+1] = {0};
     WCHAR env_buf[MAX_ENV_SIZE + 1];
-    if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini_path) < 4)
+    if (!get_appdt_path(ini, MAX_PATH))
+    {
+        return;
+    }
+    if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini) < 4)
     {
         return;
     }
@@ -142,7 +136,7 @@ set_plugins(void)
     if (read_appkey(L"Env", L"NpluginPath", val_str, sizeof(val_str), NULL))
     {
         WCHAR env_str[VALUE_LEN + 1] = { 0 };
-        PathToCombineW(val_str, VALUE_LEN);
+        path_to_absolute(val_str, VALUE_LEN);
         if (wnsprintfW(env_str, VALUE_LEN, L"%ls%ls", L"MOZ_PLUGIN_PATH=", val_str) > 0)
         {
             envPtrW(env_str);
@@ -160,7 +154,7 @@ pentadactyl_fixed(void)
     {
         return;
     }
-    if (!(PathToCombineW(m_value, VALUE_LEN) && create_dir(m_value)))
+    if (!(path_to_absolute(m_value, VALUE_LEN) && create_dir(m_value)))
     {
         return;
     }
@@ -171,7 +165,7 @@ pentadactyl_fixed(void)
         {
             envPtrW(m_env);
         }
-        dull_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
+        wstr_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
         m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_RUNTIME=", m_value);
         if (m > 0 && m < VALUE_LEN)
         {

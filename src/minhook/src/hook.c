@@ -439,7 +439,7 @@ static VOID EnterSpinLock(VOID)
 //-------------------------------------------------------------------------
 static __inline VOID LeaveSpinLock(VOID)
 {
-    *(long volatile*)&g_isLocked = 0;    /* not use _InterlockedExchange() */
+    InterlockedExchange(&g_isLocked, 0);
 }
 
 //-------------------------------------------------------------------------

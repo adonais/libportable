@@ -1,5 +1,10 @@
+#ifdef DISABLE_SAFE
+#error This file should not be compiled!
+#endif
+
 #include "safe_ex.h"
 #include "inipara.h"
+#include "share_lock.h"
 #include "winapis.h"
 #include "inject.h"
 #include <process.h>
@@ -7,15 +12,16 @@
 #include <shlobj.h>
 #include <stdio.h>
 
-static _NtQueryInformationProcess  pNtQueryInformationProcess;
-static _RtlNtStatusToDosError      pRtlNtStatusToDosError;
-static _NtCreateUserProcess        sNtCreateUserProcess, 
-                                   pNtCreateUserProcess;
-static _NtWriteVirtualMemory       sNtWriteVirtualMemory, 
-                                   pNtWriteVirtualMemory;
-static _CreateProcessInternalW     sCreateProcessInternalW, 
-                                   pCreateProcessInternalW;
-static LoadLibraryExWPtr           pLoadLibraryExW;
+LoadLibraryExPtr            pLoadLibraryEx = NULL;
+_NtCreateUserProcess        sNtCreateUserProcess = NULL;
+_NtCreateUserProcess        pNtCreateUserProcess = NULL;
+_NtWriteVirtualMemory       sNtWriteVirtualMemory = NULL;
+_NtWriteVirtualMemory       pNtWriteVirtualMemory = NULL;
+_RtlNtStatusToDosError      pRtlNtStatusToDosError = NULL;
+_CreateProcessInternalW     sCreateProcessInternalW = NULL;
+_CreateProcessInternalW     pCreateProcessInternalW = NULL;
+_NtQueryInformationProcess  pNtQueryInformationProcess = NULL;
+
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -33,6 +39,7 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"maintenanceservice.exe",
                               L"maintenanceservice_installer.exe",
                               L"minidump-analyzer.exe",
+                              L"upcheck.exe",
                               L"updater.exe",
                               L"wow_helper.exe",
                               L"pingsender.exe"
@@ -46,7 +53,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         pname = &lpfile[1];
     }
     /* 遍历白名单一次,只需遍历一次 */
-    ret = stristrW(white_list[1],L"WerFault.exe") != NULL;
+    ret = wcstristr(white_list[1],L"WerFault.exe") != NULL;
     if ( !ret )
     {
         /* firefox目录下进程的路径 */
@@ -73,7 +80,7 @@ static bool in_whitelist(LPCWSTR lpfile)
             if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && \
                  white_list[i][1] != L':' )
             {
-                PathToCombineW(white_list[i],VALUE_LEN);
+                path_to_absolute(white_list[i],VALUE_LEN);
             }
             if ( StrChrW(white_list[i],L'*') || StrChrW(white_list[i],L'?') )
             {
@@ -114,7 +121,7 @@ ProcessIsCUI(LPCWSTR lpfile)
     }
     if ( wcslen(lpname)>3 )
     {
-        return ( !IsGUI(lpname) );
+        return ( !is_gui(lpname) );
     }
     return true;
 }
@@ -134,10 +141,10 @@ HookNtWriteVirtualMemory(HANDLE ProcessHandle,
         return STATUS_ERROR;
     }
     return sNtWriteVirtualMemory(ProcessHandle,
-                                    BaseAddress,
-                                    Buffer,
-                                    NumberOfBytesToWrite,
-                                    NumberOfBytesWritten);
+                                 BaseAddress,
+                                 Buffer,
+                                 NumberOfBytesToWrite,
+                                 NumberOfBytesWritten);
 }
 
 static NTSTATUS WINAPI 
@@ -152,17 +159,26 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         PPS_CREATE_INFO CreateInfo,
                         PPS_ATTRIBUTE_LIST AttributeList)
 {
-    RTL_USER_PROCESS_PARAMETERS mY_ProcessParameters;
-    NTSTATUS    status;
-    bool        tohook	= false;
-    fzero(&mY_ProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
-    if ( stristrW(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
+    bool      fn = false;
+    NTSTATUS  status;
+    bool      tohook = false;
+    RTL_USER_PROCESS_PARAMETERS myProcessParameters;
+    fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
+
+    if (is_browser(ProcessParameters->ImagePathName.Buffer))
+    {
+        if (ProcessParameters->CommandLine.Length > 1)
+        {
+            fn = is_browser(ProcessParameters->CommandLine.Buffer);
+        }
+    }
+    else if ( wcstristr(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
      #ifndef _M_X64
-         PathMatchSpecW(ProcessParameters->ImagePathName.Buffer,               \
-         L"*\\plugins\\FlashPlayerPlugin_*.exe")                              ||
+         PathMatchSpecW(ProcessParameters->ImagePathName.Buffer, 
+         L"*\\plugins\\FlashPlayerPlugin_*.exe")                                   ||
      #endif
-         stristrW(ProcessParameters->ImagePathName.Buffer, L"java.exe")       ||
-         stristrW(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
+         wcstristr(ProcessParameters->ImagePathName.Buffer, L"java.exe")            ||
+         wcstristr(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
     {
         tohook = true;
     }
@@ -180,26 +196,37 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
         #ifdef _LOGDEBUG
             logmsg("the process %ls disabled-runes\n",ProcessParameters->ImagePathName.Buffer);
         #endif
-            ProcessParameters = &mY_ProcessParameters;
+            ProcessParameters = &myProcessParameters;
         }
     }
     else if ( in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
     {
-        ;
+        // 在白名单里面
     }
     else
     {
-        if ( !IsGUI((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
-            ProcessParameters = &mY_ProcessParameters;
+        if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+            ProcessParameters = &myProcessParameters;
     }
     status = sNtCreateUserProcess(ProcessHandle, ThreadHandle,
                                   ProcessDesiredAccess, ThreadDesiredAccess,
                                   ProcessObjectAttributes, ThreadObjectAttributes,
                                   CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                   CreateInfo, AttributeList);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+    if (fn)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("firefox restart,new main_id is %lu!\n", GetProcessId(*ProcessHandle));
+    #endif
+        set_process_pid(GetProcessId(*ProcessHandle));
+    }
     /* 静态编译时,不能启用远程注入 */
 #if !defined(LIBPORTABLE_STATIC)
-    if ( NT_SUCCESS(status) && tohook )
+    if (tohook)
     {
         PROCESS_INFORMATION ProcessInformation;
     #ifdef _LOGDEBUG
@@ -215,25 +242,33 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
 }
 
 static bool WINAPI 
-HookCreateProcessInternalW (HANDLE hToken,
-                            LPCWSTR lpApplicationName,
-                            LPWSTR lpCommandLine,
-                            LPSECURITY_ATTRIBUTES lpProcessAttributes,
-                            LPSECURITY_ATTRIBUTES lpThreadAttributes,
-                            bool bInheritHandles,
-                            DWORD dwCreationFlags,
-                            LPVOID lpEnvironment,
-                            LPCWSTR lpCurrentDirectory,
-                            LPSTARTUPINFOW lpStartupInfo,
-                            LPPROCESS_INFORMATION lpProcessInformation,
-                            PHANDLE hNewToken)
+HookCreateProcessInternalW(HANDLE hToken,
+                           LPCWSTR lpApplicationName,
+                           LPWSTR lpCommandLine,
+                           LPSECURITY_ATTRIBUTES lpProcessAttributes,
+                           LPSECURITY_ATTRIBUTES lpThreadAttributes,
+                           bool bInheritHandles,
+                           DWORD dwCreationFlags,
+                           LPVOID lpEnvironment,
+                           LPCWSTR lpCurrentDirectory,
+                           LPSTARTUPINFOW lpStartupInfo,
+                           LPPROCESS_INFORMATION lpProcessInformation,
+                           PHANDLE hNewToken)
 {
-    bool	ret		= false;
-    LPWSTR	lpfile	= lpCommandLine;
-    bool    tohook	= false;
+    bool	ret= false;
+    bool    fn = false;
+    LPWSTR	lpfile = lpCommandLine;
+    bool    tohook = false;
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
+    }
+    if (lpCommandLine && wcslen(lpCommandLine)>1)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("lpCommandLine: %ls!\n", lpCommandLine);
+    #endif
+        fn = is_browser(lpCommandLine);
     }
     /* 禁止启动16位程序 */
     if (dwCreationFlags&CREATE_SHARED_WOW_VDM || dwCreationFlags&CREATE_SEPARATE_WOW_VDM)
@@ -242,12 +277,12 @@ HookCreateProcessInternalW (HANDLE hToken,
         return ret;
     }
     /* 存在不安全插件,注入保护 */
-    if ( stristrW(lpfile, L"SumatraPDF.exe")                            ||
+    if ( wcstristr(lpfile, L"SumatraPDF.exe")                            ||
      #ifndef _M_X64
          PathMatchSpecW(lpfile,L"*\\plugins\\FlashPlayerPlugin_*.exe")  ||
      #endif
-         stristrW(lpfile, L"java.exe")                                  ||
-         stristrW(lpfile, L"jp2launcher.exe"))
+         wcstristr(lpfile, L"java.exe")                                  ||
+         wcstristr(lpfile, L"jp2launcher.exe"))
     {
         /* 静态编译时,不能启用远程注入 */
     #if !defined(LIBPORTABLE_STATIC)
@@ -268,7 +303,7 @@ HookCreateProcessInternalW (HANDLE hToken,
     }
     else if ( in_whitelist((LPCWSTR)lpfile) )
     {
-        ;
+        // 在白名单里面
     }
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
     else
@@ -286,7 +321,18 @@ HookCreateProcessInternalW (HANDLE hToken,
                                   lpThreadAttributes,bInheritHandles,dwCreationFlags,
                                   lpEnvironment,lpCurrentDirectory,
                                   lpStartupInfo,lpProcessInformation,hNewToken);
-    if ( ret && tohook )
+    if (!ret)
+    {
+        return ret;
+    }
+    if (fn)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("firefox restart,new main_id is %lu!\n", lpProcessInformation->dwProcessId);
+    #endif
+        set_process_pid(lpProcessInformation->dwProcessId);
+    }
+    if ( tohook )
     {
         InjectDll(lpProcessInformation);
     }
@@ -365,7 +411,7 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     uintptr_t dwCaller = (uintptr_t)_ReturnAddress();
     if ( is_authorized(lpFileName) ) 
     {
-        return sLoadLibraryExWStub(lpFileName, hFile, dwFlags);
+        return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
     }
     if ( is_specialdll(dwCaller,L"user32.dll") )
     {
@@ -377,88 +423,13 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
             lpFileName = NULL;
         }
     }
-    return sLoadLibraryExWStub(lpFileName, hFile, dwFlags);
-}
-
-/* 获得自身父线程PID */
-static uint32_t 
-get_parent_pid(void)
-{
-    NTSTATUS  status;
-    uint32_t  dwParent = 0;
-    PROCESS_BASIC_INFORMATION pbi;
-    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
-    do
-    {
-        if( !hNtdll )
-        {
-            break;
-        }
-        pNtQueryInformationProcess = (_NtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
-        if ( !pNtQueryInformationProcess )
-        {
-            break;
-        }
-        status = pNtQueryInformationProcess(GetCurrentProcess(),
-                 ProcessBasicInformation,
-                 (PVOID)&pbi,
-                 sizeof(PROCESS_BASIC_INFORMATION),
-                 NULL
-                 );
-        if ( NT_SUCCESS(status) )
-        {
-            dwParent = (uint32_t)(uintptr_t)pbi.Reserved3;
-        }
-    }while(0);
-    return dwParent;
-}
-
-bool WINAPI is_child_of(const uint32_t parent)
-{
-    bool   res = false;
-    HANDLE hProcess = NULL;
-    uint32_t dwProcessId = get_parent_pid();
-    if (dwProcessId == parent)
-    {
-        return true;
-    }
-    do
-    {
-        NTSTATUS status;
-        PROCESS_BASIC_INFORMATION pbi;
-        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, dwProcessId);
-        if (!hProcess)
-        {
-            break;
-        }
-        status = pNtQueryInformationProcess(hProcess,
-                 ProcessBasicInformation,
-                 (PVOID)&pbi,
-                 sizeof(PROCESS_BASIC_INFORMATION),
-                 NULL
-                 );
-        if ( !NT_SUCCESS(status) )
-        {
-            break;
-        }
-        if ((dwProcessId = (uint32_t)(uintptr_t)pbi.Reserved3) == parent)
-        {
-            res = true;
-            break;
-        }
-        CloseHandle(hProcess),hProcess = NULL;
-    } while (dwProcessId != parent);
-    if ( hProcess )
-    {
-        CloseHandle(hProcess);
-    }
-    return res;
+    return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
 }
 
 unsigned WINAPI init_safed(void * pParam)
 {
     HMODULE		hNtdll, hKernel;
-    DWORD		ver = GetOsVersion();
+    DWORD		ver = get_os_version();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
 
@@ -468,7 +439,7 @@ unsigned WINAPI init_safed(void * pParam)
     {
         return 0;
     }
-    if ( ver>601 )  /* win8 */
+    if (ver > 503)  /* vista - win10 */
     {
         pNtCreateUserProcess = (_NtCreateUserProcess)GetProcAddress(hNtdll, "NtCreateUserProcess");
         if (!creator_hook(pNtCreateUserProcess, HookNtCreateUserProcess, (LPVOID*)&sNtCreateUserProcess))
@@ -478,7 +449,7 @@ unsigned WINAPI init_safed(void * pParam)
         #endif
         }
     }
-    else
+    else          /* winxp-2003 */
     {
         pCreateProcessInternalW	= (_CreateProcessInternalW)GetProcAddress(hKernel, "CreateProcessInternalW");
         if (!creator_hook(pCreateProcessInternalW, HookCreateProcessInternalW, (LPVOID*)&sCreateProcessInternalW))
@@ -487,11 +458,8 @@ unsigned WINAPI init_safed(void * pParam)
             logmsg("pCreateProcessInternalW hook failed!\n");
         #endif
         }
-    }
-    if ( ver<503 )  /* winxp-2003 */
-    {
-        pLoadLibraryExW	= (LoadLibraryExWPtr)GetProcAddress(hKernel, "LoadLibraryExW");
-        if (!creator_hook(pLoadLibraryExW, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExWStub))
+        pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
+        if (!creator_hook(pLoadLibraryEx, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExStub))
         {
         #ifdef _LOGDEBUG
             logmsg("LoadLibraryExW hook failed!\n");

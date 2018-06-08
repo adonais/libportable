@@ -35,7 +35,7 @@
 #define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))
 extern LIB_INLINE bool is_wow64() {int wow64=0; return IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
 
-typedef HMODULE (WINAPI *LoadLibraryExWPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
+typedef HMODULE (WINAPI *LoadLibraryExPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
 typedef struct tagWNDINFO
 {
     int   atom_str;
@@ -49,7 +49,7 @@ typedef struct tagWNDINFO
 extern "C" {
 #endif 
 
-extern LoadLibraryExWPtr sLoadLibraryExWStub;
+extern LoadLibraryExPtr  sLoadLibraryExStub;
 extern HMODULE           dll_module; 
 extern bool creator_hook(void* target, void* func, void **original);
 
@@ -58,9 +58,10 @@ extern void     __cdecl logmsg(const char * format, ...);
 extern void     WINAPI  init_logs(void);
 #endif  /* _LOGDEBUG */
 
-extern DWORD    WINAPI GetOsVersion(void);
-extern bool     WINAPI PathToCombineW(LPWSTR lpfile, int str_len);
-extern LPWSTR   WINAPI stristrW(LPCWSTR Str, LPCWSTR Pat);
+extern DWORD    WINAPI get_os_version(void);
+extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
+extern LPWSTR   WINAPI wcstristr(LPCWSTR Str, LPCWSTR Pat);
+extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
 extern bool     WINAPI init_parser(LPWSTR inifull_name,DWORD buf_len);
 extern bool     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
                                    LPCWSTR lpkey,               /* 键名  */
@@ -74,14 +75,13 @@ extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini �
                                        int line                         /* 二维数组行数 */
                                        );
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
-extern bool     WINAPI is_browser(void);
+extern bool     WINAPI is_browser(void *);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
-extern bool     WINAPI GetCurrentWorkDirW(LPWSTR lpstrName, DWORD wlen);
-extern bool     WINAPI GetCurrentWorkDirA(LPSTR lpstrName, DWORD len);
-extern unsigned WINAPI WaitWriteFile(void * pParam);
+extern bool     WINAPI getw_cwd(LPWSTR lpstrName, DWORD wlen);
+extern unsigned WINAPI write_file(void * p);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
-extern bool     WINAPI IsGUI(LPCWSTR lpFileName);
+extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
 

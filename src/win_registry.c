@@ -13,11 +13,11 @@ HookRegOpenKeyExW(HKEY    hKey,
                   PHKEY   phkResult)
 {
     if ( lpSubKey &&
-         (stristrW(lpSubKey, L"\\Extensions") || 
-         stristrW(lpSubKey, L"\\MozillaPlugins") ||
-         stristrW(lpSubKey, L"\\QuickTimePlayer.exe") ||
-         stristrW(lpSubKey, L"\\wmplayer.exe") ||
-         stristrW(lpSubKey, L"\\Adobe\\")) )
+         (wcstristr(lpSubKey, L"\\Extensions") || 
+         wcstristr(lpSubKey, L"\\MozillaPlugins") ||
+         wcstristr(lpSubKey, L"\\QuickTimePlayer.exe") ||
+         wcstristr(lpSubKey, L"\\wmplayer.exe") ||
+         wcstristr(lpSubKey, L"\\Adobe\\")) )
     {
     #ifdef _LOGDEBUG
         logmsg("lpSubKey[%ls]\n", lpSubKey);

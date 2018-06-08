@@ -1,4 +1,3 @@
-#include "new_process.h"
 #include "inipara.h"
 #include <shlwapi.h>
 #include <tlhelp32.h>
@@ -106,7 +105,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
             {
                 temp[lp-temp] = L'\0';
                 wnsprintfW(m_para,VALUE_LEN,L" "L"%ls",lp+1);
-                if ( !GetCurrentWorkDirW(wdir,len) )
+                if ( !getw_cwd(wdir,len) )
                 {
                     wdir[0] = L'\0';
                 }
@@ -114,7 +113,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
             wnsprintfW(lpstrCmd,len,L"%ls",temp);
             if ( lpstrCmd[0] == L'.' || lpstrCmd[0] == L'%' )
             {
-                PathToCombineW(lpstrCmd,VALUE_LEN);
+                path_to_absolute(lpstrCmd,VALUE_LEN);
             }
             wcsncat(lpstrCmd,m_para,len);
             if ( wcslen(wdir) == 0 )
@@ -162,14 +161,58 @@ void WINAPI kill_trees(void)
     return;
 }
 
-unsigned WINAPI run_process(void * pParam)
+HANDLE WINAPI 
+create_new(LPCWSTR wcmd, const LPCWSTR pcd, int flags, DWORD *opid)
 {
     PROCESS_INFORMATION pi;
     STARTUPINFOW si;
-    WCHAR wcmd[VALUE_LEN+1] = {0};
-    WCHAR wdirectory[VALUE_LEN+1] = {0};
     DWORD dwCreat = 0;
-    int flags = get_parameters(wdirectory, wcmd, VALUE_LEN);
+    if (true)
+    {
+        fzero(&si,sizeof(si));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        if (flags > 1)
+        {
+            si.wShowWindow = SW_SHOWNOACTIVATE;
+        }
+        else if (flags == 1)
+        {
+            si.wShowWindow = SW_MINIMIZE;
+        }
+        else if (!flags)
+        {
+            si.wShowWindow = SW_HIDE;
+            dwCreat |= CREATE_NEW_PROCESS_GROUP;
+        }
+        if(!CreateProcessW(NULL,
+                          (LPWSTR)wcmd,
+                          NULL,
+                          NULL,
+                          FALSE,
+                          dwCreat,
+                          NULL,
+                          pcd,   
+                          &si,&pi))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("CreateProcessW error %lu\n",GetLastError());
+        #endif
+            return NULL;
+        }
+        if (NULL != opid)
+        {
+            *opid = pi.dwProcessId;
+        }
+    }
+    return pi.hProcess;
+}
+
+unsigned WINAPI run_process(void * pParam)
+{
+    WCHAR wcmd[VALUE_LEN+1] = {0};
+    WCHAR pcd[VALUE_LEN+1] = {0};
+    int flags = get_parameters(pcd, wcmd, VALUE_LEN);
     if (flags<0)
     {
         return (0);
@@ -182,35 +225,12 @@ unsigned WINAPI run_process(void * pParam)
     Sleep(1000);  /* 重启外部进程需要延迟一下 */
     if ( wcslen(wcmd)>0 && !search_process(wcmd,0) )
     {
-        fzero(&si,sizeof(si));
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW;
-        si.wShowWindow = SW_MINIMIZE;
-        if (!flags)
+        DWORD pid = 0;
+        g_handle[0] = create_new(wcmd, pcd, flags, &pid);
+        if ( g_handle[0] != NULL && (SleepEx(3000,false) == 0) )
         {
-            si.wShowWindow = SW_HIDE;
-            dwCreat |= CREATE_NEW_PROCESS_GROUP;
-        }
-        if(!CreateProcessW(NULL,
-                           wcmd,
-                           NULL,
-                           NULL,
-                           false,
-                           dwCreat,
-                           NULL,
-                           (LPCWSTR)wdirectory,
-                           &si,&pi))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("CreateProcessW error %lu\n",GetLastError());
-        #endif
-            return (0);
-        }
-        g_handle[0] = pi.hProcess;
-        if ( pi.dwProcessId >4 && (SleepEx(3000,false) == 0) )
-        {
-            /* 外部进程运行3秒完成,不然无法结束进程树 */
-            search_process(NULL, pi.dwProcessId);
+            /* 延迟3s,不然无法结束进程树 */
+            search_process(NULL, pid);
         }
     }
     return (1);

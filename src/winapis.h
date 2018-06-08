@@ -915,6 +915,17 @@ typedef BOOL (NTAPI *_RtlDosPathNameToNtPathName_U)(PCWSTR DosPathName,
                                         PUNICODE_STRING NtPathName, 
                                         PCWSTR *NtFileNamePart, 
                                         VOID *DirectoryInfo);
+typedef NTSTATUS (NTAPI *_RtlCreateProcessParametersEx)(PRTL_USER_PROCESS_PARAMETERS * pProcessParameters,
+                                        PUNICODE_STRING ImagePathName,
+                                        PUNICODE_STRING DllPath,
+                                        PUNICODE_STRING CurrentDirectory,
+                                        PUNICODE_STRING CommandLine,
+                                        PVOID Environment,
+                                        PUNICODE_STRING WindowTitle,
+                                        PUNICODE_STRING DesktopInfo,
+                                        PUNICODE_STRING ShellInfo,
+                                        PUNICODE_STRING RuntimeData,
+                                        ULONG Flags);
 typedef VOID (NTAPI *_RtlFreeUnicodeString)(PUNICODE_STRING DestinationString);
 typedef NTSTATUS (NTAPI *_NtCreateFile)(PHANDLE FileHandle,
                                         ACCESS_MASK DesiredAccess,
