@@ -376,7 +376,10 @@ unsigned WINAPI
 update_thread(void *lparam)
 {
     DWORD pid = 0;
+    WCHAR *pos = NULL;
     WCHAR temp[MAX_PATH+1] = {0};
+    WCHAR path[VALUE_LEN+1] = {0};
+    WCHAR wcmd[MAX_PATH+1] = {0};
     if (!get_localdt_path(temp, MAX_PATH))
     {
         return (0);
@@ -385,19 +388,24 @@ update_thread(void *lparam)
     {
         return (0);
     }
+    if (!GetModuleFileNameW(NULL, path, VALUE_LEN))
+    {
+        return (0);
+    }
+    if ((pos = wcsrchr(path, L'\\')) == NULL)
+    {
+        return (0);
+    }
+    wcsncpy(wcmd, path, ++pos-path);
     wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
     if (read_appint(L"update", L"be_ready") > 0)
     {
-        WCHAR path[VALUE_LEN+1] = {0};
-        WCHAR wcmd[MAX_PATH+1] = {0};
-        GetModuleFileNameW(NULL, path, VALUE_LEN);
-        wnsprintfW(wcmd, MAX_PATH, _UPDATE L"-k %lu -e %ls -s %ls -u 1", pid, temp, path);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, pid, temp, path);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
     else
     {
-        WCHAR wcmd[MAX_PATH+1] = {0};
-        wnsprintfW(wcmd, MAX_PATH, _UPDATE L"-i auto -k %lu -e %ls", pid, temp);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, pid, temp);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
     return (1);
