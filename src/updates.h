@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 extern bool __stdcall init_watch(void);
+extern bool __stdcall _getppid(void);
 
 #ifdef __cplusplus
 }

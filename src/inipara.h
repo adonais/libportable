@@ -45,12 +45,24 @@ typedef struct tagWNDINFO
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
 
+typedef struct _s_data
+{
+    uint32_t main;
+    bool     restart;
+    bool     noremote;
+    WCHAR    appdt[MAX_PATH+1];
+    WCHAR    localdt[MAX_PATH+1];
+    WCHAR    process[MAX_PATH+1];
+    WCHAR    ini[MAX_PATH+1];
+} s_data;
+
 #ifdef __cplusplus
 extern "C" {
 #endif 
 
-extern LoadLibraryExPtr  sLoadLibraryExStub;
-extern HMODULE           dll_module; 
+extern LoadLibraryExPtr sLoadLibraryExStub;
+extern HMODULE          dll_module;
+extern s_data           sdata;
 extern bool creator_hook(void* target, void* func, void **original);
 
 #ifdef _LOGDEBUG

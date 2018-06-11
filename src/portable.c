@@ -23,6 +23,8 @@
 #include <knownfolders.h>
 #include <process.h>
 #include <stdio.h>
+#include <time.h>
+#include <wchar.h>
 
 #if defined(VC12_CRT) || defined(__clang__)
 #undef _DllMainCRTStartup
@@ -372,6 +374,30 @@ init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
 #pragma GCC optimize ("O3")
 #endif
 
+static uint64_t
+read_long(LPCWSTR cat,LPCWSTR name)
+{
+    WCHAR buf[NAMES_LEN+1] = {0};
+    if (!read_appkey(cat, name, buf, sizeof(buf), NULL))
+    {
+        return 0;
+    }
+    return _wcstoui64(buf, NULL, 10);   
+}
+
+static uint64_t
+diff_days(void)
+{
+    uint64_t diff = 3600*24;
+    uint64_t time1 = read_long(L"update",L"last_update");
+    uint64_t time2 = (uint64_t)time(NULL);
+    if (time2 - time1 > diff)
+    {
+        return true;
+    }
+    return false;
+}
+
 unsigned WINAPI
 update_thread(void *lparam)
 {
@@ -380,6 +406,10 @@ update_thread(void *lparam)
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[VALUE_LEN+1] = {0};
     WCHAR wcmd[MAX_PATH+1] = {0};
+    if (!diff_days())
+    {
+        return (0);
+    }
     if (!get_localdt_path(temp, MAX_PATH))
     {
         return (0);
@@ -414,22 +444,17 @@ update_thread(void *lparam)
 static bool 
 init_share_data(void)
 {
-    s_data sdata;
-    s_data *memory = NULL;
-    bool res = false;
-    memset(&sdata, 0, sizeof(s_data));
-    sdata.count = 1;
     if (!init_parser(sdata.ini, MAX_PATH))
     {
-        return res;
+        return false;
     }
     if ((sdata.main = GetCurrentProcessId()) < 0x4)
     {
-        return res;
+        return false;
     }
     if (!GetModuleFileNameW(NULL,sdata.process,MAX_PATH))
     {
-        return res;
+        return false;
     }
     if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,
         sizeof(sdata.appdt),sdata.ini))
@@ -443,17 +468,24 @@ init_share_data(void)
     #endif
         return false;
     }
+    set_envp(NULL);
+    return true;
+}
+
+static bool 
+init_share_locks(void)
+{
     if (share_create(false, sizeof(sdata)))
     {
-        memory = share_map(sizeof(s_data), false);
+        s_data *memory = share_map(sizeof(s_data), false);
         if (memory != NULL)
         {
-            memcpy(memory,&sdata, sizeof(s_data));
+            memcpy(memory,&sdata, sizeof(sdata));
             share_unmap(memory);
-            res = true;
+            return true;
         }
     }
-    return res;
+    return false;
 }
 
 static void local_hook(void)
@@ -539,12 +571,12 @@ static void other_hook(void)
 void WINAPI 
 undo_it(void)
 {
-    if (GetCurrentProcessId() == get_process_pid())
+    if (true)
     {
-    #ifdef _LOGDEBUG
-        logmsg("main process[id = %lu] exit\n", GetCurrentProcessId());
-    #endif
         share_close();
+    #ifdef _LOGDEBUG
+        logmsg("process[id = %lu] exit\n", GetCurrentProcessId());
+    #endif
     }
     /* 解除快捷键 */
     if ( ff_info.atom_str )
@@ -567,41 +599,66 @@ undo_it(void)
 void WINAPI 
 do_it(void)
 {
-    bool      res = false;
-    HANDLE    mapped_file = NULL;
-    if ((mapped_file = share_open(false)) == NULL)
+    bool   res = false;
+    HANDLE map = NULL;
+    if ((map = share_open(false)) == NULL)
     {
-        if (!(res = init_share_data()))
+        res = init_share_data();
+        if (res)
         {
-        #ifdef _LOGDEBUG
-            logmsg("init_share_data return false!\n");
-        #endif
+            res = init_share_locks();
         }
     }
-    if (mapped_file)
+    else
     {
-        /* 进程共享开启,关闭之前的句柄 */
         share_close();
-        set_share_handle(mapped_file);
-        if (is_browser(NULL))
-        {
-            if (get_process_flags())
-            {
-                set_process_flags(false);
-                local_hook();
-                other_hook();
-            }
-        }
-        else
-        {
-            local_hook();
-        }
+        set_share_handle(map);
     }
     if (res)
     {
-        set_envp(NULL); 
         local_hook();
         other_hook();
+        return;
+    }
+    if (is_browser(NULL))
+    {   /* multiple firefox's processes */
+        uint32_t m_pid = get_process_pid();
+        /* browser restart flags */
+        if (get_process_flags())
+        {
+            set_process_flags(false);
+            local_hook();
+            other_hook();
+        } 
+        else if (m_pid == _getppid())
+        {
+        #ifdef _LOGDEBUG
+            logmsg("is child of browser()\n");
+        #endif
+        }
+        else if (get_process_remote())
+        {
+            set_envp(NULL);
+            local_hook();
+        }
+        return;
+    }
+    else if (is_specialapp(L"plugin-container.exe"))
+    {
+        local_hook();
+    }
+    else
+    {
+        CloseHandle(map);
+        res = init_share_data();
+    #ifdef _LOGDEBUG
+        logmsg("process[id = %lu] create\n", GetCurrentProcessId());
+    #endif
+        if (res)
+        {
+            local_hook();
+            other_hook();
+        }
     }
 }
 

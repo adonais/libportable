@@ -31,6 +31,7 @@ static PFNGFVIW   pfnGetFileVersionInfoW;
 static PFNVQVW    pfnVerQueryValueW;
 LoadLibraryExPtr  sLoadLibraryExStub = NULL;
 HMODULE           dll_module         = NULL;
+s_data            sdata = {0};
 static char       logfile_buf[MAX_PATH+1];
 
 #ifdef _LOGDEBUG

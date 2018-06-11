@@ -259,15 +259,13 @@ HookCreateProcessInternalW(HANDLE hToken,
     bool    fn = false;
     LPWSTR	lpfile = lpCommandLine;
     bool    tohook = false;
+
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
     }
     if (lpCommandLine && wcslen(lpCommandLine)>1)
     {
-    #ifdef _LOGDEBUG
-        logmsg("lpCommandLine: %ls!\n", lpCommandLine);
-    #endif
         fn = is_browser(lpCommandLine);
     }
     /* 禁止启动16位程序 */

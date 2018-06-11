@@ -108,13 +108,17 @@ foreach_env(void)
     LPWSTR m_key;
     WCHAR  ini[MAX_PATH+1] = {0};
     WCHAR env_buf[MAX_ENV_SIZE + 1];
-    if (!get_appdt_path(ini, MAX_PATH))
+    if (!get_ini_path(ini, MAX_PATH))
     {
         return;
     }
     if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini) < 4)
     {
         return;
+    }
+    if (read_appint(L"Env",L"MOZ_NO_REMOTE") > 0)
+    {
+        set_process_remote(true);
     }
     m_key = env_buf;
     while (*m_key != L'\0')
@@ -226,11 +230,6 @@ unsigned WINAPI
 set_envp(void *p)
 {
     char crt_names[CRT_LEN + 1] = { 0 };
-    if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == 'v')
-    {
-        envPtrW = _wputenv;
-        return setenv_tt(NULL);
-    }
     if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN) || find_ucrt(crt_names, CRT_LEN)) 
     {
         HMODULE hMod = NULL;
@@ -263,6 +262,11 @@ set_envp(void *p)
             setenv_tt(NULL);
         }
         FreeLibrary(hMod);
+    }
+    else if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == 'v')
+    {
+        envPtrW = _wputenv;
+        return setenv_tt(NULL);
     }
     return (1);
 }

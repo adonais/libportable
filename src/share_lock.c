@@ -3,14 +3,10 @@
 #include <stdint.h>
 #include <windows.h>
 #include <shlwapi.h>
-#include "share_lock.h"
+#include "inipara.h"
 
 static HANDLE     mapped_file_ = NULL;
 static LPCWSTR    libtbl_lock_ = L"ice_share_lock_";
-
-static LPCWSTR    shared_lock_ = L"ice_share_lock__";
-static HANDLE     g_mutex_ = NULL;
-extern void __cdecl  logmsg(const char * format, ...);
 
 bool WINAPI
 share_create(bool read_only, uint32_t size) 
@@ -76,42 +72,14 @@ set_share_handle(HANDLE handle)
     mapped_file_ = handle;
 }
 
-void WINAPI
-share_lock(void) 
-{
-    g_mutex_ = CreateMutexW(NULL, true, shared_lock_);
-    if (g_mutex_ == NULL) 
-    {
-        return;
-    }
-    WaitForSingleObject(g_mutex_, INFINITE);
-}
-
-void WINAPI
-share_unlock(void) 
-{
-    ReleaseMutex(g_mutex_);
-}
-
-HANDLE WINAPI
-get_share_lock(void)
-{
-    return OpenMutexW(MUTEX_ALL_ACCESS, TRUE, shared_lock_);
-}
-
-void WINAPI
-close_share_lock(void)
-{
-    HANDLE mutex = OpenMutexW(MUTEX_ALL_ACCESS, TRUE, shared_lock_);
-    if (mutex)
-    {
-        CloseHandle(mutex);
-    }
-}
-
 bool WINAPI
 get_ini_path(WCHAR *ini, int len)
 {
+    if (*sdata.ini != L'\0')
+    {
+        wnsprintfW(ini, len, L"%ls", sdata.ini);
+        return true;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -124,6 +92,11 @@ get_ini_path(WCHAR *ini, int len)
 bool WINAPI
 get_appdt_path(WCHAR *path, int len)
 {
+    if (*sdata.appdt != L'\0')
+    {
+        wnsprintfW(path, len, L"%ls", sdata.appdt);
+        return true;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -136,6 +109,11 @@ get_appdt_path(WCHAR *path, int len)
 bool WINAPI
 get_localdt_path(WCHAR *path, int len)
 {
+    if (*sdata.localdt != L'\0')
+    {
+        wnsprintfW(path, len, L"%ls", sdata.localdt);
+        return true;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -148,6 +126,11 @@ get_localdt_path(WCHAR *path, int len)
 bool WINAPI
 get_process_path(WCHAR *path, int len)
 {
+    if (*sdata.process != L'\0')
+    {
+        wnsprintfW(path, len, L"%ls", sdata.process);
+        return true;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -161,6 +144,10 @@ bool WINAPI
 get_process_flags(void)
 {
     bool flags = false;
+    if (*sdata.process != L'\0')
+    {
+        return sdata.restart;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -174,6 +161,10 @@ DWORD WINAPI
 get_process_pid(void)
 {
     DWORD pid = 0;
+    if (*sdata.process != L'\0')
+    {
+        return sdata.main;
+    }
     s_data *memory = share_map(sizeof(s_data), true);
     if (memory)
     {
@@ -183,9 +174,45 @@ get_process_pid(void)
     return pid;
 }
 
+bool WINAPI
+get_process_remote(void)
+{
+    bool flags = false;
+    if (*sdata.process != L'\0')
+    {
+        return sdata.noremote;
+    }
+    s_data *memory = share_map(sizeof(s_data), true);
+    if (memory)
+    {
+        flags = memory->noremote;
+        share_unmap(memory);
+    }
+    return flags;
+}
+
+void WINAPI
+set_process_remote(bool flags)
+{
+    if (*sdata.process != L'\0')
+    {
+        sdata.noremote = flags;
+    }
+    s_data *memory = share_map(sizeof(s_data), false);
+    if (memory)
+    {
+        memory->noremote = flags;
+        share_unmap(memory);
+    }
+}
+
 void WINAPI
 set_process_flags(bool flags)
 {
+    if (*sdata.process != L'\0')
+    {
+        sdata.restart = flags;
+    }
     s_data *memory = share_map(sizeof(s_data), false);
     if (memory)
     {
@@ -197,6 +224,11 @@ set_process_flags(bool flags)
 void WINAPI
 set_process_pid(uint32_t pid)
 {
+    if (*sdata.process != L'\0')
+    {
+        sdata.main = pid;
+        sdata.restart = true;
+    }
     s_data *memory = share_map(sizeof(s_data), false);
     if (memory)
     {

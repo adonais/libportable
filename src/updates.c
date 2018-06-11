@@ -17,6 +17,33 @@ extern _CreateProcessInternalW  sCreateProcessInternalW;
 extern _CreateProcessInternalW  pCreateProcessInternalW;
 #endif
 
+int32_t WINAPI _getppid(void)
+{
+    PROCESSENTRY32W pe32;
+    bool     b_more;
+    int32_t  m_pid = GetCurrentProcessId();
+    HANDLE   hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    if( hSnapshot == INVALID_HANDLE_VALUE )
+    {
+    #ifdef _LOGDEBUG
+        logmsg("CreateToolhelp32Snapshot error %lu\n",GetLastError());
+    #endif
+        return 0;
+    }
+    b_more = Process32FirstW(hSnapshot,&pe32);
+    while (b_more) 
+    {
+        if (m_pid == (uint32_t)pe32.th32ProcessID) 
+        {
+            m_pid = (uint32_t)pe32.th32ParentProcessID;
+            break;
+        }
+        b_more = Process32NextW(hSnapshot,&pe32);
+    }
+    CloseHandle(hSnapshot);
+    return m_pid;
+}
+
 NTSTATUS WINAPI 
 NtCreateUserProcessFn(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                       ACCESS_MASK ProcessDesiredAccess,
@@ -31,6 +58,7 @@ NtCreateUserProcessFn(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
 {
     NTSTATUS  status = STATUS_ERROR;
     bool      fn = false;
+    
     if (is_browser(ProcessParameters->ImagePathName.Buffer))
     {
         if (ProcessParameters->CommandLine.Length > 1)
@@ -51,12 +79,6 @@ NtCreateUserProcessFn(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             logmsg("firefox restart,new main_id is %lu!\n", GetProcessId(*ProcessHandle));
         #endif
             set_process_pid(GetProcessId(*ProcessHandle));
-        }
-        else
-        {
-        #ifdef _LOGDEBUG
-            logmsg("we set restart is false!\n");
-        #endif
         }
     }
     return status;
@@ -80,18 +102,13 @@ CreateProcessInternalFn(HANDLE hToken,
     bool    fn = false;
     LPWSTR	lpfile	= lpCommandLine;
     WCHAR   lpFullPath[MAX_PATH+1]= {0};
+
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
-    #ifdef _LOGDEBUG
-        logmsg("process name in %ls lpApplicationName!\n", lpfile);
-    #endif
     }
     if (lpCommandLine && wcslen(lpCommandLine)>1)
     {
-    #ifdef _LOGDEBUG
-        logmsg("lpCommandLine: %ls!\n", lpCommandLine);
-    #endif
         fn = is_browser(lpCommandLine);
     }
     ret = sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
@@ -106,12 +123,6 @@ CreateProcessInternalFn(HANDLE hToken,
             logmsg("firefox restart,new main_id is %lu!\n", lpProcessInformation->dwProcessId);
         #endif
             set_process_pid(lpProcessInformation->dwProcessId);
-        }
-        else
-        {
-        #ifdef _LOGDEBUG
-            logmsg("we set restart is false!\n");
-        #endif
         }
     }
     return ret;
