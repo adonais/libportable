@@ -704,6 +704,7 @@ EXPORTS
 	wcstok=X
 	wcstol=X
 	wcstombs=X
+	_wcstoui64=X
 	wcstoul=X
 	_wcsupr=X
 	wcsxfrm=X
