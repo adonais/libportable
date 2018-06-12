@@ -385,7 +385,7 @@ read_long(LPCWSTR cat,LPCWSTR name)
     return _wcstoui64(buf, NULL, 10);   
 }
 
-static uint64_t
+static bool
 diff_days(void)
 {
     uint64_t diff = 3600*24;
@@ -488,7 +488,8 @@ init_share_locks(void)
     return false;
 }
 
-static void local_hook(void)
+static void 
+local_hook(void)
 {
     if (MH_Initialize() != MH_OK)
     {
@@ -509,7 +510,8 @@ static void local_hook(void)
 #endif
 }
 
-static void other_hook(void)
+static void 
+other_hook(void)
 {
     DWORD ver = get_os_version();
     if (ver > 503 && read_appint(L"General", L"Update") > 0)
