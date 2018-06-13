@@ -389,7 +389,7 @@ static bool
 diff_days(void)
 {
     uint64_t diff = 3600*24;
-    uint64_t time1 = read_long(L"update",L"last_update");
+    uint64_t time1 = read_long(L"update",L"last_check");
     uint64_t time2 = (uint64_t)time(NULL);
     if (time2 - time1 > diff)
     {
@@ -406,10 +406,6 @@ update_thread(void *lparam)
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[VALUE_LEN+1] = {0};
     WCHAR wcmd[MAX_PATH+1] = {0};
-    if (!diff_days())
-    {
-        return (0);
-    }
     if (!get_localdt_path(temp, MAX_PATH))
     {
         return (0);
@@ -426,14 +422,17 @@ update_thread(void *lparam)
     {
         return (0);
     }
-    wcsncpy(wcmd, path, ++pos-path);
-    wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
+    if (true)
+    {
+        wcsncpy(wcmd, path, ++pos-path);
+        wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
+    }
     if (read_appint(L"update", L"be_ready") > 0)
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, pid, temp, path);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
-    else
+    else if (diff_days())
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, pid, temp);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
@@ -514,7 +513,9 @@ static void
 other_hook(void)
 {
     DWORD ver = get_os_version();
-    if (ver > 503 && read_appint(L"General", L"Update") > 0)
+    if (ver > 503 && 
+        read_appint(L"General", L"Update") > 0 &&
+        read_appint(L"General", L"Portable") > 0)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
     }

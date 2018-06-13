@@ -134,10 +134,12 @@ bool WINAPI init_watch(void)
     DWORD		ver = get_os_version();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
-    if (sCreateProcessInternalW != NULL || sNtCreateUserProcess != NULL)
+#ifndef DISABLE_SAFE
+    if (read_appint(L"General",L"SafeEx") > 0)
     {
         return true;
     }
+#endif
     if (hNtdll == NULL || hKernel  == NULL)
     {
         return false;
