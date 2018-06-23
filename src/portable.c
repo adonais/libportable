@@ -434,6 +434,7 @@ update_thread(void *lparam)
     }
     else if (diff_days())
     {
+        Sleep(8000);
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, pid, temp);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
