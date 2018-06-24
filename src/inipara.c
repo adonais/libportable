@@ -150,7 +150,7 @@ foreach_section(LPCWSTR cat,                     /* ini 区段 */
     {
         return false;
     }
-    if ( (lpstring = (LPWSTR)SYS_MALLOC(num)) != NULL )
+    if ((lpstring = (LPWSTR)SYS_MALLOC(num)) == NULL)
     {
         return false;
     }
