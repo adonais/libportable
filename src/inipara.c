@@ -381,45 +381,43 @@ bool WINAPI
 path_to_absolute(LPWSTR lpfile, int len)
 {
     int n = 1;
-    if ( NULL == lpfile || *lpfile == L' ' )
+    if (NULL == lpfile || *lpfile == L' ')
     {
         return false;
     }
-    if ( lpfile[0] == L'%' )
+    if (lpfile[0] == L'%')
     {
-        WCHAR buf_env[VALUE_LEN+1] = {0};
-        while ( lpfile[n] != L'\0' )
+        WCHAR buf_env[VALUE_LEN+1] = {L'\0', };
+        while (lpfile[n] != L'\0')
         {
-            if ( lpfile[n] == L'%' )
+            if (lpfile[n++] == L'%')
             {
                 break;
             }
-            ++n;
         }
-        if ( n < len )
+        if (n < len)
         {
-            wnsprintfW(buf_env, n+1 ,L"%ls", lpfile);
+            wnsprintfW(buf_env, n+1, L"%ls", lpfile);
         }
-        if ( wcslen(buf_env) > 1 &&
-             ExpandEnvironmentStringsW(buf_env,buf_env,VALUE_LEN) > 0
-           )
+        if (wcslen(buf_env) > 1 &&
+            ExpandEnvironmentStringsW(buf_env, buf_env, VALUE_LEN) > 0)
         {
-            WCHAR tmp_env[VALUE_LEN+1] = {0};
-            wnsprintfW(tmp_env, len ,L"%ls%ls", buf_env, &lpfile[n+1]);
-            n = wnsprintfW(lpfile, len ,L"%ls", tmp_env);
+            WCHAR tmp_env[VALUE_LEN+1] = {L'\0', };
+            wnsprintfW(tmp_env, len ,L"%ls%ls", buf_env, &lpfile[n]);
+            n = wnsprintfW(lpfile, len, L"%ls", tmp_env);
         }
     }
-    if ( lpfile[1] != L':' )
+    if (lpfile[1] != L':')
     {
-        WCHAR buf_modname[VALUE_LEN+1] = {0};
+        WCHAR modname[VALUE_LEN+1] = {L'\0', };
         wchr_replace(lpfile);
-        if ( GetModuleFileNameW( dll_module, buf_modname, VALUE_LEN) > 0)
+        if (GetModuleFileNameW(dll_module, modname, VALUE_LEN) > 0)
         {
-            WCHAR tmp_path[MAX_PATH] = {0};
-            if ( PathRemoveFileSpecW(buf_modname) && 
-                 PathCombineW(tmp_path,buf_modname,lpfile) )
+            WCHAR tmp_path[MAX_PATH] = {L'\0', };
+            if (PathRemoveFileSpecW(modname) && 
+                PathCombineW(tmp_path, modname, lpfile))
             {
-                n = wnsprintfW(lpfile,len,L"%ls",tmp_path);
+                n = wnsprintfW(lpfile, len, L"%ls", tmp_path);
             }
         }
     }
