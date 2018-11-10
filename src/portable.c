@@ -528,7 +528,7 @@ other_hook(void)
     {
         init_exeception(NULL);
     }
-#if !(__GNUC__ || __clang__)    /* mingw-w64 crt does not implement IUIAutomation interface */
+#if defined(_MSC_VER)    /* mingw-w64 crt does not implement IUIAutomation interface */
     if (read_appint(L"General",L"OnTabs") > 0)
     {
         if (ver > 601)

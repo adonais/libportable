@@ -22,7 +22,7 @@ volatile long g_once = 0;
 void 
 send_click(int mouse)
 {
-    INPUT input[2] = {0};
+    INPUT input[2];
     input[0].type=input[1].type=INPUT_MOUSE;
     input[0].mi.dwFlags=mouse;
     if (mouse == MOUSEEVENTF_LEFTDOWN)
@@ -493,7 +493,7 @@ threads_on_win10(void *lparam)
         {
             return 0;
         }
-        if (!creator_hook(pSetWindowsHookEx, HookSetWindowsHookEx, (LPVOID*)&sSetWindowsHookExStub))
+        if (!creator_hook((void*)pSetWindowsHookEx, (void*)HookSetWindowsHookEx, (LPVOID*)&sSetWindowsHookExStub))
         {
 
         #ifdef _LOGDEBUG

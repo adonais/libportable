@@ -3,6 +3,7 @@ CFLAGS   = -O2
 LD       = $(CC) -o
 RC       = windres
 MSCRT    := -lmsvcrt
+MSVC     =
 DFLAGS   ?=
 LTO      ?=
 LIBPORTABLE_STATIC ?=
@@ -36,13 +37,15 @@ CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
             -DWINVER=0x0501 -D_WIN32_IE=0x0601  -mavx
 
 ifeq ($(CC),clang)
+CXX      = clang++
 CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-declarations
 ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc)) 
 CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
 MSCRT    =
+MSVC     = 1
 LDFLAGS := $(filter-out -s,$(LDFLAGS)) -fuse-ld=lld
 endif   #target x86_64 or i686
-ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows --target=i686-pc-windows-msvc --target=i686-pc-windows-gnu))
+ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows-msvc --target=i686-pc-windows --target=i686-w64-windows --target=i686-pc-windows-gnu --target=i686-w64-windows-gnu))
 BITS	 = 32
 else 
 BITS	 = 64
@@ -64,6 +67,9 @@ MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libminhook$(BITS).a
+ifeq ($(MSVC),1)	
+OBJECTS  += $(DEP)/on_tabs.o
+endif	
 
 EXEC     = \
     @echo Starting Compile... \
@@ -92,7 +98,7 @@ else
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
 DEPLIBS  = -lminhook$(BITS)
-LDLIBS   = -lshlwapi -lshell32 -lole32 $(MSCRT)
+LDLIBS   = -lshlwapi -lshell32 -lole32
 LDFLAGS  += -L$(DISTDIR) $(DEPLIBS) -lkernel32 -luser32 -s
 DLLFLAGS += -fPIC -shared
 RCFLAGS  = --define UNICODE -J rc -O coff
@@ -106,7 +112,7 @@ endif
 ifeq ($(CC), clang)
 LDFLAGS += -static -Wno-unused-command-line-argument -v
 else
-LDLIBS  += --entry=$(DLL_MAIN_STDCALL_NAME)
+LDLIBS  += $(MSCRT) --entry=$(DLL_MAIN_STDCALL_NAME)
 LDFLAGS += -nostdlib -lmingw32 -lmingwex -lgcc -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 endif
 
@@ -150,6 +156,10 @@ $(DEP)/share_lock.o   : $(SRC)/share_lock.c $(SRC)/share_lock.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/updates.o      : $(SRC)/updates.c $(SRC)/updates.h
 	$(CC) -c $< $(CFLAGS) -o $@
+ifeq ($(MSVC),1)	
+$(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h
+	$(CXX) -c $< $(CFLAGS) -Wno-deprecated -o $@
+endif	
 $(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) -i $< $(RCFLAGS) -o $@
 

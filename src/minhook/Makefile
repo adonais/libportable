@@ -31,7 +31,7 @@ CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-decl
 ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc)) 
 CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
 endif   #target x86_64 or i686
-ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows --target=i686-pc-windows-msvc --target=i686-pc-windows-gnu))
+ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows-msvc --target=i686-pc-windows --target=i686-w64-windows --target=i686-pc-windows-gnu --target=i686-w64-windows-gnu))
 BITS	 = 32
 else 
 BITS	 = 64

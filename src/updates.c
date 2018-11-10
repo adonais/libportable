@@ -17,11 +17,11 @@ extern _CreateProcessInternalW  sCreateProcessInternalW;
 extern _CreateProcessInternalW  pCreateProcessInternalW;
 #endif
 
-int32_t WINAPI _getppid(void)
+uint32_t WINAPI _getppid(void)
 {
     PROCESSENTRY32W pe32;
     bool     b_more;
-    int32_t  m_pid = GetCurrentProcessId();
+    uint32_t m_pid = GetCurrentProcessId();
     HANDLE   hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
     if( hSnapshot == INVALID_HANDLE_VALUE )
     {

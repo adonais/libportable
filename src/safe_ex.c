@@ -175,7 +175,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     else if ( wcstristr(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
      #ifndef _M_X64
          PathMatchSpecW(ProcessParameters->ImagePathName.Buffer, 
-         L"*\\plugins\\FlashPlayerPlugin_*.exe")                                   ||
+         L"*\\plugins\\FlashPlayerPlugin_*.exe")                                    ||
      #endif
          wcstristr(ProcessParameters->ImagePathName.Buffer, L"java.exe")            ||
          wcstristr(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
@@ -277,7 +277,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     /* 存在不安全插件,注入保护 */
     if ( wcstristr(lpfile, L"SumatraPDF.exe")                            ||
      #ifndef _M_X64
-         PathMatchSpecW(lpfile,L"*\\plugins\\FlashPlayerPlugin_*.exe")  ||
+         PathMatchSpecW(lpfile,L"*\\plugins\\FlashPlayerPlugin_*.exe")   ||
      #endif
          wcstristr(lpfile, L"java.exe")                                  ||
          wcstristr(lpfile, L"jp2launcher.exe"))
