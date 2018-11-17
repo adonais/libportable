@@ -23,6 +23,7 @@ void
 send_click(int mouse)
 {
     INPUT input[2];
+    fzero(&input, sizeof(input));
     input[0].type=input[1].type=INPUT_MOUSE;
     input[0].mi.dwFlags=mouse;
     if (mouse == MOUSEEVENTF_LEFTDOWN)
