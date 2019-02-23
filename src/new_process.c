@@ -10,28 +10,6 @@
 #define PROCESS_NUM 10
 static  void* g_handle[PROCESS_NUM];
 
-bool parse_shcommand(void)
-{
-    LPWSTR  *args = NULL;
-    int     m_arg = 0;
-    bool    ret = false;
-    args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
-    if ( NULL != args )
-    {
-        int i;
-        for (i = 1; i < m_arg; ++i)
-        {
-            if ( StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") )
-            {
-                ret = true;
-                break;
-            }
-        }
-        LocalFree(args);
-    }
-    return ret;
-}
-
 HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
 {
     bool   b_more;
@@ -129,6 +107,100 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
     return ret;
 }
 
+bool WINAPI no_gui_boot(void)
+{
+    LPWSTR  *args = NULL;
+    int     m_arg = 0;
+    bool    ret = false;
+    args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
+    if ( NULL != args )
+    {
+        int i;
+        for (i = 1; i < m_arg; ++i)
+        {
+            if ( StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") ||
+                 StrStrIW(args[i],L"headless") || StrStrIW(args[i],L"screenshot") )
+            {
+                ret = true;
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
+bool WINAPI pie_boot(void)
+{
+    LPWSTR  *args = NULL;
+    int     count = 0;
+    bool    ret = false;
+    args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if ( NULL != args )
+    {
+        int i;
+        for (i = 0; i < count; ++i)
+        {
+            if ( (_wcsicmp(args[i],L"-P") == 0) ||
+                 (_wcsicmp(args[i],L"-ProfileManager") == 0) )
+            {
+                ret = true;
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
+bool WINAPI profile_boot(void)
+{
+    LPWSTR  *args = NULL;
+    int     count = 0;
+    bool    ret = false;
+    args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if ( NULL != args )
+    {
+        int i;      
+        for (i = 0; i < count; ++i)
+        {
+            if ( _wcsicmp(args[i],L"-profile") == 0 )
+            {
+                ret = true;
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
+bool WINAPI get_profile_boot(WCHAR* lpcmd, int len)
+{
+    LPWSTR  *args = NULL;
+    int     count = 0;
+    bool    ret = false;
+    args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if ( NULL != args )
+    {
+        int i;      
+        for (i = 0; i < count; ++i)
+        {
+            if ( _wcsicmp(args[i],L"-profile") == 0 )
+            {
+                if (i < count -1)
+                {
+                    wnsprintfW(lpcmd,len,L"%ls",args[i+1]);
+                    ret = true;
+                }
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
 void WINAPI refresh_tray(void)
 {
     HWND hwnd ;          /* tray hwnd */
@@ -217,8 +289,8 @@ unsigned WINAPI run_process(void * pParam)
     {
         return (0);
     }
-    /* 如果是预启动,直接返回 */
-    if ( parse_shcommand() )
+    /* 如果是无界面启动,直接返回 */
+    if ( no_gui_boot() )
     {
         return (0);
     }
