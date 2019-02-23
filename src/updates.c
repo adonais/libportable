@@ -20,9 +20,10 @@ extern _CreateProcessInternalW  pCreateProcessInternalW;
 uint32_t WINAPI _getppid(void)
 {
     PROCESSENTRY32W pe32;
-    bool     b_more;
+    int      b_more = 0;
+    HANDLE   hSnapshot = NULL;
     uint32_t m_pid = GetCurrentProcessId();
-    HANDLE   hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
     if( hSnapshot == INVALID_HANDLE_VALUE )
     {
     #ifdef _LOGDEBUG
@@ -30,6 +31,7 @@ uint32_t WINAPI _getppid(void)
     #endif
         return 0;
     }
+    pe32.dwSize = sizeof(pe32);
     b_more = Process32FirstW(hSnapshot,&pe32);
     while (b_more) 
     {
@@ -37,7 +39,7 @@ uint32_t WINAPI _getppid(void)
         {
             m_pid = (uint32_t)pe32.th32ParentProcessID;
             break;
-        }
+        }    
         b_more = Process32NextW(hSnapshot,&pe32);
     }
     CloseHandle(hSnapshot);
