@@ -288,6 +288,68 @@ get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
     return ret;
 }
 
+static int get_file_version(void)
+{
+    HMODULE  h_ver = NULL;
+    DWORD    dwHandle = 0;
+    DWORD    dwSize = 0;
+    VS_FIXEDFILEINFO* pversion = NULL;
+    LPWSTR   pbuffer = NULL;
+    WCHAR    dw_block[NAMES_LEN] = {0};
+    WCHAR    filepath[MAX_PATH] = {0};
+	uint32_t cb = 0;
+    int      ver = 0;
+    do
+    {
+        if ( GetModuleFileNameW(NULL,filepath,MAX_PATH) == 0 )
+        {
+            break;
+        }
+        if ( (h_ver = init_verinfo()) == NULL )
+        {
+            break;
+        }
+        if ( (dwSize = pfnGetFileVersionInfoSizeW(filepath, &dwHandle)) == 0 )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("pfnGetFileVersionInfoSizeW return false\n");
+        #endif
+            break;
+        }
+        if ( ( pbuffer = (LPWSTR)SYS_MALLOC(dwSize*sizeof(WCHAR)) ) == NULL )
+        {
+            break;
+        }
+        if( !pfnGetFileVersionInfoW(filepath,0,dwSize,(LPVOID)pbuffer) )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("pfnpfnGetFileVersionInfoW return false\n");
+        #endif
+            break;
+        }
+        if ( !pfnVerQueryValueW((LPCVOID)pbuffer,L"\\",(void**)&pversion,&cb) )
+        {
+        #ifdef _LOGDEBUG
+            logmsg("pfnVerQueryValueW return false\n");
+        #endif
+            break;
+        }
+		if (pversion != NULL)
+	    {
+			wnsprintfW(dw_block, NAMES_LEN, L"%d%d", HIWORD(pversion->dwFileVersionMS),LOWORD(pversion->dwFileVersionMS));
+			ver = _wtoi(dw_block);
+        }
+    } while (0);
+    if ( pbuffer )
+    {
+        SYS_FREE(pbuffer);
+    }
+    if ( h_ver )
+    {
+        FreeLibrary(h_ver);
+    }
+	return ver;
+}
 LPWSTR WINAPI
 wcstristr(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能同StrStrIW函数 */
 {
