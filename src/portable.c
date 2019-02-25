@@ -335,7 +335,6 @@ init_portable(void)
 #undef DLD
 }
 
-
 /* 初始化全局变量 */
 static bool
 init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
@@ -366,6 +365,13 @@ init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
     {
         wcsncat(localdt,L"\\LocalAppData\\Temp\\Fx",len);
     }
+    if ( profile_boot() || get_process_profile() )
+    {   
+        return true;
+    }
+#ifdef _LOGDEBUG
+    logmsg("%lu ready to write_file!\n", GetCurrentProcessId());
+#endif    
     return write_file(appdt);
 }
 
@@ -456,10 +462,25 @@ init_share_data(void)
     {
         return false;
     }
-    if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,
-        sizeof(sdata.appdt),sdata.ini))
+    if (get_profile_boot(sdata.appdt,MAX_PATH) || get_process_profile())
+    {
+        set_process_profile(true);
+    #ifdef _LOGDEBUG
+        logmsg("appdata[%ls]!\n", sdata.appdt);
+    #endif
+    }
+    else if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,sizeof(sdata.appdt),sdata.ini))
     {
         wnsprintfW(sdata.appdt, MAX_PATH, L"%ls", L"../Profiles");
+    #ifdef _LOGDEBUG
+        logmsg("appdata[%ls]!\n", sdata.appdt);
+    #endif        
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("appdata[%ls]!\n", sdata.appdt);
+    #endif           
     }
     if (!init_global_env(sdata.appdt, sdata.localdt, sdata.ini, MAX_PATH))
     {
@@ -575,11 +596,11 @@ other_hook(void)
 void WINAPI 
 undo_it(void)
 {
-    if (true)
+    if (get_process_pid() == GetCurrentProcessId())
     {
         share_close();
     #ifdef _LOGDEBUG
-        logmsg("process[id = %lu] exit\n", GetCurrentProcessId());
+        logmsg("main process[%lu] exit\n", GetCurrentProcessId());
     #endif
     }
     /* 解除快捷键 */
@@ -611,41 +632,61 @@ do_it(void)
         if (res)
         {
             res = init_share_locks();
+            if (res)
+            {
+                local_hook();
+                other_hook();
+            }
+            return;          
         }
     }
     else
     {
-        share_close();
+    #ifdef _LOGDEBUG
+        logmsg("share_open succeed!\n");
+    #endif        
         set_share_handle(map);
-    }
-    if (res)
-    {
-        local_hook();
-        other_hook();
-        return;
     }
     if (is_browser(NULL))
     {   /* multiple firefox's processes */
         uint32_t m_pid = get_process_pid();
-        /* browser restart flags */
-        if (get_process_flags())
+        if (m_pid == _getppid())
         {
-            set_process_flags(false);
-            local_hook();
-            other_hook();
-        } 
-        else if (m_pid == _getppid())
-        {
-        #ifdef _LOGDEBUG
-            logmsg("is child of browser()\n");
-        #endif
+            if (pie_boot() || profile_boot())
+            {
+                set_process_pid(GetCurrentProcessId());
+            #ifdef _LOGDEBUG
+                logmsg("process_pie[id = %lu] create\n", GetCurrentProcessId());
+            #endif
+                local_hook();
+                other_hook();
+            }
         }
         else if (get_process_remote())
         {
             set_envp(NULL);
             local_hook();
+            other_hook();
+        #ifdef _LOGDEBUG
+            logmsg("%lu get_process_remote() true.\n", GetCurrentProcessId());
+        #endif            
         }
-        return;
+        else if (get_process_flags())
+        {
+            set_process_flags(false);
+            local_hook();
+            other_hook();
+        #ifdef _LOGDEBUG
+            logmsg("%lu flags restart.\n", GetCurrentProcessId());
+        #endif               
+        }         
+        else if (NULL != map)
+        {
+            share_close();
+        #ifdef _LOGDEBUG
+            logmsg("%lu nothing to do, we closed the share mem.\n", GetCurrentProcessId());
+        #endif
+        }
     }
     else if (is_specialapp(L"plugin-container.exe"))
     {
@@ -653,10 +694,9 @@ do_it(void)
     }
     else
     {
-        CloseHandle(map);
         res = init_share_data();
     #ifdef _LOGDEBUG
-        logmsg("process[id = %lu] create\n", GetCurrentProcessId());
+        logmsg("other fx process[%lu] create\n", GetCurrentProcessId());
     #endif
         if (res)
         {

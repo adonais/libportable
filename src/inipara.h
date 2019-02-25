@@ -49,6 +49,7 @@ typedef struct _s_data
 {
     uint32_t main;
     bool     restart;
+	bool     noprofile;
     bool     noremote;
     WCHAR    appdt[MAX_PATH+1];
     WCHAR    localdt[MAX_PATH+1];

@@ -297,7 +297,7 @@ static int get_file_version(void)
     LPWSTR   pbuffer = NULL;
     WCHAR    dw_block[NAMES_LEN] = {0};
     WCHAR    filepath[MAX_PATH] = {0};
-	uint32_t cb = 0;
+    uint32_t cb = 0;
     int      ver = 0;
     do
     {
@@ -350,6 +350,7 @@ static int get_file_version(void)
     }
 	return ver;
 }
+
 LPWSTR WINAPI
 wcstristr(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能同StrStrIW函数 */
 {

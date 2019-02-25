@@ -17,7 +17,7 @@ share_create(bool read_only, uint32_t size)
     {
         return false;
     }
-    if (GetLastError() == ERROR_ALREADY_EXISTS) 
+    if (mapped_file_ == NULL || GetLastError() == ERROR_ALREADY_EXISTS) 
     {
         CloseHandle(mapped_file_);
         return false;
@@ -175,6 +175,25 @@ get_process_pid(void)
 }
 
 bool WINAPI
+get_process_profile(void)
+{
+    bool flags = false;
+    s_data *memory = share_map(sizeof(s_data), true);
+    if (memory)
+    {
+        flags = memory->noprofile;
+        share_unmap(memory);
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("memory is null in %s!\n", __FUNCTION__);
+    #endif           
+    }    
+    return flags;
+}
+
+bool WINAPI
 get_process_remote(void)
 {
     bool flags = false;
@@ -189,6 +208,23 @@ get_process_remote(void)
         share_unmap(memory);
     }
     return flags;
+}
+
+void WINAPI
+set_process_profile(bool flags)
+{
+    s_data *memory = share_map(sizeof(s_data), false);
+    if (memory)
+    {
+        memory->noprofile = flags;
+        share_unmap(memory);
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("memory is null in %s!\n", __FUNCTION__);
+    #endif 
+    }    
 }
 
 void WINAPI
