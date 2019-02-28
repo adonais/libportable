@@ -14,7 +14,7 @@ LIBPORTABLE_STATIC =
 
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
-CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc14_mt.lib legacy_stdio_definitions.lib
+CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc15_mt.lib legacy_stdio_definitions.lib
 !ELSEIF "$(MSVC_CRT)">="1900"
 CFLAGS   = $(CFLAGS) /MD /D "VC12_CRT" /D "_NO_CRT_STDIO_INLINE"
 CRTFLAGS =
