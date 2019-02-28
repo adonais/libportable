@@ -288,7 +288,8 @@ get_productname(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
     return ret;
 }
 
-static int get_file_version(void)
+int WINAPI 
+get_file_version(void)
 {
     HMODULE  h_ver = NULL;
     DWORD    dwHandle = 0;

@@ -19,6 +19,7 @@ typedef unsigned char _Bool;
 #define _AddressOfReturnAddress() (&(((void **)(__builtin_frame_address(0)))[1]))
 #if defined(__AVX__)
 #include <x86intrin.h>
+#if __GNUC__ < 8
 extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
 unsigned long long _xgetbv(unsigned int __xcr_no)
 {
@@ -26,6 +27,7 @@ unsigned long long _xgetbv(unsigned int __xcr_no)
     __asm__ ("xgetbv" : "=a" (__eax), "=d" (__edx) : "c" (__xcr_no));
     return ((unsigned long long)__edx << 32) | __eax;
 }
+#endif
 extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
 void __nop(void)
 {

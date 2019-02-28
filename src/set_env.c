@@ -112,6 +112,10 @@ foreach_env(void)
     {
         return;
     }
+    if (get_file_version() >= 670 && read_appint(L"General",L"DisDedicate") > 0)
+    {
+        envPtrW(L"SNAP_NAME=1");
+    }    
     if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini) < 4)
     {
         return;

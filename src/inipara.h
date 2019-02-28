@@ -49,7 +49,7 @@ typedef struct _s_data
 {
     uint32_t main;
     bool     restart;
-	bool     noprofile;
+    bool     noprofile;
     bool     noremote;
     WCHAR    appdt[MAX_PATH+1];
     WCHAR    localdt[MAX_PATH+1];
@@ -83,6 +83,7 @@ extern bool     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
                                    void*   filename             /* 文件名,默认为空 */
                                    );
 extern int      WINAPI read_appint(LPCWSTR cat, LPCWSTR name);
+extern int      WINAPI get_file_version(void);
 extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini 区段 */
                                        wchar_t(*lpdata)[VALUE_LEN+1],   /* 二维数组首地址,保存多个段值 */
                                        int line                         /* 二维数组行数 */
