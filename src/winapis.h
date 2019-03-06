@@ -45,15 +45,21 @@ typedef LONG NTSTATUS, *PNTSTATUS;
 #define FILE_SYNCHRONOUS_IO_NONALERT        0x00000020
 #define FILE_NON_DIRECTORY_FILE             0x00000040
 
+#ifndef ProcThreadAttributeValue
 #define ProcThreadAttributeValue( p1, p2, p3, p4 ) \
         (((p1) & PROC_THREAD_ATTRIBUTE_NUMBER) | \
         ((p2 != FALSE) ? PROC_THREAD_ATTRIBUTE_THREAD : 0) | \
         ((p3 != FALSE) ? PROC_THREAD_ATTRIBUTE_INPUT : 0) | \
         ((p4 != FALSE) ? PROC_THREAD_ATTRIBUTE_ADDITIVE : 0))
+#endif
 
+#if defined(ProcThreadAttributeValue) && !defined(PROC_THREAD_ATTRIBUTE_PCLIENTID)
 #define PROC_THREAD_ATTRIBUTE_PCLIENTID ProcThreadAttributeValue (8, FALSE, FALSE, FALSE)
+#endif
 
+#ifndef STATUS_INFO_LENGTH_MISMATCH
 #define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004)
+#endif
 
 #ifndef __UNICODE_STRING_DEFINED
 #define __UNICODE_STRING_DEFINED
