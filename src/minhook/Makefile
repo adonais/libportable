@@ -7,9 +7,11 @@ CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG \
             -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
 LTO      ?=
 OUT      = libminhook$(BITS).a
+USE_GCC  =
 
 ifeq ($(findstring clang,$(CC)),)
 BUILD = $(shell file `which $(CC)` 2>/dev/null | grep x86-64)
+USE_GCC  = 1
 else
 AR = llvm-ar.exe
 BUILD = $(shell file `which $(CC)` 2>/dev/null | grep x86-64)
@@ -29,11 +31,11 @@ endif
 
 ifeq ($(findstring clang,$(CC)),clang)
 CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-declarations
-ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc)) 
+ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc))
 CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
 OUT      = minhook$(BITS).lib
 endif   #target x86_64 or i686
-ifneq (,$(filter $(DFLAGS),--target=i686-pc-windows-msvc --target=i686-pc-windows --target=i686-w64-windows --target=i686-pc-windows-gnu --target=i686-w64-windows-gnu))
+ifneq (,$(findstring i686,$(DFLAGS)))
 BITS	 = 32
 else 
 BITS	 = 64
@@ -63,9 +65,11 @@ else ifeq ($(BITS),64)
     LDFLAGS += $(X64FLAG)
 endif
 
+ifeq ($(USE_GCC),1)
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
 CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
+endif
 endif
 
 $(DISTDIR)/$(OUT)      : $(OBJECTS) 

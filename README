@@ -1,45 +1,22 @@
 HOW TO BUILD libportable source code?
 =================
-
 System requirements
 ------------------
 
-    - C compiler 
-	
-     mingw64, msys or msys2
-
-     MinGW project on:
-     http://sourceforge.net/projects/mingw-w64/
-
-     msys msys2 project on
-     https://sourceforge.net/projects/mingw/files/MSYS/
-     https://sourceforge.net/projects/msys2/
-
-	 or
-
-     Microsoft Visual Studio .
+- C compiler 
+ Microsoft Visual Studio .	
+ 
+ or
+ 
+ mingw-w64, msys or msys2
+ mingw-w64 project on:
+ http://sourceforge.net/projects/mingw-w64/
+ msys msys2 project on:
+ https://sourceforge.net/projects/mingw/files/MSYS/
+ https://sourceforge.net/projects/msys2/
 
 Build!
 ------------------
-mingw64 compiler 
-
-32bits or 64bits:
-
-make clean
-make
-
-If gcc is a cross-compiler, use the CROSS_COMPILING option:
-
-make clean
-64bits:
-make CROSS_COMPILING=x86_64-w64-mingw32-
-32bits:
-make CROSS_COMPILING=x86_64-w64-mingw32- BITS=32
-
-more option:
-make CROSS_COMPILING=x86_64-w64-mingw32- LTO=1
-
---------------------
 vc compiler 
 
 nmake -f Makefile.msvc clean
@@ -49,12 +26,30 @@ vs2015 or vs2017 dynamic lininking the CRT:
 nmake -f Makefile.msvc clean
 nmake -f Makefile.msvc MSVC_CRT=1900
 
+enable tcmalloc memory allocator:
+nmake -f Makefile.msvc TCMALLOC=1
+--------------------
+mingw64 compiler 
+
+make clean
+make
+
+enable GCC Link-time optimization(LTO): 
+make LTO=1
+
+If gcc is a cross-compiler, use the CROSS_COMPILING option:
+
+make clean
+64bits:
+make CROSS_COMPILING=x86_64-w64-mingw32-
+32bits:
+make CROSS_COMPILING=x86_64-w64-mingw32- BITS=32
 --------------------
 clang compiler
 
 make clean
-make CC=clang                                           (deault target build)
-make CC=clang DFLAGS=--target=i686-pc-windows-gnu       (x86 mingw32 target build)
+make CC=clang DFLAGS=--target=x86_64-w64-windows-gnu    (64bits target build)
+make CC=clang DFLAGS=--target=i686-w64-windows-gnu      (32bits target build)
 
 If you have MSVC compiler installed
 

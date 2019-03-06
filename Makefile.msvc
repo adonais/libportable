@@ -1,7 +1,7 @@
 # nmake -f Makefile.msvc
 
 CC       = cl.exe
-CPP	 = cl.exe
+CPP      = cl.exe
 MSVC_CRT =
 TCMALLOC =
 
@@ -37,8 +37,8 @@ ASMFLAGS = -fwin32 -O2 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
 CPPFLAGS = $(CFLAGS) /TP
 
 MD       = @mkdir
-CP	 = copy
-RM	 = @del /q
+CP       = copy
+RM       = @del /q
 RMDIR    = @rmdir /s /q
 SRC      = src
 SUB_DIR  = $(SRC)\minhook
@@ -91,15 +91,15 @@ OBJS     = $(OBJDLL)
 DISTDIR	 = Release
 OUT1	 = $(DISTDIR)\minhook$(BITS).lib
 
-EXEC		= \
+EXEC     = \
 	@echo coming to src subdir...  && \
 	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
 	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
 
 all                     : $(OUT1) $(OUT)
-$(OUT1)			: $(SUB_DIR)/Makefile.msvc
+$(OUT1)			        : $(SUB_DIR)/Makefile.msvc
 	$(SUBMK)
-$(OUT)			: $(OBJDLL)
+$(OUT)			        : $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(LDFLAGS) $(MIN_LIB) $(CRTFLAGS)
 	-copy /y $(OUT) $(TETE) 2>&1>NUL
 $(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
@@ -142,9 +142,9 @@ $(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
 	lib.exe /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
 	        /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll
 !endif
-$(DEP)\resource.res                 : $(SRC)\resource.rc
+$(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 
-.PHONY		        : clean
+.PHONY		            : clean
 clean                   : 
 	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL
