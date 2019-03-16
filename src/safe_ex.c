@@ -101,7 +101,7 @@ static bool in_whitelist(LPCWSTR lpfile)
 }
 
 static bool 
-ProcessIsCUI(LPCWSTR lpfile)
+process_cui(LPCWSTR lpfile)
 {
     WCHAR   lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
@@ -124,6 +124,21 @@ ProcessIsCUI(LPCWSTR lpfile)
         return ( !is_gui(lpname) );
     }
     return true;
+}
+
+static bool 
+process_plugin(LPCWSTR lpfile)
+{
+    if ( wcstristr(lpfile, L"SumatraPDF.exe")                         ||
+    #ifndef _M_X64
+        PathMatchSpecW(lpfile, L"*\\plugins\\FlashPlayerPlugin*.exe") ||
+     #endif
+        wcstristr(lpfile, L"java.exe")                                ||
+        wcstristr(lpfile, L"jp2launcher.exe") )
+    {
+        return true;
+    }
+    return false;
 }
 
 static NTSTATUS WINAPI 
@@ -162,23 +177,19 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     bool      fn = false;
     NTSTATUS  status;
     bool      tohook = false;
+    bool      plugin = false;
+    
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
     fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
-
-    if (is_browser(ProcessParameters->ImagePathName.Buffer))
+    plugin = process_plugin(ProcessParameters->ImagePathName.Buffer);
+    if ( !plugin && is_browser(ProcessParameters->ImagePathName.Buffer) )
     {
-        if (ProcessParameters->CommandLine.Length > 1)
+        if ( ProcessParameters->CommandLine.Length > 1 )
         {
             fn = is_browser(ProcessParameters->CommandLine.Buffer);
         }
     }
-    else if ( wcstristr(ProcessParameters->ImagePathName.Buffer, L"SumatraPDF.exe") ||
-     #ifndef _M_X64
-         PathMatchSpecW(ProcessParameters->ImagePathName.Buffer, 
-         L"*\\plugins\\FlashPlayerPlugin_*.exe")                                    ||
-     #endif
-         wcstristr(ProcessParameters->ImagePathName.Buffer, L"java.exe")            ||
-         wcstristr(ProcessParameters->ImagePathName.Buffer, L"jp2launcher.exe"))
+    else if ( plugin )
     {
         tohook = true;
     }
@@ -259,7 +270,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     bool    fn = false;
     LPWSTR	lpfile = lpCommandLine;
     bool    tohook = false;
-
+    
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
@@ -275,12 +286,7 @@ HookCreateProcessInternalW(HANDLE hToken,
         return ret;
     }
     /* 存在不安全插件,注入保护 */
-    if ( wcstristr(lpfile, L"SumatraPDF.exe")                            ||
-     #ifndef _M_X64
-         PathMatchSpecW(lpfile,L"*\\plugins\\FlashPlayerPlugin_*.exe")   ||
-     #endif
-         wcstristr(lpfile, L"java.exe")                                  ||
-         wcstristr(lpfile, L"jp2launcher.exe"))
+    if ( process_plugin(lpfile) )
     {
         /* 静态编译时,不能启用远程注入 */
     #if !defined(LIBPORTABLE_STATIC)
@@ -306,7 +312,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
     else
     {
-        if ( ProcessIsCUI(lpfile) )
+        if ( process_cui(lpfile) )
         {
         #ifdef _LOGDEBUG
             logmsg("%ls process, disabled-runes\n",lpfile);

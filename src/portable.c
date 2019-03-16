@@ -628,7 +628,7 @@ do_it(void)
     HANDLE map = NULL;
     if ((map = share_open(false)) == NULL)
     {
-        res = init_share_data();
+        res = init_share_data();   
         if (res)
         {
             res = init_share_locks();
@@ -695,13 +695,19 @@ do_it(void)
     else
     {
         res = init_share_data();
-    #ifdef _LOGDEBUG
-        logmsg("other fx process[%lu] create\n", GetCurrentProcessId());
-    #endif
         if (res)
         {
+        #ifdef _LOGDEBUG
+            logmsg("other fx process[%lu] create\n", GetCurrentProcessId());
+        #endif            
             local_hook();
             other_hook();
+        }
+        else
+        {
+    #ifdef _LOGDEBUG
+        logmsg("other process[%lu] create hook false\n", GetCurrentProcessId());
+    #endif            
         }
     }
 }
