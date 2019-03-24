@@ -98,6 +98,7 @@ extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
 extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
+extern bool     WINAPI print_process_module(DWORD pid);
 
 #ifdef __cplusplus
 }

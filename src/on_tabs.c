@@ -135,9 +135,13 @@ IUIAutomationElement* find_ui_child(IUIAutomationElement *pElement)
 
 IUIAutomationElement* get_tab_bars(HWND hwnd)
 {
-    HRESULT hr;
+    HRESULT hr = 0;
     IUIAutomationElement* pFound = NULL;
     IUIAutomationElement* root = NULL;
+	if (g_uia == NULL || hwnd == NULL)
+	{
+		return NULL;
+	}
     hr = g_uia->ElementFromHandle(hwnd, &root);
     if (SUCCEEDED(hr))
     {
@@ -435,7 +439,10 @@ bool init_uia(void)
     CoInitialize(NULL);
     hr = CoCreateInstance(__uuidof(CUIAutomation), NULL, CLSCTX_INPROC_SERVER, 
          __uuidof(IUIAutomation), (void**)&g_uia);
-    return (SUCCEEDED(hr));
+#ifdef _LOGDEBUG
+    print_process_module(GetCurrentProcessId());
+#endif         
+    return SUCCEEDED(hr);
 }
 
 void WINAPI
@@ -458,7 +465,8 @@ HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId
     if (idHook == WH_GETMESSAGE && !g_once)
     {
         *(long volatile*)&g_once = 1;
-        sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
+        message_hook = sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
+        return message_hook;
     }
     return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
 }
@@ -496,7 +504,6 @@ threads_on_win10(void *lparam)
         }
         if (!creator_hook((void*)pSetWindowsHookEx, (void*)HookSetWindowsHookEx, (LPVOID*)&sSetWindowsHookExStub))
         {
-
         #ifdef _LOGDEBUG
             logmsg("creator_hook return false!\n", GetLastError());
         #endif

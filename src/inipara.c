@@ -899,3 +899,34 @@ get_os_version(void)
     }
     return ver;
 }
+
+bool WINAPI
+print_process_module(DWORD pid)
+{ 
+    BOOL           ret      = true; 
+    HANDLE         hmodule  = NULL; 
+    MODULEENTRY32  me32     = {0}; 
+    hmodule = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid); 
+    if (hmodule == INVALID_HANDLE_VALUE)
+    {
+        return false; 
+    }
+    me32.dwSize = sizeof(MODULEENTRY32); 
+    if (Module32First(hmodule, &me32)) 
+    { 
+        do 
+        {
+        #ifdef _LOGDEBUG
+            logmsg("szModule = %ls, start_addr = 0x%x, end_addr = 0x%x\n", me32.szExePath, me32.modBaseAddr, me32.modBaseAddr+me32.modBaseSize);
+        #endif
+        } 
+        while (Module32Next(hmodule, &me32)); 
+ 
+    } 
+    else 
+    {
+        ret = false; 
+    }
+    CloseHandle (hmodule);
+    return ret; 
+}

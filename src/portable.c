@@ -414,6 +414,9 @@ update_thread(void *lparam)
     WCHAR wcmd[MAX_PATH+1] = {0};
     if (!get_localdt_path(temp, MAX_PATH))
     {
+    #ifdef _LOGDEBUG
+        logmsg("get_localdt_path return false, temp[%ls]!\n", temp);
+    #endif          
         return (0);
     }
     if ((pid = get_process_pid()) < 5)
