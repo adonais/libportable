@@ -108,6 +108,12 @@ foreach_env(void)
     LPWSTR m_key;
     WCHAR  ini[MAX_PATH+1] = {0};
     WCHAR env_buf[MAX_ENV_SIZE + 1];
+#if defined(_WIN64)    
+    if (read_appint(L"Env",L"MOZ_DISABLE_NPAPI_SANDBOX") <= 0)
+    {
+        envPtrW(L"MOZ_DISABLE_NPAPI_SANDBOX=1");
+    }
+#endif    
     if (!get_ini_path(ini, MAX_PATH))
     {
         return;

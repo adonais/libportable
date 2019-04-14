@@ -304,11 +304,10 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
 static void 
 init_portable(void)
 {
-#define FUNC_NUM 5
 #define DLD(s,h) {#s, (void*)(Hook##s), (pointer_to_handler*)(void*)(&h)}
     int i;
     HMODULE h_shell32;
-    const dyn_link_desc api_tables[FUNC_NUM] = 
+    const dyn_link_desc api_tables[] = 
     {
           DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
         , DLD(SHGetFolderPathW, sSHGetFolderPathWStub)
@@ -316,22 +315,22 @@ init_portable(void)
         , DLD(SHGetKnownFolderIDList, sSHGetKnownFolderIDListStub)
         , DLD(SHGetKnownFolderPath, sSHGetKnownFolderPathStub)
     };
+    int func_num = sizeof(api_tables)/sizeof(api_tables[0]);
     if ( (h_shell32 = GetModuleHandleW(L"shell32.dll")) == NULL )
     {
         return;
     }
     if ( !m_target[0] )
     {
-        for ( i = 0 ; i<FUNC_NUM; i++)
+        for ( i = 0 ; i<func_num; i++)
         {
             m_target[i] = (uintptr_t)GetProcAddress(h_shell32, api_tables[i].name);
         }
-        for ( i = 0 ; m_target[i]!=0&&i<FUNC_NUM; i++ )
+        for ( i = 0 ; m_target[i]!=0&&i<func_num; i++ )
         {
             creator_hook((void*)m_target[i], api_tables[i].hook, (void **)api_tables[i].original);
         }
     }
-#undef FUNC_NUM
 #undef DLD
 }
 
@@ -356,7 +355,6 @@ init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
     {
         wcsncpy(localdt,appdt,len);
     }
-    
     if ( appdt[0] != L'\0' )
     {
         wcsncat(appdt,L"\\AppData",len);

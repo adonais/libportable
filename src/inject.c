@@ -31,7 +31,7 @@ typedef struct _thread_info
 #pragma check_stack (off)
 #endif
 
-#if defined(_M_X64)
+#if defined(_WIN64)
 unsigned char shell_code[] =
 {
     /* Push a dummy value for the return address */
@@ -78,7 +78,7 @@ unsigned char shell_code[] =
     0x9D,                                                                   // popfq
     0xC3                                                                    // ret
 };
-#elif defined(_M_IX86)
+#elif defined(_M_IX86) || (defined __i386__)
 unsigned char shell_code[] =
 {
     0x68, 0xef, 0xbe, 0xad, 0xde,           // push 0xDEADBEEF
@@ -182,7 +182,7 @@ write_memory(HANDLE handle, LPVOID base, LPCVOID buffer, size_t size)
 static void
 install_jmp(CONTEXT *pc, thread_info *pinfo)
 {
-#if defined(_M_X64)
+#if defined(_WIN64)
     /* 替换shellcode跳转地址 */
     uintptr_t old_ip = pc->Rip;
     memcpy(shell_code + 5, &old_ip, sizeof(old_ip));

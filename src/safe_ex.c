@@ -130,9 +130,9 @@ static bool
 process_plugin(LPCWSTR lpfile)
 {
     if ( wcstristr(lpfile, L"SumatraPDF.exe")                         ||
-    #ifndef _M_X64
+    #ifndef _WIN64
         PathMatchSpecW(lpfile, L"*\\plugins\\FlashPlayerPlugin*.exe") ||
-     #endif
+    #endif
         wcstristr(lpfile, L"java.exe")                                ||
         wcstristr(lpfile, L"jp2launcher.exe") )
     {
