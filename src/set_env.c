@@ -23,6 +23,38 @@ get_cwd(LPSTR lpstrName, DWORD len)
     return (i>0 && i<(int)len);
 }
 
+static int __cdecl
+set_env_win(const wchar_t *env)
+{
+    int ret = -1;
+    wchar_t *key = NULL;
+    const wchar_t *p = NULL;
+    do
+    {
+        if (env == NULL || *env == L';')
+        {
+            break;
+        }
+        p = wcschr(env, L'=');
+        if (!p)
+        {
+            break;
+        }  
+        key = _wcsdup(env);
+        if (!key)
+        {
+            break;
+        }        
+        key[p-env] = L'\0';
+        if (SetEnvironmentVariableW((LPCWSTR)key, p+1))
+        {
+            ret = 0;
+        }
+        free(key);
+    }while(0);
+    return ret;
+}
+
 int WINAPI /* 在PE 输入表查找crt文件 */ 
 find_mscrt(void *hMod, char *crt_buf, int len)
 {
@@ -113,13 +145,13 @@ foreach_env(void)
     {
         envPtrW(L"MOZ_DISABLE_NPAPI_SANDBOX=1");
     }
-#endif    
+#endif
     if (!get_ini_path(ini, MAX_PATH))
     {
         return;
     }
     if (get_file_version() >= 670 && read_appint(L"General",L"DisDedicate") > 0)
-    {
+    {      
         envPtrW(L"SNAP_NAME=1");
     }    
     if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini) < 4)
@@ -214,26 +246,12 @@ pentadactyl_fixed(void)
     } while (0);
 }
 
-unsigned WINAPI
-setenv_tt(void *p)
+static LIB_INLINE
+void setenv_tt(void)
 {
-    HMODULE hMod = NULL;
-    if (NULL != p)
-    {
-        hMod = LoadLibraryA("ucrtbase.dll");
-        if (hMod == NULL || (envPtrW = (pSetEnv)GetProcAddress(hMod, "_wputenv")) == NULL)
-        {
-            return (0);
-        }
-    }
     foreach_env();
     set_plugins();
     pentadactyl_fixed();
-    if (NULL != hMod)
-    {
-        FreeLibrary(hMod);
-    }
-    return (1);
 }
 
 unsigned WINAPI
@@ -255,28 +273,30 @@ set_envp(void *p)
         }
         if (NULL == hMod)
         {
+        #ifdef _LOGDEBUG
+            logmsg("LoadLibraryA crt return false!\n");
+        #endif            
             return (0);
         }
         initialize = crt_initialized(hMod);
-        
         if (!initialize)
         {
         #ifdef _LOGDEBUG
             logmsg("crt not initialized!!!\n");
         #endif
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&setenv_tt,&crt_names,0,NULL));
+            envPtrW = set_env_win;
+        }
+        else if ((envPtrW = (pSetEnv)GetProcAddress(hMod, "_wputenv")) == NULL)
+        {
             return FreeLibrary(hMod);
         }
-        if ((envPtrW = (pSetEnv)GetProcAddress(hMod, "_wputenv")) != NULL)
-        {
-            setenv_tt(NULL);
-        }
+        setenv_tt();
         FreeLibrary(hMod);
     }
     else if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == 'v')
     {
         envPtrW = _wputenv;
-        return setenv_tt(NULL);
+        setenv_tt();
     }
     return (1);
 }

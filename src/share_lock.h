@@ -19,6 +19,7 @@ extern bool   WINAPI get_process_path(WCHAR *path, int len);
 extern bool   WINAPI get_process_flags(void);
 extern DWORD  WINAPI get_process_pid(void);
 extern bool   WINAPI get_process_remote(void);
+extern bool   WINAPI get_process_comp(LPCWSTR path);
 extern void   WINAPI set_process_remote(bool flags);
 extern bool   WINAPI get_process_profile(void);
 extern void   WINAPI set_process_profile(bool flags);

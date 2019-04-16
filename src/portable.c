@@ -413,7 +413,7 @@ update_thread(void *lparam)
     if (!get_localdt_path(temp, MAX_PATH))
     {
     #ifdef _LOGDEBUG
-        logmsg("get_localdt_path return false, temp[%ls]!\n", temp);
+        logmsg("get_localdt_path return false!\n");
     #endif          
         return (0);
     }
@@ -422,6 +422,10 @@ update_thread(void *lparam)
         return (0);
     }
     if (!GetModuleFileNameW(NULL, path, VALUE_LEN))
+    {
+        return (0);
+    }  
+    if (!get_process_comp(path))
     {
         return (0);
     }
@@ -467,7 +471,7 @@ init_share_data(void)
     {
         set_process_profile(true);
     #ifdef _LOGDEBUG
-        logmsg("appdata[%ls]!\n", sdata.appdt);
+        logmsg("profile_boot, appdata[%ls]!\n", sdata.appdt);
     #endif
     }
     else if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,sizeof(sdata.appdt),sdata.ini))

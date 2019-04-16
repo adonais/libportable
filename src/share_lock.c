@@ -36,7 +36,7 @@ share_map(size_t bytes, bool read_only)
 {
     if (mapped_file_ == NULL)
     {
-        return false;
+        return NULL;
     }
     return MapViewOfFile(mapped_file_, read_only ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS, 
                         0, 0, bytes);
@@ -86,7 +86,7 @@ get_ini_path(WCHAR *ini, int len)
         wnsprintfW(ini, len, L"%ls", memory->ini);
         share_unmap(memory);
     }
-    return true;
+    return (memory != NULL);
 }
 
 bool WINAPI
@@ -103,7 +103,7 @@ get_appdt_path(WCHAR *path, int len)
         wnsprintfW(path, len, L"%ls", memory->appdt);
         share_unmap(memory);
     }
-    return true;
+    return (memory != NULL);
 }
 
 bool WINAPI
@@ -120,7 +120,7 @@ get_localdt_path(WCHAR *path, int len)
         wnsprintfW(path, len, L"%ls", memory->localdt);
         share_unmap(memory);
     }
-    return true;
+    return (memory != NULL);
 }
 
 bool WINAPI
@@ -137,7 +137,20 @@ get_process_path(WCHAR *path, int len)
         wnsprintfW(path, len, L"%ls", memory->process);
         share_unmap(memory);
     }
-    return true;
+    return (memory != NULL);
+}
+
+bool WINAPI
+get_process_comp(LPCWSTR path)
+{
+    bool flags = false;
+    s_data *memory = share_map(sizeof(s_data), false);
+    if (memory)
+    {
+        flags = (_wcsicmp(path, memory->process) == 0);
+        share_unmap(memory);
+    } 
+    return flags;
 }
 
 bool WINAPI

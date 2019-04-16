@@ -649,13 +649,13 @@ is_browser(void *path)
     }
     if (cpath)
     {
-        return (wcscmp(remoter, cpath) == 0);
+        return (_wcsicmp(remoter, cpath) == 0);
     }
     else
     {
         GetModuleFileNameW(NULL,current,MAX_PATH);
     }
-    return (wcscmp(remoter, current) == 0);
+    return (_wcsicmp(remoter, current) == 0);
 }
 
 bool WINAPI 
