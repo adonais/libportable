@@ -684,6 +684,15 @@ do_it(void)
         #ifdef _LOGDEBUG
             logmsg("%lu flags restart.\n", GetCurrentProcessId());
         #endif               
+        }        
+        else if (get_file_version() >= 670)
+        {
+            set_envp(NULL);
+            local_hook();
+            other_hook();            
+        #ifdef _LOGDEBUG
+            logmsg("%lu with fx67 or high.\n", GetCurrentProcessId());
+        #endif
         }         
         else if (NULL != map)
         {

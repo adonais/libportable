@@ -191,5 +191,5 @@ endif
 
 .PHONY                : clean
 clean                 : 
-	-rm -rf $(DISTDIR) $(DEP)
+	-rm -rf $(DISTDIR) $(DEP) *.pdb
 
