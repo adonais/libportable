@@ -810,7 +810,7 @@ write_file(void *p)
     LPWSTR  szDir = NULL;
     LPCWSTR appdt = (LPCWSTR)p;
     WCHAR   moz_profile[MAX_PATH+1] = {0};
-    if (!get_mozilla_profile(moz_profile, MAX_PATH, appdt))
+    if (read_appint(L"General", L"DisDedicate") == 0 || !get_mozilla_profile(moz_profile, MAX_PATH, appdt))
     {
     #ifdef _LOGDEBUG
         logmsg("get_mozilla_profile return false\n");
