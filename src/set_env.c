@@ -55,7 +55,7 @@ set_env_win(const wchar_t *env)
     return ret;
 }
 
-int WINAPI /* 在PE 输入表查找crt文件 */ 
+static bool                                    /* 在PE 输入表查找crt文件 */ 
 find_mscrt(void *hMod, char *crt_buf, int len)
 {
     bool ret = false;
@@ -94,7 +94,7 @@ find_mscrt(void *hMod, char *crt_buf, int len)
     return ret;
 }
 
-int WINAPI /* 在当前目录查找crt文件 */
+static bool                           /* 在当前目录查找crt文件 */
 find_ucrt(char *crt_path, int len)
 {
     bool ret = false;
@@ -134,7 +134,7 @@ crt_initialized(void *module)
     return __p__acmdlnStub && *__p__acmdlnStub();
 }
 
-void  WINAPI /* 导入env字段下的环境变量 */
+static void         /* 导入env字段下的环境变量 */
 foreach_env(void)
 {
     LPWSTR m_key;
@@ -166,7 +166,6 @@ foreach_env(void)
     while (*m_key != L'\0')
     {
         if (_wcsnicmp(m_key, L"NpluginPath", wcslen(L"NpluginPath")) &&
-            _wcsnicmp(m_key, L"VimpPentaHome", wcslen(L"VimpPentaHome")) && 
             _wcsnicmp(m_key, L"TmpDataPath", wcslen(L"TmpDataPath")))
         {
             envPtrW(m_key);
@@ -190,68 +189,11 @@ set_plugins(void)
     }
 }
 
-static void /* 重定向Pentadactyl/Vimperator主目录 */
-pentadactyl_fixed(void)
-{
-    WCHAR rc_path[VALUE_LEN + 1] = { 0 };
-    WCHAR m_env[VALUE_LEN + 1] = { 0 };
-    WCHAR m_value[VALUE_LEN + 1] = { 0 };
-    if (!read_appkey(L"Env", L"VimpPentaHome", m_value, sizeof(m_value), NULL))
-    {
-        return;
-    }
-    if (!(path_to_absolute(m_value, VALUE_LEN) && create_dir(m_value)))
-    {
-        return;
-    }
-    do
-    {
-        int m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"HOME=", m_value);
-        if (m > 0 && m < VALUE_LEN)
-        {
-            envPtrW(m_env);
-        }
-        wstr_replace(m_value, VALUE_LEN, L"\\", L"\\\\");
-        m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_RUNTIME=", m_value);
-        if (m > 0 && m < VALUE_LEN)
-        {
-            envPtrW(m_env);
-        }
-
-        m = wnsprintfW(rc_path, VALUE_LEN, L"%ls\\\\_pentadactylrc", m_value);
-        if (!(m > 0 && m < VALUE_LEN))
-        {
-            break;
-        }
-        m = wnsprintfW(m_env, VALUE_LEN, L"%ls%ls", L"PENTADACTYL_INIT=:source ", rc_path);
-        if (m > 0 && m < VALUE_LEN)
-        {
-            envPtrW(m_env);
-        }
-        if (rc_path[1] == L':' && !PathFileExistsW(rc_path))
-        {
-            const char *desc = "\" File created by libportable.\r\n"
-                               "loadplugins \'\\.(js|penta)$\'\r\n";
-            HANDLE h_file = CreateFileW(rc_path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        #ifdef _LOGDEBUG
-            logmsg("exists_dir(%ls) return false. h_file = 0x%x\n", rc_path, h_file);
-        #endif
-            if (goodHandle(h_file))
-            {
-                DWORD m_bytes;
-                WriteFile(h_file, desc, (DWORD) strlen(desc), &m_bytes, NULL);
-                CloseHandle(h_file);
-            }
-        }
-    } while (0);
-}
-
 static LIB_INLINE
 void setenv_tt(void)
 {
     foreach_env();
     set_plugins();
-    pentadactyl_fixed();
 }
 
 unsigned WINAPI
