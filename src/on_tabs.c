@@ -19,7 +19,7 @@ static bool double_click;
 static bool mouse_close;
 volatile long g_once = 0;
 
-void 
+static void 
 send_click(int mouse)
 {
     INPUT input[2];
@@ -49,7 +49,8 @@ send_click(int mouse)
     }
 }
 
-IUIAutomationElement* find_next_child(IUIAutomationElement *pElement)
+static IUIAutomationElement* 
+find_next_child(IUIAutomationElement *pElement)
 {
     HRESULT hr;
     IUIAutomationCondition* pCondition;
@@ -77,7 +78,8 @@ IUIAutomationElement* find_next_child(IUIAutomationElement *pElement)
     return pFound;
 }
 
-IUIAutomationElement* find_ui_child(IUIAutomationElement *pElement)
+static IUIAutomationElement* 
+find_ui_child(IUIAutomationElement *pElement)
 {
     HRESULT hr;
     IUIAutomationElement* tmp = NULL;
@@ -133,7 +135,8 @@ IUIAutomationElement* find_ui_child(IUIAutomationElement *pElement)
     return pFound;
 }
 
-IUIAutomationElement* get_tab_bars(HWND hwnd)
+static IUIAutomationElement* 
+get_tab_bars(HWND hwnd)
 {
     HRESULT hr = 0;
     IUIAutomationElement* pFound = NULL;
@@ -154,82 +157,9 @@ IUIAutomationElement* get_tab_bars(HWND hwnd)
     return pFound;
 }
 
-/* 此函数不兼容firefox 59.0或以上版本 
-bool mouse_on_close(RECT *pr, POINT *pt)
-{
-    HRESULT hr;
-    IUIAutomationCondition* pCondition = NULL;
-    IUIAutomationElementArray* pFoundArray = NULL;
-    IUIAutomationElement* tmp = NULL;
-    IUIAutomationElement* tab_bar = NULL;
-    VARIANT var;
-    bool res = false;
-    if ((tab_bar = get_tab_bars(WindowFromPoint(*pt))) == NULL)
-    {
-        return res;
-    }
-    do
-    {
-        int c = 0;
-        var.vt = VT_I4;
-        var.lVal = UIA_ButtonControlTypeId;
-        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
-        if (FAILED(hr))
-        {
-            break;
-        } 
-        hr = tab_bar->FindAll(TreeScope_Descendants,pCondition, &pFoundArray);
-        if (FAILED(hr))
-        {
-            break;
-        }
-        hr = pFoundArray->get_Length(&c);
-        if (FAILED(hr))
-        {
-            break;
-        }
-        for (int idx = 0; idx < c; idx++)
-        {
-            hr = pFoundArray->GetElement(idx, &tmp);
-            if (FAILED(hr))
-            {
-                break;
-            }
-            hr = tmp->get_CurrentBoundingRectangle(pr);           
-            if (SUCCEEDED(hr))
-            {
-                CONTROLTYPEID type;
-                hr = tmp->get_CurrentControlType(&type);
-                if (SUCCEEDED(hr) && (type == UIA_ButtonControlTypeId) && PtInRect(pr, *pt))
-                {
-                    res = true;
-                    break;
-                }
-            }
-        }
-    }while (0);
-    if (pCondition)
-    {
-        pCondition->Release();
-    }
-    if (tmp)
-    {
-        tmp->Release();
-    }
-    if (pFoundArray)
-    {
-        pFoundArray->Release();
-    }
-    if (tab_bar)
-    {
-        tab_bar->Release();
-    }
-    return res;
-}
-*/
-
 /* 得到标签页的事件指针, 当标签已激活时把active参数设为1 */
-bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
+static bool 
+mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
     HRESULT hr;
     IUIAutomationCondition* pCondition = NULL;
@@ -309,7 +239,7 @@ bool mouse_on_tab(RECT *pr, POINT *pt, int *active)
     return res;
 }
 
-LRESULT CALLBACK 
+static LRESULT CALLBACK 
 mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
@@ -398,7 +328,23 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(message_hook, nCode, wParam, lParam);
 }
 
-bool init_uia(void)
+static HHOOK WINAPI 
+HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId)
+{
+    if (idHook == WH_GETMESSAGE && !g_once)
+    {
+        *(long volatile*)&g_once = 1;
+        message_hook = sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
+        if (message_hook != NULL)
+        {
+            return message_hook;
+        }
+    }
+    return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
+}
+
+static bool 
+init_uia(void)
 {
     HRESULT hr;
     if (message_hook != NULL)
@@ -457,18 +403,6 @@ un_uia(void)
     {
         UnhookWindowsHookEx(message_hook);
     }
-}
-
-static HHOOK WINAPI 
-HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId)
-{
-    if (idHook == WH_GETMESSAGE && !g_once)
-    {
-        *(long volatile*)&g_once = 1;
-        message_hook = sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
-        return message_hook;
-    }
-    return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
 }
 
 void WINAPI
