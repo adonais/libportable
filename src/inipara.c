@@ -352,27 +352,6 @@ get_file_version(void)
 	return ver;
 }
 
-LPWSTR WINAPI
-wcstristr(LPCWSTR Str, LPCWSTR Pat)       /* 忽略大小写查找子串,功能同StrStrIW函数 */
-{
-    WCHAR *pptr, *sptr, *start;
-
-    for (start = (WCHAR *)Str; *start != L'\0'; start++)
-    {
-        for ( ; ((*start!=L'\0') && (toupper(*start) != toupper(*Pat))); start++);
-        if (L'\0' == *start) return NULL;
-        pptr = (WCHAR *)Pat;
-        sptr = (WCHAR *)start;
-        while (toupper(*sptr) == toupper(*pptr))
-        {
-            sptr++;
-            pptr++;
-            if (L'\0' == *pptr) return (start);
-        }
-    }
-    return NULL;
-}
-
 static void 
 wchr_replace(LPWSTR path)        /* 替换unix风格的路径符号 */
 {
@@ -680,7 +659,7 @@ is_specialdll(uintptr_t caller,LPCWSTR files)
                 res = true;
             }
         }
-        else if ( wcstristr(module, files) )
+        else if ( StrStrIW(module, files) )
         {
             res = true;
         }

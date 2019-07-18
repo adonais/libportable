@@ -73,7 +73,6 @@ extern void     WINAPI  init_logs(void);
 
 extern DWORD    WINAPI get_os_version(void);
 extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
-extern LPWSTR   WINAPI wcstristr(LPCWSTR Str, LPCWSTR Pat);
 extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
 extern bool     WINAPI init_parser(LPWSTR inifull_name,DWORD buf_len);
 extern bool     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */

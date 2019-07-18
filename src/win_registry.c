@@ -1,6 +1,7 @@
 #include "inipara.h"
 #include "win_registry.h"
 #include <windows.h>
+#include <shlwapi.h>
 
 typedef	LONG (WINAPI *RegOpenKeyExPtr)(HKEY, LPCWSTR, DWORD, REGSAM, PHKEY);
 static  RegOpenKeyExPtr pRegOpenKeyExW, sRegOpenKeyExWStub;
@@ -13,11 +14,11 @@ HookRegOpenKeyExW(HKEY    hKey,
                   PHKEY   phkResult)
 {
     if ( lpSubKey &&
-         (wcstristr(lpSubKey, L"\\Extensions") || 
-         wcstristr(lpSubKey, L"\\MozillaPlugins") ||
-         wcstristr(lpSubKey, L"\\QuickTimePlayer.exe") ||
-         wcstristr(lpSubKey, L"\\wmplayer.exe") ||
-         wcstristr(lpSubKey, L"\\Adobe\\")) )
+         (StrStrIW(lpSubKey, L"\\Extensions")         || 
+         StrStrIW(lpSubKey, L"\\MozillaPlugins")      ||
+         StrStrIW(lpSubKey, L"\\QuickTimePlayer.exe") ||
+         StrStrIW(lpSubKey, L"\\wmplayer.exe")        ||
+         StrStrIW(lpSubKey, L"\\Adobe\\")) )
     {
     #ifdef _LOGDEBUG
         logmsg("lpSubKey[%ls]\n", lpSubKey);

@@ -53,7 +53,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         pname = &lpfile[1];
     }
     /* 遍历白名单一次,只需遍历一次 */
-    ret = wcstristr(white_list[1],L"WerFault.exe") != NULL;
+    ret = StrStrIW(white_list[1],L"WerFault.exe") != NULL;
     if ( !ret )
     {
         /* firefox目录下进程的路径 */
@@ -129,12 +129,12 @@ process_cui(LPCWSTR lpfile)
 static bool 
 process_plugin(LPCWSTR lpfile)
 {
-    if ( wcstristr(lpfile, L"SumatraPDF.exe")                         ||
+    if ( StrStrIW(lpfile, L"SumatraPDF.exe")                          ||
     #ifndef _WIN64
         PathMatchSpecW(lpfile, L"*\\plugins\\FlashPlayerPlugin*.exe") ||
     #endif
-        wcstristr(lpfile, L"java.exe")                                ||
-        wcstristr(lpfile, L"jp2launcher.exe") )
+        StrStrIW(lpfile, L"java.exe")                                 ||
+        StrStrIW(lpfile, L"jp2launcher.exe") )
     {
         return true;
     }
