@@ -5,14 +5,6 @@
 #include <windows.h>
 #include <shlwapi.h>
 
-static LIB_INLINE int
-get_cpu_works(void)
-{
-    SYSTEM_INFO si;
-    GetSystemInfo(&si);
-    return (int)(si.dwNumberOfProcessors);
-}
-
 static LIB_INLINE uint64_t             /* 时间转换 */
 ft2ull(const FILETIME* ftime)
 {
@@ -20,55 +12,6 @@ ft2ull(const FILETIME* ftime)
     li.LowPart = ftime->dwLowDateTime;
     li.HighPart = ftime->dwHighDateTime;
     return li.QuadPart;
-}
-
-static int                          /* 获取firefox cpu使用率 */
-getfx_usage(void)
-{
-    FILETIME now;
-    FILETIME creation_time;
-    FILETIME exit_time;
-    FILETIME kernel_time;
-    FILETIME user_time;
-    static uint64_t last_time_;      /* 上一次的时间  */
-    static uint64_t last_system_time_;
-    static int processor_count_= -1;
-    uint64_t system_time;
-    uint64_t time;
-    uint64_t system_time_delta;
-    uint64_t time_delta;
-    int      cpu;
-    if ( processor_count_ == -1)
-    {
-         processor_count_ = get_cpu_works();
-    }
-    GetSystemTimeAsFileTime(&now);
-    if (!GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time,
-                         &kernel_time, &user_time)) 
-    {
-        return 0;
-    }
-    system_time = (ft2ull(&kernel_time) + ft2ull(&user_time)) /
-                   processor_count_;
-    time = ft2ull(&now);
-
-    if ((last_system_time_ == 0) || (last_time_ == 0)) 
-    {   /* First call, just set the last values. */                                  
-        last_system_time_ = system_time;
-        last_time_ = time;
-        return 0;
-    }
-
-    system_time_delta = system_time - last_system_time_;
-    time_delta = time - last_time_;
-    if (time_delta == 0) return 0;
-    /* We add time_delta / 2 so the result is rounded. */
-    cpu = (int)((system_time_delta * 100 + time_delta / 2) /
-                 time_delta);
-
-    last_system_time_ = system_time;
-    last_time_ = time;
-    return cpu;
 }
 
 /************************************************/
@@ -144,7 +87,6 @@ set_cpu_balance(void *fx_info)
 {
     LARGE_INTEGER m_duetime;
     HANDLE        m_timer = NULL;
-    LPWNDINFO     m_info  = (LPWNDINFO)fx_info;
     HWND          m_hwnd  = NULL;
     LPCWSTR       m_pref  = L"cpu_pri_timer";
     WCHAR         m_name[32] = {0};

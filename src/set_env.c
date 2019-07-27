@@ -203,7 +203,6 @@ set_envp(void *p)
     if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN) || find_ucrt(crt_names, CRT_LEN)) 
     {
         HMODULE hMod = NULL;
-        HANDLE m_thread = NULL;
         bool initialize = false;
         if ( *crt_names == 'v' )
         {

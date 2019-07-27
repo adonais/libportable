@@ -27,7 +27,7 @@ typedef struct _thread_info
     size_t code_size;
 } thread_info;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma check_stack (off)
 #endif
 
@@ -128,7 +128,7 @@ AfterThreadProc (void)
     __nop();
 }
 
-#ifdef __MSVC__
+#if defined(_MSC_VER) && !defined(__clang__)
 #pragma check_stack
 #endif
 

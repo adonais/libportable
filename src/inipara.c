@@ -32,9 +32,10 @@ static PFNVQVW    pfnVerQueryValueW;
 LoadLibraryExPtr  sLoadLibraryExStub = NULL;
 HMODULE           dll_module         = NULL;
 s_data            sdata = {0};
-static char       logfile_buf[MAX_PATH+1];
 
 #ifdef _LOGDEBUG
+static char       logfile_buf[MAX_PATH+1];
+
 void WINAPI 
 init_logs(void)
 {
@@ -859,7 +860,6 @@ DWORD WINAPI
 get_os_version(void)
 {
     OSVERSIONINFOEXW    osvi;
-    bool                bOs = false;
     DWORD               ver = 0L;
     fzero(&osvi, sizeof(OSVERSIONINFOEXW));
 

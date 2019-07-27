@@ -65,6 +65,8 @@ RCFLAGS  = -nologo -D "_UNICODE" -D "UNICODE" -FO
 else
 USE_RES  = 1
 endif
+else
+USE_RES  = 1
 endif
 
 MD       = mkdir -p

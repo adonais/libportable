@@ -92,7 +92,6 @@ void* __cdecl
 memset_avx(void* dst, int c, size_t size)
 {
     __m256i   vals;
-    uintptr_t head = 0;
     uint8_t   *buffer = (uint8_t *)dst;
     const uint8_t non_aligned = (uintptr_t)buffer % 32;
     if ( !cpu_has_avx() )

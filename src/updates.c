@@ -103,7 +103,6 @@ CreateProcessInternalFn(HANDLE hToken,
     bool	ret= false;
     bool    fn = false;
     LPWSTR	lpfile	= lpCommandLine;
-    WCHAR   lpFullPath[MAX_PATH+1]= {0};
 
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {

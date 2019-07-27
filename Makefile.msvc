@@ -1,17 +1,31 @@
 # nmake -f Makefile.msvc
 
-CC       = cl.exe
-CPP      = cl.exe
+CC       = cl
+CXX      = cl
 MSVC_CRT =
 TCMALLOC =
 
 CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise $(RELEASE) /D "_UNICODE" /D "UNICODE" \
-           /D "_CRT_SECURE_NO_WARNINGS"
+           /D "_CRT_SECURE_NO_WARNINGS" /arch:AVX
+LDFLAGS  = /NOLOGO
+       
+!if "$(CC)"=="clang-cl"
+LD       = lld-link.exe /DLL
+RC       = llvm-rc.exe
+GEN_LIB  = llvm-dlltool.exe
+!ELSEIF "$(CC)"=="cl"
+CFLAGS   = $(CFLAGS) /GL /Gd
 LD       = link.exe /DLL
-MAKE	 = nmake
+LDFLAGS  = $(LDFLAGS) /LTCG
+RC       = rc.exe
+GEN_LIB  = lib.exe
+!else
+!ERROR Unsupported platforms!
+!endif
 
+MAKE	   = nmake
 LIBPORTABLE_STATIC =
-RELEASE  = /O2 /GL /D "NDEBUG"
+RELEASE  = /O2 /D "NDEBUG"
 DEBUG_L  = /Od /Zi /D "DEBUG" /D "_LOGDEBUG"
 
 !if "$(TCMALLOC)"=="1"
@@ -25,18 +39,19 @@ CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
-PLATFORM = X64
+PLATFORM = x64
 BITS	 = 64
-CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
-ASMFLAGS = -fwin64 -O2 -DWINDOWS -Worphan-labels
+CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
+GEN_FLAGS = -m i386:x86-64
 !else
-PLATFORM = X86
+PLATFORM = x86
 BITS	 = 32
-CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
-ASMFLAGS = -fwin32 -O2 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
+CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
+GEN_FLAGS = -m i386
+!if "$(CC)"=="clang-cl"
+CFLAGS   = $(CFLAGS) --target=i686-pc-windows-msvc
 !endif
-
-CPPFLAGS = $(CFLAGS) /TP
+!endif
 
 MD       = @mkdir
 CP       = copy
@@ -48,14 +63,13 @@ SUBMK    =\
 	@cd $(SUB_DIR) && $(MAKE) -f Makefile.msvc
 
 DEP      = .dep
-RC       = rc.exe
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
-	   $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-	   $(DEP)\share_lock.obj $(DEP)\updates.obj	
+           $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
+           $(DEP)\share_lock.obj $(DEP)\updates.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -64,10 +78,9 @@ CFLAGS   = $(CFLAGS) /D "DISABLE_SAFE"
 !endif
 
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
-LDFLAGS  = /NOLOGO /LTCG
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
-LD       = lib.exe
+LD       = llvm-lib.exe
 OUT	 = $(DISTDIR)\portable$(BITS)_s.lib
 TETE	 = $(DISTDIR)\tmemutil_s.lib
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
@@ -81,7 +94,7 @@ LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODE
 LDFLAGS  =  $(LDFLAGS) legacy_stdio_definitions.lib /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:MSVCRT
 !else
 OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
-LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /ENTRY:_DllMainCRTStartup
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib $(CRTFLAGS)
 OUT	 = $(DISTDIR)\portable$(BITS).dll
@@ -138,11 +151,19 @@ $(DEP)\updates.obj      : $(SRC)\updates.c $(SRC)\updates.h
 
 !if "$(TCMALLOC)"=="" && "$(VC12_CRT)"=="" && "$(MSVC_CRT)"<"1900"
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
-	lib.exe /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
-	        /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
+!if "$(CC)"=="clang-cl"
+	$(GEN_LIB) -D msvcrt.dll -d msrt\msvcrt-light-$(PLATFORM).def -l $(DEP)\msvcrt-light-$(PLATFORM).lib $(GEN_FLAGS)
+!else
+    $(GEN_LIB) /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
+	           /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
+!endif	
 $(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
-	lib.exe /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
-	        /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll
+!if "$(CC)"=="clang-cl"
+    $(GEN_LIB) -D ntdll.dll -d msrt\ntdll-$(PLATFORM).def -l $(DEP)\ntdll-$(PLATFORM).lib $(GEN_FLAGS)
+!else
+    $(GEN_LIB) /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
+	           /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll    
+!endif	    
 !endif
 $(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc

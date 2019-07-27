@@ -26,7 +26,7 @@
 #include <time.h>
 #include <wchar.h>
 
-#if defined(VC12_CRT) || defined(__clang__)
+#if defined(VC12_CRT) 
 #undef _DllMainCRTStartup
 #define _DllMainCRTStartup DllMain
 #endif

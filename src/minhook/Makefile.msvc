@@ -1,8 +1,19 @@
 # nmake -f Makefile.msvc
-CC       = cl.exe
-CPP      = cl.exe
-CFLAGS   = /nologo /W3 /WX- /O2 /GL /Gd /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
+CC       = $(CC).exe
+CXX      = $(CXX).exe
+
+CFLAGS   = /nologo /W3 /WX- /O2 /Gd /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS" /arch:AVX
+LIBFLAGS = /NOLOGO
+
+!if "$(CC)"=="clang-cl.exe"
+AR       = llvm-lib.exe
+!ELSEIF "$(CC)"=="cl.exe"
+CFLAGS  = $(CFLAGS) /GL /Gd
+LIBFLAGS = $(LIBFLAGS) /LTCG
 AR       = lib.exe
+!else
+!ERROR Unsupported platforms!
+!endif
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
@@ -15,20 +26,21 @@ CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_I
 !ELSEIF "$(MSVC_CRT)">="1900"
 CFLAGS   = $(CFLAGS) /MD /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
 !else
-CFLAGS   = $(CFLAGS) /MD /Gm- /GS- /GR-
+CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
-!if "$(PLATFORM)"=="X64"
+!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
+PLATFORM = x64
 BITS	 = 64
-CFLAGS = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
+CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
 !else
+PLATFORM = x86
 BITS	 = 32
-CFLAGS = $(CFLAGS) /D "WIN32" /D "_WIN32" /arch:SSE2
+CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
+!if "$(CC)"=="clang-cl.exe"
+CFLAGS   = $(CFLAGS) --target=i686-pc-windows-msvc
 !endif
-
-LIBFLAGS =  /LTCG /NOLOGO 
-
-CPPFLAGS = $(CFLAGS) /TP
+!endif
 
 MD       = @mkdir
 CP	 = copy
@@ -48,7 +60,7 @@ EXEC     = \
 	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL
 
 $(DISTDIR)\$(OUT)      : $(OBJECTS) 
-	$(AR) $(OBJECTS) $(LIBFLAGS) /OUT:$@
+	$(AR) $(LIBFLAGS) $(OBJECTS) /OUT:$@
 $(DEP)\buffer.obj      : $(SRC)\buffer.c $(SRC)\buffer.h
 	$(EXEC)
 	$(CC)  $(CFLAGS) /c $(SRC)\buffer.c /Fo$@
