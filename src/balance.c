@@ -17,8 +17,8 @@ ft2ull(const FILETIME* ftime)
 /************************************************/
 /* 使用apc调用,消除SleepEx函数可能对界面的影响  */ 
 /* 通过apc的连续调用,计算出cpu系统使用率.       */ 
-/* cpu利用率 = (sys-idl)/sys                    */ 
-/************************************************/ 
+/* cpu利用率 = (sys-idl)/sys                    */
+/************************************************/
 static void CALLBACK                          
 get_cpu_usage(LPVOID lpArg,                /* 用户apc回调参数 */
               DWORD  dwTimerLowValue,      /* 定时器低位值    */

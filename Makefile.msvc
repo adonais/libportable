@@ -154,14 +154,14 @@ $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
 !if "$(CC)"=="clang-cl"
 	$(GEN_LIB) -D msvcrt.dll -d msrt\msvcrt-light-$(PLATFORM).def -l $(DEP)\msvcrt-light-$(PLATFORM).lib $(GEN_FLAGS)
 !else
-    $(GEN_LIB) /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
+	$(GEN_LIB) /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
 	           /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
 !endif	
 $(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
 !if "$(CC)"=="clang-cl"
-    $(GEN_LIB) -D ntdll.dll -d msrt\ntdll-$(PLATFORM).def -l $(DEP)\ntdll-$(PLATFORM).lib $(GEN_FLAGS)
+	$(GEN_LIB) -D ntdll.dll -d msrt\ntdll-$(PLATFORM).def -l $(DEP)\ntdll-$(PLATFORM).lib $(GEN_FLAGS)
 !else
-    $(GEN_LIB) /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
+	$(GEN_LIB) /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
 	           /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll    
 !endif	    
 !endif
