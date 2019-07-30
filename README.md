@@ -1,4 +1,4 @@
-##How to build libportable source code?
+## How to build libportable source code?
 
 - C compiler  
 Microsoft Visual Studio .   
@@ -12,7 +12,7 @@ msys msys2 project on:
 https://sourceforge.net/projects/mingw/files/MSYS  
 https://sourceforge.net/projects/msys2/
 
-##Build!
+## Build!
 - vc compiler  (cmd shell)  
 
 	nmake -f Makefile.msvc clean  
@@ -58,7 +58,7 @@ https://sourceforge.net/projects/msys2/
 	make CC=clang DFLAGS=--target=x86_64-pc-windows-msvc  
 
 
-##Add libportable into Firefox?
+## Add libportable into Firefox?
 **Binary static injection,example:**
 	
 	setdll32 /d:portable32.dll xul.dll       // 32 bits firefox    
