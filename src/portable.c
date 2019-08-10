@@ -743,17 +743,17 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
     {
     case DLL_PROCESS_ATTACH:
         dll_module = (HMODULE)hModule;
-	    SetDllDirectoryW(L"");
-	    const HMODULE hlib = GetModuleHandleW(L"kernel32.dll");
-	    if (hlib)
-	    {
-	        typedef BOOL (WINAPI * SSPM) (DWORD);
-	        const SSPM fnSetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
-	        if (fnSetSearchPathMode)
-	        {
-	      	    fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-	        }
-	    }
+        SetDllDirectoryW(L"");
+        const HMODULE hlib = GetModuleHandleW(L"kernel32.dll");
+        if (hlib)
+        {
+            typedef BOOL (WINAPI * SSPM) (DWORD);
+            const SSPM fnSetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
+            if (fnSetSearchPathMode)
+            {
+          	    fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+            }
+        }
         DisableThreadLibraryCalls(hModule);
     #ifdef _LOGDEBUG
         init_logs();

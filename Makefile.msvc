@@ -4,7 +4,7 @@ CC       = cl
 CXX      = cl
 MSVC_CRT =
 TCMALLOC =
-
+MSVC_CRT = 1900
 CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise $(RELEASE) /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS" /arch:AVX
 LDFLAGS  = /NOLOGO
@@ -32,7 +32,7 @@ DEBUG_L  = /Od /Zi /D "DEBUG" /D "_LOGDEBUG"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc15_mt.lib legacy_stdio_definitions.lib
 !ELSEIF "$(MSVC_CRT)">="1900"
-CFLAGS   = $(CFLAGS) /MD /D "VC12_CRT" /D "_NO_CRT_STDIO_INLINE"
+CFLAGS   = $(CFLAGS) /MD /GS- /GR- /Gs- /utf-8 /D "USE_UTF8" /D "VC12_CRT" /D "_NO_CRT_STDIO_INLINE"
 CRTFLAGS =
 !else
 CFLAGS   = $(CFLAGS) /MD /GS- /GR-

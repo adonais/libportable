@@ -18,9 +18,9 @@ https://sourceforge.net/projects/msys2/
 	nmake -f Makefile.msvc clean  
 	nmake -f Makefile.msvc
 	
-	vs2015 or vs2017 dynamic lininking the CRT:  
+	dynamic lininking the old msvcrt.dll:  
 	nmake -f Makefile.msvc clean  
-	nmake -f Makefile.msvc MSVC_CRT=1900  
+	nmake -f Makefile.msvc MSVC_CRT=1 
 	
 	enable tcmalloc memory allocator:  
 	nmake -f Makefile.msvc TCMALLOC=1  
