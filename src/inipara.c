@@ -790,14 +790,14 @@ write_file(void *p)
     LPWSTR  szDir = NULL;
     LPCWSTR appdt = (LPCWSTR)p;
     WCHAR   moz_profile[MAX_PATH+1] = {0};
-    if (read_appint(L"General", L"DisDedicate") == 0 || !get_mozilla_profile(moz_profile, MAX_PATH, appdt))
+    if (read_appint(L"General", L"DisDedicate") == 0)
     {
     #ifdef _LOGDEBUG
-        logmsg("get_mozilla_profile return false\n");
+        logmsg("DisDedicate = 0\n");
     #endif
         return (0);
     }  
-    if (PathFileExistsW(moz_profile))
+    if (get_mozilla_profile(moz_profile, MAX_PATH, appdt) && PathFileExistsW(moz_profile))
     {
         WCHAR app_names[MAX_PATH+1] = {0};
         WCHAR m_profile[10] = {L'P',L'r',L'o',L'f',L'i',L'l',L'e',};
@@ -843,7 +843,7 @@ write_file(void *p)
     }
     else
     {
-        if ((szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL)
+        if (wcslen(moz_profile) > 1 && (szDir = (LPWSTR)SYS_MALLOC( sizeof(moz_profile) ) ) != NULL)
         {
             wcsncpy(szDir, moz_profile, MAX_PATH);
         }

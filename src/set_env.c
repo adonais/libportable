@@ -204,23 +204,25 @@ set_envp(void *p)
     {
         HMODULE hMod = NULL;
         bool initialize = false;
-        if ( *crt_names == 'v' )
+        if (*crt_names == 'v' && get_cwd(crt_names, CRT_LEN))
         {
-            hMod = LoadLibraryA("ucrtbase.dll");
+            PathAppendA(crt_names, "ucrtbase.dll");
         }
-        else
-        {
-            hMod = LoadLibraryA(crt_names);
-        }
-        if (NULL == hMod)
+        if (!PathFileExistsA(crt_names) && (hMod = LoadLibraryA("ucrtbase.dll")) == NULL)
         {
         #ifdef _LOGDEBUG
             logmsg("LoadLibraryA crt return false!\n");
         #endif            
+            return (0);        	
+        }
+        else if ((hMod = LoadLibraryA(crt_names)) == NULL)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LoadLibraryA(%ls) return false!\n", crt_names);
+        #endif            
             return (0);
         }
-        initialize = crt_initialized(hMod);
-        if (!initialize)
+        if ((initialize = crt_initialized(hMod)) == false)
         {
         #ifdef _LOGDEBUG
             logmsg("crt not initialized!!!\n");
