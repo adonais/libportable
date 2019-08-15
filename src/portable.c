@@ -754,6 +754,7 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
           	    fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
             }
         }
+	        
         DisableThreadLibraryCalls(hModule);
     #ifdef _LOGDEBUG
         init_logs();

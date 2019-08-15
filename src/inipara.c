@@ -7,6 +7,7 @@
 #include <shlobj.h>
 #include "inipara.h"
 #include "share_lock.h"
+#include "file_paser.h"
 #ifdef _MSC_VER
 #include <stdarg.h>
 #endif
@@ -686,7 +687,7 @@ is_flash_plugins(uintptr_t caller)
 static bool 
 get_mozilla_profile(LPWSTR in_dir, int len, LPCWSTR appdt)
 {
-    int m = 0;
+    int m = 0;   
     if (is_specialapp(L"thunderbird.exe"))
     {
         m = wnsprintfW(in_dir,
@@ -704,8 +705,39 @@ get_mozilla_profile(LPWSTR in_dir, int len, LPCWSTR appdt)
                        appdt,
                        L"\\Mozilla\\Firefox\\profiles.ini"
                       );
-    }
+    }   
     return (m>0 && m<len);
+}
+
+static bool 
+get_profile_path(LPWSTR in_dir, int len, LPCWSTR appdt)
+{
+	WCHAR path[MAX_PATH] = {0};
+    if (!get_mozilla_profile(in_dir, len, appdt))
+    {    	
+    	return false;
+    }   
+    if (!read_appkey(L"Profile0",L"Path",path,sizeof(path),in_dir))
+    {   	
+    	return false;
+    }
+	wchr_replace(path);
+    if (path[0] == L'.')
+    {
+		PathRemoveFileSpecW(in_dir);
+		PathAppendW(in_dir,path);    	
+        PathCombineW(in_dir,NULL,in_dir);
+    }
+    else
+    {
+		PathRemoveFileSpecW(in_dir);
+		PathAppendW(in_dir,path);    	
+    }
+    if (in_dir[wcslen(in_dir)-1] == L'\\')
+    {
+    	in_dir[wcslen(in_dir)-1] = L'\0';
+    }
+    return true;
 }
 
 /* 查找moz_values所在段,并把段名保存在out_names数组
@@ -783,6 +815,37 @@ write_ini_file(LPCWSTR path)
     }
 }
 
+static void
+clean_files(LPCWSTR appdt)
+{
+	WCHAR path[MAX_PATH] = {0};
+    WCHAR temp[MAX_PATH] = {0};
+    WCHAR cmp_ini[MAX_PATH] = {0};
+    if (!(getw_cwd(temp, MAX_PATH) && get_profile_path(path, MAX_PATH, appdt)))
+    {
+    	return;
+    }
+    if (!(wnsprintfW(cmp_ini, MAX_PATH, L"%ls", path) > 0 && PathAppendW(cmp_ini, L"compatibility.ini")))
+    {
+	    return;
+    }
+    if (read_appkey(L"Compatibility",L"LastPlatformDir",cmp_ini,sizeof(cmp_ini),cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
+    {
+	#ifdef _LOGDEBUG
+	    logmsg("no movement of position,do nothing.\n");
+	#endif    	 	
+    	return;
+    }
+    if (true)
+    {
+	#ifdef _LOGDEBUG
+	    logmsg("we need rewrite addonStartup.json.lz4\n");
+	#endif    	
+        json_parser(path);
+    } 
+    return;            	
+}
+
 unsigned WINAPI 
 write_file(void *p)
 {
@@ -792,9 +855,7 @@ write_file(void *p)
     WCHAR   moz_profile[MAX_PATH+1] = {0};
     if (read_appint(L"General", L"DisDedicate") == 0)
     {
-    #ifdef _LOGDEBUG
-        logmsg("DisDedicate = 0\n");
-    #endif
+    	clean_files(appdt);
         return (0);
     }  
     if (get_mozilla_profile(moz_profile, MAX_PATH, appdt) && PathFileExistsW(moz_profile))
@@ -852,7 +913,14 @@ write_file(void *p)
             write_ini_file(moz_profile);
         }
     }
-    if (szDir) SYS_FREE(szDir);
+    if (szDir) 
+    {
+    	SYS_FREE(szDir);
+    }
+    if (true)
+    {
+    	clean_files(appdt);	
+    }
     return (1);
 }
 

@@ -22,7 +22,6 @@ _CreateProcessInternalW     sCreateProcessInternalW = NULL;
 _CreateProcessInternalW     pCreateProcessInternalW = NULL;
 _NtQueryInformationProcess  pNtQueryInformationProcess = NULL;
 
-
 static bool in_whitelist(LPCWSTR lpfile)
 {
     WCHAR *moz_processes[] = {L"", L"%windir%\\system32\\WerFault.exe",

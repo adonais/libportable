@@ -7,20 +7,16 @@ Microsoft Visual Studio .
 
 - gcc, msys/msys2  
 gcc for windows:  
-https://sourceforge.net/projects/libportable/files/Tools/mingw8.3.1-clang-win64_32.7z  
+https://sourceforge.net/projects/libportable/files/Tools/mingw9.2.1-clang-win64_32.7z  
 msys msys2 project on:  
 https://sourceforge.net/projects/mingw/files/MSYS  
 https://sourceforge.net/projects/msys2/
 
 ## Build!
-- vc compiler  (cmd shell)  
+- vc14 or above  (cmd shell)  
 
 	nmake -f Makefile.msvc clean  
 	nmake -f Makefile.msvc
-	
-	dynamic lininking the old msvcrt.dll:  
-	nmake -f Makefile.msvc clean  
-	nmake -f Makefile.msvc MSVC_CRT=1 
 	
 	enable tcmalloc memory allocator:  
 	nmake -f Makefile.msvc TCMALLOC=1  
