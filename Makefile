@@ -5,7 +5,8 @@ MSCRT    := -lmsvcrt
 MSVC     = 0
 DFLAGS   ?=
 LTO      ?=
-RC       ?= windres -i
+AR       ?= $(CROSS_COMPILING)ar
+RC       ?= $(CROSS_COMPILING)windres -i
 RC_TAR32 = -F pe-i386
 RC_TAR64 = -F pe-x86-64
 RCFLAGS  = --define UNICODE -J rc -O coff
@@ -18,15 +19,15 @@ endif
 BUILD    = $(shell file `which $(CC) 2>/dev/null` 2>/dev/null | grep x86-64)
 T_CC     = $(findstring x86_64-w64-mingw32-clang,$(CC))
 
+ifeq ($(BUILD),)
+BITS	 = 32
+else
+BITS	 = 64
+endif
+
 ifneq ($(CROSS_COMPILING),)
 ifneq ($(BITS),32)
-BITS	 ?= 64
-endif
-else
-ifeq ($(BUILD),)
-BITS	 ?= 32
-else
-BITS	 ?= 64
+BITS	 = 64
 endif
 endif
 
@@ -136,9 +137,9 @@ LDLIBS  += $(MSCRT) --entry=$(DLL_MAIN_STDCALL_NAME)
 LDFLAGS += -nostdlib -lmingw32 -lmingwex -lgcc -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
-CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fuse-linker-plugin -flto
+CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fno-use-linker-plugin -flto
 #warning is only during the LTO link, debug(--verbose --save-temps )
-DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -fuse-linker-plugin -flto
+DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -fno-use-linker-plugin -flto
 endif
 else
 $(error "unknown compiler")
