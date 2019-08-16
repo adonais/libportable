@@ -204,7 +204,12 @@ unsigned WINAPI
 set_envp(void *p)
 {
     char crt_names[CRT_LEN + 1] = { 0 };
-    if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN) || find_ucrt(crt_names, CRT_LEN)) 
+    if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == 'v')
+    {
+        envPtrW = _wputenv;
+        setenv_tt();
+    }    
+    else if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN) || find_ucrt(crt_names, CRT_LEN)) 
     {
         HMODULE hMod = NULL;
         bool initialize = false;
@@ -239,11 +244,6 @@ set_envp(void *p)
         }
         setenv_tt();
         FreeLibrary(hMod);
-    }
-    else if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == 'v')
-    {
-        envPtrW = _wputenv;
-        setenv_tt();
     }
     return (1);
 }
