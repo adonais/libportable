@@ -4,8 +4,9 @@ CC       = cl
 CXX      = cl
 MSVC_CRT =
 TCMALLOC =
+MY_DEBUG = 
 
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise $(RELEASE) /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS" /D "CJSON_HIDE_SYMBOLS" /arch:AVX
 LDFLAGS  = /NOLOGO
        
@@ -14,9 +15,7 @@ LD       = lld-link.exe /DLL
 RC       = llvm-rc.exe
 GEN_LIB  = llvm-dlltool.exe
 !ELSEIF "$(CC)"=="cl"
-CFLAGS   = $(CFLAGS) /GL /Gd
 LD       = link.exe /DLL
-LDFLAGS  = $(LDFLAGS) /LTCG
 RC       = rc.exe
 GEN_LIB  = lib.exe
 !else
@@ -25,8 +24,16 @@ GEN_LIB  = lib.exe
 
 MAKE	   = nmake
 LIBPORTABLE_STATIC =
-RELEASE  = /O2 /D "NDEBUG"
-DEBUG_L  = /Od /Zi /D "DEBUG" /D "_LOGDEBUG"
+
+!if "$(MY_DEBUG)"=="1"
+CFLAGS   = $(CFLAGS) /Od /Zi /Fd$(DISTDIR)\portable$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
+LDFLAGS  = $(LDFLAGS) /DEBUG
+!elseif "$(CC)"=="cl"
+CFLAGS   = $(CFLAGS) /O2 /GL /Gd /D "NDEBUG"
+LDFLAGS  = $(LDFLAGS) /LTCG
+!else
+CFLAGS   = $(CFLAGS) /O2 /D "NDEBUG" -flto=thin
+!endif
 
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
