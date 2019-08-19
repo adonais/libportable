@@ -4,9 +4,10 @@ CC       = cl
 CXX      = cl
 MSVC_CRT =
 TCMALLOC =
+MY_DEBUG = 
 MSVC_CRT = 1900
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise $(RELEASE) /D "_UNICODE" /D "UNICODE" \
-           /D "_CRT_SECURE_NO_WARNINGS" /arch:AVX
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise /D "_UNICODE" /D "UNICODE" \
+           /D "_CRT_SECURE_NO_WARNINGS"
 LDFLAGS  = /NOLOGO
        
 !if "$(CC)"=="clang-cl"
@@ -25,8 +26,16 @@ GEN_LIB  = lib.exe
 
 MAKE	   = nmake
 LIBPORTABLE_STATIC =
-RELEASE  = /O2 /D "NDEBUG"
-DEBUG_L  = /Od /Zi /D "DEBUG" /D "_LOGDEBUG"
+
+!if "$(MY_DEBUG)"=="1"
+CFLAGS   = $(CFLAGS) /O2 /Zi /Fd$(DISTDIR)\portable$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
+LDFLAGS  = $(LDFLAGS) /DEBUG
+!elseif "$(CC)"=="cl"
+CFLAGS   = $(CFLAGS) /O2 /GL /Gd /D "NDEBUG"
+LDFLAGS  = $(LDFLAGS) /LTCG
+!else
+CFLAGS   = $(CFLAGS) /O2 /D "NDEBUG" -flto=thin
+!endif
 
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
@@ -135,7 +144,7 @@ $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
 $(DEP)\new_process.obj  : $(SRC)\new_process.c $(SRC)\new_process.h
 	$(CC) $(CFLAGS) /c $(SRC)\new_process.c /Fo$@
 $(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
-	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
+	$(CC) $(CFLAGS) /arch:AVX /c $(SRC)\cpu_info.c /Fo$@
 $(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
 	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
 $(DEP)\win_registry.obj : $(SRC)\win_registry.c $(SRC)\win_registry.h

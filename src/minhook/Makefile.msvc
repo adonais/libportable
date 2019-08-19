@@ -2,17 +2,26 @@
 CC       = $(CC).exe
 CXX      = $(CXX).exe
 MSVC_CRT = 1900
-CFLAGS   = /nologo /W3 /WX- /O2 /Gd /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS" /arch:AVX
+CFLAGS   = /nologo /W3 /WX- /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
 LIBFLAGS = /NOLOGO
 
 !if "$(CC)"=="clang-cl.exe"
 AR       = llvm-lib.exe
-!ELSEIF "$(CC)"=="cl.exe"
-CFLAGS  = $(CFLAGS) /GL /Gd
-LIBFLAGS = $(LIBFLAGS) /LTCG
+!elseif "$(CC)"=="cl.exe"
 AR       = lib.exe
 !else
 !ERROR Unsupported platforms!
+!endif
+
+!if "$(MY_DEBUG)"=="1"
+CFLAGS = $(CFLAGS) /O2 /Zi /Fd$(DISTDIR)\minhook$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
+LDFLAGS  = $(LDFLAGS) /DEBUG
+!elseif "$(CC)"=="cl.exe"
+CFLAGS = $(CFLAGS) /O2 /GL /Gd /D "NDEBUG"
+LIBFLAGS = $(LIBFLAGS) /LTCG
+!else
+CFLAGS = $(CFLAGS) /O2 /D "NDEBUG" -flto=thin
+LIBFLAGS = $(LIBFLAGS) /llvmlibthin
 !endif
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
@@ -23,7 +32,7 @@ CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
-!ELSEIF "$(MSVC_CRT)">="1900"
+!elseif "$(MSVC_CRT)">="1900"
 CFLAGS   = $(CFLAGS) /MD /GS- /GR- /Gs- /utf-8 /D "USE_UTF8" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
 !else
 CFLAGS   = $(CFLAGS) /MD /GS- /GR-
