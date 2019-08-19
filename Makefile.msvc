@@ -26,7 +26,7 @@ MAKE	   = nmake
 LIBPORTABLE_STATIC =
 
 !if "$(MY_DEBUG)"=="1"
-CFLAGS   = $(CFLAGS) /Od /Zi /Fd$(DISTDIR)\portable$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
+CFLAGS   = $(CFLAGS) /O2 /Zi /Fd$(DISTDIR)\portable$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
 LDFLAGS  = $(LDFLAGS) /DEBUG
 !elseif "$(CC)"=="cl"
 CFLAGS   = $(CFLAGS) /O2 /GL /Gd /D "NDEBUG"
