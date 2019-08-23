@@ -61,14 +61,15 @@ fie2url(char* str)
     for (i=0; i<m_size; ++i) 
     {
         char ch = str[i];
-        if (((ch>='A') && (ch<'Z')) ||
-            ((ch>='a') && (ch<'z')) ||
-            ((ch>='0') && (ch<'9'))) 
+        if (((ch>='A') && (ch<='Z')) ||
+            ((ch>='a') && (ch<='z')) ||
+            ((ch>='0') && (ch<='9'))) 
         {
             result[j++] = ch;
         }
-        else if (ch == '.' || ch == '-' || ch == '_' || ch == '*' || ch == ':' || ch == '$' ||
-                ch == '/' || ch == '\\' || ch == '@' || ch == '!'|| ch == '%' || ch == '^') 
+        else if (ch == ':' || ch == '/' || ch == '\\' || ch == '.' || ch == '-' || ch == '_' || ch == '&' ||
+                ch == '$' || ch == '[' || ch == ']' || ch == '@' || ch == '!' || ch == '=' ||
+                ch == ',' || ch == '~' || ch == '+' || ch == '\'') 
         {
             result[j++] = ch;
         } else 
@@ -114,13 +115,16 @@ mychr_replace(const char *path)
     return ret;
 }
 
-static const char *
-mystr_replace(char *in, size_t in_size, const char *sub, const char *by)
+static char *
+mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
 {
-    char *in_ptr = in;
-    char res[MAX_PATH + 1] = { 0 };
+    char *res = NULL;
     size_t resoffset = 0;
     char *needle;
+    if ((res = (char *)calloc(1, in_size)) == NULL)
+    {
+        return NULL;
+    }
     while ((needle = strstr(in, sub)) && resoffset < in_size)
     {
         strncpy(res + resoffset, in, needle - in);
@@ -130,23 +134,30 @@ mystr_replace(char *in, size_t in_size, const char *sub, const char *by)
         resoffset += (int) strlen(by);
     }
     strcpy(res + resoffset, in);
-    _snprintf(in_ptr, (int) in_size, "%s", res);
-    return in_ptr;
+    return res;
 }
 
 static bool
-value_repalce(cJSON *parent, const char *item, const char *sub, const char *by)
+value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub2, const char *by)
 {
     bool ret = false;
+    const char *sub = NULL;
     cJSON *path = cJSON_GetObjectItem(parent, item);
-    if (path && strstr(path->valuestring, sub))
+    if (path == NULL)
     {
-        size_t len = strlen(path->valuestring) + 32;
-        char *new_str = calloc(1, len);
+        return false;
+    }
+    sub = strstr(path->valuestring, sub1)?sub1:NULL;
+    if (sub == NULL && sub2 != NULL)
+    {
+        sub = strstr(path->valuestring, sub2)?sub2:NULL;
+    }
+    if (sub)
+    {
+        size_t len = strlen(path->valuestring) + strlen(sub) + 4;
+        char *new_str = mystr_replace(path->valuestring, len, sub, by);
         if (new_str != NULL)
         {
-            strcpy(new_str, path->valuestring);
-            mystr_replace(new_str, len, sub, by);
             cJSON_ReplaceItemInObject(parent, item, cJSON_CreateString(new_str));
             free(new_str);
             ret = true;
@@ -156,7 +167,7 @@ value_repalce(cJSON *parent, const char *item, const char *sub, const char *by)
 }
 
 static bool
-node_path_fix(cJSON *addons, const char *item, const char *sub, const char *by)
+node_path_fix(cJSON *addons, const char *item, const char *sub1, const char *sub2, const char *by)
 {
     int size = cJSON_GetArraySize(addons);
     if (size > 0)
@@ -164,7 +175,7 @@ node_path_fix(cJSON *addons, const char *item, const char *sub, const char *by)
         for (int i = 0; i < size; i++)
         {
             cJSON *tnode = cJSON_GetArrayItem(addons, i);
-            value_repalce(tnode, item, sub, by);
+            value_repalce(tnode, item, sub1, sub2, by);
         }
         return true;
     }
@@ -193,7 +204,8 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
         char *win_profiles_path = NULL;
         char *unix_profiles_path = NULL;
         char *win_app_path = NULL;
-        char *unix_app_path = NULL;
+        char *u8_app_path = NULL;
+        char *a8_app_path = NULL;
         char *unix_profiles = NULL;
         char *unix_app = NULL;
         cJSON *app_profile = NULL;
@@ -250,7 +262,7 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
             fwrite(regen_buffer, 1, decompressed_size, tptp);
             fclose(tptp);        
         } 
-    #endif           
+    #endif
         if ((json = cJSON_Parse(regen_buffer)) == NULL) 
         { 
             break;
@@ -260,6 +272,39 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
         system_addon = cJSON_GetObjectItem(json, "app-system-addons");
         unix_profiles = mychr_replace(win_profiles);
         unix_app = mychr_replace(win_app);
+        if (system_default && (win_app_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
+        {
+            wchar_t u_app_path[MAX_PATH+1] = {0};
+            char ansi_app_path[MAX_PATH+1] = {0};                    
+            if (strrchr(win_app_path, '\\') != NULL)
+            {
+                *strrchr(win_app_path, '\\') = '\0';
+                if (strrchr(win_app_path, '\\') != NULL)
+                {
+                    *strrchr(win_app_path, '\\') = '\0';
+                }
+            }
+            if (!MultiByteToWideChar(CP_UTF8,0,win_app_path,-1,u_app_path,MAX_PATH))
+            {
+                break;
+            } 
+            if (!WideCharToMultiByte(CP_ACP, 0, u_app_path, -1, ansi_app_path, MAX_PATH, NULL, NULL))
+            {
+                break;
+            }                                     
+            u8_app_path = mychr_replace(win_app_path);
+            a8_app_path = mychr_replace(ansi_app_path);
+        #ifdef _LOGDEBUG
+            logmsg("u8_app_path = %s\n", u8_app_path);
+            logmsg("a8_app_path = %s\n", a8_app_path);
+        #endif            
+            cJSON *addons = cJSON_GetArrayItem(system_default, 0);
+            if (addons)
+            {
+                node_path_fix(addons, "rootURI", u8_app_path, a8_app_path, unix_app);
+            }
+            value_repalce(system_default, "path", win_app_path, NULL, win_app);
+        }
         if (app_profile && (win_profiles_path = _strdup(cJSON_GetObjectItem(app_profile, "path")->valuestring)) != NULL)
         {            
             if (strrchr(win_profiles_path, '\\') != NULL)
@@ -274,40 +319,19 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
             cJSON *addons = cJSON_GetArrayItem(app_profile, 0);
             if (addons)
             {
-                node_path_fix(addons, "rootURI", unix_profiles_path, unix_profiles);
+                node_path_fix(addons, "rootURI", unix_profiles_path, NULL, unix_profiles);
             }
-            value_repalce(app_profile, "path", win_profiles_path, win_profiles);
+            value_repalce(app_profile, "path", win_profiles_path, NULL, win_profiles);
         }
         if (system_addon != NULL)
         {
             cJSON *addons = cJSON_GetArrayItem(system_addon, 0);
             if (addons)
             {
-                node_path_fix(addons, "rootURI", unix_profiles_path, unix_profiles);
+                node_path_fix(addons, "rootURI", unix_profiles_path, NULL, unix_profiles);
             }             
-            value_repalce(system_addon, "path", win_profiles_path, win_profiles);
-        }
-        if (system_default && (win_app_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
-        {
-            if (strrchr(win_app_path, '\\') != NULL)
-            {
-                *strrchr(win_app_path, '\\') = '\0';
-                if (strrchr(win_app_path, '\\') != NULL)
-                {
-                    *strrchr(win_app_path, '\\') = '\0';
-                }
-            }
-        #ifdef _LOGDEBUG
-            logmsg("win_app_path = %s\n", win_app_path);
-        #endif                       
-            unix_app_path = mychr_replace(win_app_path);
-            cJSON *addons = cJSON_GetArrayItem(system_default, 0);
-            if (addons)
-            {
-                node_path_fix(addons, "rootURI", unix_app_path, unix_app);
-            }
-            value_repalce(system_default, "path", win_app_path, win_app);
-        }
+            value_repalce(system_addon, "path", win_profiles_path, NULL, win_profiles);
+        }        
         if (win_profiles_path)
         {
             free(win_profiles_path);
@@ -320,10 +344,14 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
         {
             free(unix_profiles_path);
         }
-        if (unix_app_path)
+        if (u8_app_path)
         {
-            free(unix_app_path);
+            free(u8_app_path);
         }
+        if (a8_app_path)
+        {
+            free(a8_app_path);
+        }        
         if (unix_profiles)
         {
             free(unix_profiles);
@@ -381,16 +409,25 @@ bool __stdcall json_parser(wchar_t *moz_profile)
 {
     char win_profile[MAX_PATH + 1] = { 0 };
     wchar_t u_file[MAX_PATH + 1] = { 0 };
-    wchar_t u_save[MAX_PATH + 1] = { 0 };   
+    wchar_t u_save[MAX_PATH + 1] = { 0 };
+    wchar_t u_app[MAX_PATH + 1] = { 0 };  
     char win_app[MAX_PATH + 1] = { 0 };
-    if (!GetModuleFileNameA(NULL, win_app, MAX_PATH))
+    if (!GetModuleFileNameW(NULL, u_app, MAX_PATH))
     {
         return false;
     }
-    if (strrchr(win_app, '\\') != NULL)
+    if (wcsrchr(u_app, '\\') != NULL)
     {
-        *strrchr(win_app, '\\') = '\0';
-    }
+        *wcsrchr(u_app, '\\') = '\0';
+    } 
+#ifdef USE_UTF8    
+    if (!WideCharToMultiByte(CP_UTF8, 0, u_app, -1, win_app, MAX_PATH, NULL, NULL))
+#else
+    if (!WideCharToMultiByte(CP_ACP, 0, u_app, -1, win_app, MAX_PATH, NULL, NULL))
+#endif 
+    {
+        return false;
+    }   
     _snwprintf(u_file, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4");
     _snwprintf(u_save, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4.new");
 #ifdef USE_UTF8    

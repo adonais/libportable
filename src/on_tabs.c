@@ -382,7 +382,7 @@ init_uia(void)
     hr = CoCreateInstance(__uuidof(CUIAutomation), NULL, CLSCTX_INPROC_SERVER, 
          __uuidof(IUIAutomation), (void**)&g_uia);
 #ifdef _LOGDEBUG
-    //print_process_module(GetCurrentProcessId());
+    print_process_module(GetCurrentProcessId());
 #endif         
     return SUCCEEDED(hr);
 }
