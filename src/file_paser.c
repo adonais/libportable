@@ -121,19 +121,20 @@ mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
     char *res = NULL;
     size_t resoffset = 0;
     char *needle;
+    const char *in_ptr = in;
     if ((res = (char *)calloc(1, in_size)) == NULL)
     {
         return NULL;
     }
-    while ((needle = strstr(in, sub)) && resoffset < in_size)
+    while ((needle = strstr(in_ptr, sub)) && resoffset < in_size)
     {
-        strncpy(res + resoffset, in, needle - in);
-        resoffset += needle - in;
-        in = needle + (int) strlen(sub);
+        strncpy(res + resoffset, in_ptr, needle - in_ptr);
+        resoffset += needle - in_ptr;
+        in_ptr = needle + (int) strlen(sub);
         strncpy(res + resoffset, by, strlen(by));
         resoffset += (int) strlen(by);
     }
-    strcpy(res + resoffset, in);
+    strncpy(res + resoffset, in_ptr, in_size - resoffset - 1);
     return res;
 }
 
@@ -154,7 +155,7 @@ value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub
     }
     if (sub)
     {
-        size_t len = strlen(path->valuestring) + strlen(sub) + 4;
+        size_t len = strlen(path->valuestring) + strlen(sub) + MAX_PATH;
         char *new_str = mystr_replace(path->valuestring, len, sub, by);
         if (new_str != NULL)
         {
