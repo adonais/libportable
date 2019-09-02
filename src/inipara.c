@@ -76,16 +76,22 @@ bool WINAPI
 init_parser(LPWSTR ini,DWORD len)
 {
     bool ret = false;
-    GetModuleFileNameW(dll_module,ini,len);
-    PathRemoveFileSpecW(ini);
-    PathAppendW(ini,L"portable.ini");
-    ret = PathFileExistsW(ini);
-    if (!ret)
+    if (!GetModuleFileNameW(dll_module, ini, len))
     {
-        if (PathRemoveFileSpecW(ini))
+        return ret;
+    }
+    if ((ret = PathRemoveFileSpecW(ini) && PathAppendW(ini,L"portable.ini") && PathFileExistsW(ini)) == false)
+    {
+        WCHAR example[MAX_PATH+1] = {0};
+        wcsncpy(example,ini,MAX_PATH);
+        ret = PathRemoveFileSpecW(example) && PathAppendW(example,L"tmemutil.ini") && PathFileExistsW(example);
+        if (ret)
         {
-            PathAppendW(ini,L"tmemutil.ini");
-            ret = PathFileExistsW(ini);
+            wcsncpy(ini,example,len);
+        }
+        else if (PathRemoveFileSpecW(example) && PathAppendW(example,L"portable(example).ini") && PathFileExistsW(example))
+        {
+            ret = CopyFileW(example, ini, true);
         }
     }
     return ret;
