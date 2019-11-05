@@ -1,4 +1,0 @@
-LIBRARY	NTDLL.DLL
-EXPORTS
-       __chkstk
-       _fltused DATA

@@ -1,8 +1,8 @@
 CC       := $(CROSS_COMPILING)gcc
 CFLAGS   = -O2
 DFLAGS   ?=
-AR       = $(CROSS_COMPILING)ar
 LD       = $(CC) -o
+AR       = $(CROSS_COMPILING)ar
 LDFLAGS  = -Wl,-s
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG \
             -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx

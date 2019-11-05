@@ -45,17 +45,7 @@ typedef struct tagWNDINFO
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
 
-typedef struct _s_data
-{
-    uint32_t main;
-    bool     restart;
-    bool     noprofile;
-    bool     noremote;
-    WCHAR    appdt[MAX_PATH+1];
-    WCHAR    localdt[MAX_PATH+1];
-    WCHAR    process[MAX_PATH+1];
-    WCHAR    ini[MAX_PATH+1];
-} s_data;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +53,6 @@ extern "C" {
 
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
-extern s_data           sdata;
 extern bool creator_hook(void* target, void* func, void **original);
 
 #ifdef _LOGDEBUG
@@ -88,7 +77,7 @@ extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini �
                                        int line                         /* 二维数组行数 */
                                        );
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
-extern bool     WINAPI is_browser(void *);
+extern bool     WINAPI is_browser(void* path);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern bool     WINAPI getw_cwd(LPWSTR lpstrName, DWORD wlen);
 extern unsigned WINAPI write_file(void * p);

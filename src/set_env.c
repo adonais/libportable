@@ -162,10 +162,6 @@ foreach_env(void)
     {
         return;
     }
-    if (read_appint(L"Env",L"MOZ_NO_REMOTE") > 0)
-    {
-        set_process_remote(true);
-    }
     m_key = env_buf;
     while (*m_key != L'\0')
     {
@@ -245,5 +241,5 @@ set_envp(void *p)
         setenv_tt();
         FreeLibrary(hMod);
     }
-    return (1);
+    return SetEnvironmentVariableW(L"INI_SETENV_DEFINED", L"1");
 }

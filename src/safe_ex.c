@@ -1,7 +1,3 @@
-#ifdef DISABLE_SAFE
-#error This file should not be compiled!
-#endif
-
 #include "safe_ex.h"
 #include "inipara.h"
 #include "share_lock.h"
@@ -141,6 +137,25 @@ process_plugin(LPCWSTR lpfile)
     return false;
 }
 
+static bool
+restart_if(LPCWSTR path)
+{
+    WCHAR current[MAX_PATH] = {0};
+    if (path)
+    {
+        GetModuleFileNameW(NULL,current,MAX_PATH);
+        if (_wcsicmp(current, path) == 0)
+        {
+            return true;
+        }
+        else if (StrStrIW(path, current) && !StrStrIW(path, L"omni.ja"))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 static NTSTATUS WINAPI 
 HookNtWriteVirtualMemory(HANDLE ProcessHandle,
                          PVOID BaseAddress,
@@ -174,70 +189,62 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         PPS_CREATE_INFO CreateInfo,
                         PPS_ATTRIBUTE_LIST AttributeList)
 {
-    bool      fn = false;
     NTSTATUS  status;
     bool      tohook = false;
-    bool      plugin = false;
-    
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
+    
     fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
-    plugin = process_plugin(ProcessParameters->ImagePathName.Buffer);
-    if ( !plugin && is_browser(ProcessParameters->ImagePathName.Buffer) )
+    if ( is_browser(ProcessParameters->ImagePathName.Buffer) )
     {
-        if ( ProcessParameters->CommandLine.Length > 1 )
+        if ( ProcessParameters && ProcessParameters->CommandLine.Length > 1 )
         {
-            fn = is_browser(ProcessParameters->CommandLine.Buffer);
+            if (restart_if(ProcessParameters->CommandLine.Buffer))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("firefox restart!\n");
+            #endif
+                WCHAR ini[MAX_PATH] = {0};
+                get_ini_path(ini, MAX_PATH);
+                WritePrivateProfileStringW(L"env", L"LIBPORTABLE_RESTART_DEFINED", L"1", ini);
+            }
         }
     }
-    else if ( plugin )
+    else if (read_appint(L"General",L"SafeEx") > 0)
     {
-        tohook = true;
-    }
-    else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
-    {
-        if ( ProcessParameters->ImagePathName.Length > 0 &&
-             in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+        if ( process_plugin(ProcessParameters->ImagePathName.Buffer) )
         {
-        #ifdef _LOGDEBUG
-            logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
-        #endif
+            tohook = true;
         }
-        else
+        else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
         {
-        #ifdef _LOGDEBUG
-            logmsg("the process %ls disabled-runes\n",ProcessParameters->ImagePathName.Buffer);
-        #endif
+            if ( ProcessParameters->ImagePathName.Length > 0 &&
+                 in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
+            #endif
+            }
+            else
+            {
+            #ifdef _LOGDEBUG
+                logmsg("the process %ls disabled-runes\n",ProcessParameters->ImagePathName.Buffer);
+            #endif
+                ProcessParameters = &myProcessParameters;
+            }
+        }
+        else if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+        {
             ProcessParameters = &myProcessParameters;
         }
-    }
-    else if ( in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
-    {
-        // 在白名单里面
-    }
-    else
-    {
-        if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
-            ProcessParameters = &myProcessParameters;
     }
     status = sNtCreateUserProcess(ProcessHandle, ThreadHandle,
                                   ProcessDesiredAccess, ThreadDesiredAccess,
                                   ProcessObjectAttributes, ThreadObjectAttributes,
                                   CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                   CreateInfo, AttributeList);
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-    if (fn)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("firefox restart,new main_id is %lu!\n", GetProcessId(*ProcessHandle));
-    #endif
-        set_process_pid(GetProcessId(*ProcessHandle));
-    }
     /* 静态编译时,不能启用远程注入 */
 #if !defined(LIBPORTABLE_STATIC)
-    if (tohook)
+    if (tohook && NT_SUCCESS(status))
     {
         PROCESS_INFORMATION ProcessInformation;
     #ifdef _LOGDEBUG
@@ -277,66 +284,63 @@ HookCreateProcessInternalW(HANDLE hToken,
     }
     if (lpCommandLine && wcslen(lpCommandLine)>1)
     {
-        fn = is_browser(lpCommandLine);
-    }
-    /* 禁止启动16位程序 */
-    if (dwCreationFlags&CREATE_SHARED_WOW_VDM || dwCreationFlags&CREATE_SEPARATE_WOW_VDM)
-    {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return ret;
-    }
-    /* 存在不安全插件,注入保护 */
-    if ( process_plugin(lpfile) )
-    {
-        /* 静态编译时,不能启用远程注入 */
-    #if !defined(LIBPORTABLE_STATIC)
-        tohook = true;
-    #endif
-    }
-    /* 如果启用白名单制度(严格检查) */
-    else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
-    {
-        if ( !in_whitelist((LPCWSTR)lpfile) )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("the process %ls disabled-runes\n",lpfile);
-        #endif
-            SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
-            return ret;
-        }
-    }
-    else if ( in_whitelist((LPCWSTR)lpfile) )
-    {
-        // 在白名单里面
-    }
-    /* 如果不存在于白名单,则自动阻止命令行程序启动 */
-    else
-    {
-        if ( process_cui(lpfile) )
-        {
-        #ifdef _LOGDEBUG
-            logmsg("%ls process, disabled-runes\n",lpfile);
-        #endif
-            SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
-            return ret;
-        }
-    }
-    ret = sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
-                                  lpThreadAttributes,bInheritHandles,dwCreationFlags,
-                                  lpEnvironment,lpCurrentDirectory,
-                                  lpStartupInfo,lpProcessInformation,hNewToken);
-    if (!ret)
-    {
-        return ret;
+        fn = restart_if(lpCommandLine);
     }
     if (fn)
     {
     #ifdef _LOGDEBUG
-        logmsg("firefox restart,new main_id is %lu!\n", lpProcessInformation->dwProcessId);
+        logmsg("firefox restart!\n");
     #endif
-        set_process_pid(lpProcessInformation->dwProcessId);
-    }
-    if ( tohook )
+        WCHAR ini[MAX_PATH] = {0};
+        get_ini_path(ini, MAX_PATH);
+        WritePrivateProfileStringW(L"env", L"LIBPORTABLE_RESTART_DEFINED", L"1", ini);
+    }   
+    else if (read_appint(L"General",L"SafeEx") > 0)
+    {
+        /* 禁止启动16位程序 */
+        if (dwCreationFlags&CREATE_SHARED_WOW_VDM || dwCreationFlags&CREATE_SEPARATE_WOW_VDM)
+        {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return ret;
+        }
+        /* 存在不安全插件,注入保护 */
+        if ( process_plugin(lpfile) )
+        {
+        /* 静态编译时,不能启用远程注入 */
+        #if !defined(LIBPORTABLE_STATIC)
+            tohook = true;
+        #endif
+        }
+        /* 如果启用白名单制度(严格检查) */
+        else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
+        {
+            if ( !in_whitelist((LPCWSTR)lpfile) )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("the process %ls disabled-runes by libportable\n",lpfile);
+            #endif
+                SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
+                return ret;
+            }
+        }
+        /* 如果不存在于白名单,则自动阻止命令行程序启动 */
+        else if ( process_cui(lpfile) )
+        {
+            
+            {
+            #ifdef _LOGDEBUG
+                logmsg("%ls process, disabled-runes\n",lpfile);
+            #endif
+                SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
+                return ret;
+            }
+        } 
+    } 
+    ret = sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
+                                  lpThreadAttributes,bInheritHandles,dwCreationFlags,
+                                  lpEnvironment,lpCurrentDirectory,
+                                  lpStartupInfo,lpProcessInformation,hNewToken);
+    if ( tohook && ret )
     {
         InjectDll(lpProcessInformation);
     }
@@ -430,7 +434,7 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
 }
 
-unsigned WINAPI init_safed(void * pParam)
+unsigned WINAPI init_safed(void)
 {
     HMODULE		hNtdll, hKernel;
     DWORD		ver = get_os_version();
@@ -438,8 +442,7 @@ unsigned WINAPI init_safed(void * pParam)
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
 
     if ( hNtdll == NULL || hKernel  == NULL ||
-        (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL ||
-        (pNtWriteVirtualMemory = (_NtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory")) == NULL )
+        (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL )
     {
         return 0;
     }
@@ -462,6 +465,9 @@ unsigned WINAPI init_safed(void * pParam)
             logmsg("pCreateProcessInternalW hook failed!\n");
         #endif
         }
+    }
+    if (ver < 600 && read_appint(L"General",L"SafeEx") > 0)
+    {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
         if (!creator_hook(pLoadLibraryEx, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExStub))
         {
@@ -469,6 +475,13 @@ unsigned WINAPI init_safed(void * pParam)
             logmsg("LoadLibraryExW hook failed!\n");
         #endif
         }
+        pNtWriteVirtualMemory = (_NtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory");
+        if (!creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("NtWriteVirtualMemory hook failed!\n");
+        #endif
+        }        
     }
-    return creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory);
+    return (1);
 }

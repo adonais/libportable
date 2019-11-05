@@ -13,14 +13,10 @@ https://sourceforge.net/projects/mingw/files/MSYS
 https://sourceforge.net/projects/msys2/
 
 ## Build!
-- vc compiler  (cmd shell)  
+- vc14 or above  (cmd shell)  
 
 	nmake -f Makefile.msvc clean  
 	nmake -f Makefile.msvc
-	
-	dynamic lininking the old msvcrt.dll:  
-	nmake -f Makefile.msvc clean  
-	nmake -f Makefile.msvc MSVC_CRT=1 
 	
 	enable tcmalloc memory allocator:  
 	nmake -f Makefile.msvc TCMALLOC=1  

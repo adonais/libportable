@@ -7,6 +7,7 @@ DFLAGS   ?=
 LTO      ?=
 AR       ?= $(CROSS_COMPILING)ar
 RC       ?= $(CROSS_COMPILING)windres -i
+
 RC_TAR32 = -F pe-i386
 RC_TAR64 = -F pe-x86-64
 RCFLAGS  = --define UNICODE -J rc -O coff
@@ -80,7 +81,8 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/share_lock.o $(DEP)/updates.o
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/share_lock.o \
+           $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/file_paser.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -134,7 +136,7 @@ ifeq ($(findstring clang,$(CC)), clang)
 LDFLAGS += -static -Wno-unused-command-line-argument -v
 else ifeq ($(USE_GCC),1)
 LDLIBS  += $(MSCRT) --entry=$(DLL_MAIN_STDCALL_NAME)
-LDFLAGS += -nostdlib -lmingw32 -lmingwex -lgcc -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
+LDFLAGS += -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
 CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fno-use-linker-plugin -flto
@@ -181,8 +183,12 @@ $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/share_lock.o   : $(SRC)/share_lock.c $(SRC)/share_lock.h
 	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/updates.o      : $(SRC)/updates.c $(SRC)/updates.h
+$(DEP)/file_paser.o   : $(SRC)/file_paser.c $(SRC)/file_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@
+$(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h
+	$(CC) -c $< $(CFLAGS) -o $@
+$(DEP)/cjson.o        : $(SRC)/cjson.c $(SRC)/cjson.h
+	$(CC) -c $< $(CFLAGS) -o $@	
 ifeq ($(MSVC),1)	
 $(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h
 	$(CXX) -c $< $(CFLAGS) -Wno-deprecated -o $@

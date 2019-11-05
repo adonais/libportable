@@ -7,6 +7,7 @@
 #include <shlobj.h>
 #include "inipara.h"
 #include "share_lock.h"
+#include "file_paser.h"
 #ifdef _MSC_VER
 #include <stdarg.h>
 #endif
@@ -31,7 +32,6 @@ static PFNGFVIW   pfnGetFileVersionInfoW;
 static PFNVQVW    pfnVerQueryValueW;
 LoadLibraryExPtr  sLoadLibraryExStub = NULL;
 HMODULE           dll_module         = NULL;
-s_data            sdata = {0};
 
 #ifdef _LOGDEBUG
 static char       logfile_buf[MAX_PATH+1];
@@ -624,32 +624,24 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
 }
 
 bool WINAPI 
-is_browser(void *path)
-{
-    LPCWSTR cpath = (LPCWSTR)path;
-    WCHAR   remoter[MAX_PATH] = {0};
-    WCHAR   current[MAX_PATH] = {0};
-    if (!get_process_path(remoter, MAX_PATH))
-    {
-        return false;
-    }
-    if (cpath)
-    {
-        return (_wcsicmp(remoter, cpath) == 0);
-    }
-    else
-    {
-        GetModuleFileNameW(NULL,current,MAX_PATH);
-    }
-    return (_wcsicmp(remoter, current) == 0);
-}
-
-bool WINAPI 
 is_specialapp(LPCWSTR appname)
 {
     WCHAR process_name[VALUE_LEN+1];
     GetCurrentProcessName(process_name,VALUE_LEN);
     return ( _wcsicmp(process_name, appname) == 0 );
+}
+
+bool WINAPI 
+is_browser(void* path)
+{ 
+    LPCWSTR cpath = (LPCWSTR)path;
+    if (cpath)
+    {
+        WCHAR   current[MAX_PATH] = {0};
+        GetModuleFileNameW(NULL,current,MAX_PATH);
+        return (_wcsicmp(current, cpath) == 0);
+    }    
+    return is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe");
 }
 
 bool WINAPI 
@@ -712,6 +704,37 @@ get_mozilla_profile(LPWSTR in_dir, int len, LPCWSTR appdt)
                       );
     }
     return (m>0 && m<len);
+}
+
+static bool 
+get_profile_path(LPWSTR in_dir, int len, LPCWSTR appdt)
+{
+	WCHAR path[MAX_PATH] = {0};
+    if (!get_mozilla_profile(in_dir, len, appdt))
+    {    	
+    	return false;
+    }   
+    if (!read_appkey(L"Profile0",L"Path",path,sizeof(path),in_dir))
+    {   	
+    	return false;
+    }
+	wchr_replace(path);
+    if (path[0] == L'.')
+    {
+		PathRemoveFileSpecW(in_dir);
+		PathAppendW(in_dir,path);    	
+        PathCombineW(in_dir,NULL,in_dir);
+    }
+    else
+    {
+		PathRemoveFileSpecW(in_dir);
+		PathAppendW(in_dir,path);    	
+    }
+    if (in_dir[wcslen(in_dir)-1] == L'\\')
+    {
+    	in_dir[wcslen(in_dir)-1] = L'\0';
+    }
+    return true;
 }
 
 /* 查找moz_values所在段,并把段名保存在out_names数组
@@ -789,6 +812,36 @@ write_ini_file(LPCWSTR path)
     }
 }
 
+static void
+clean_files(LPCWSTR appdt)
+{
+	WCHAR path[MAX_PATH] = {0};
+    WCHAR temp[MAX_PATH] = {0};
+    WCHAR cmp_ini[MAX_PATH] = {0};
+    if (!(getw_cwd(temp, MAX_PATH) && get_profile_path(path, MAX_PATH, appdt)))
+    {
+    	return;
+    }
+    if (!(wnsprintfW(cmp_ini, MAX_PATH, L"%ls", path) > 0 && PathAppendW(cmp_ini, L"compatibility.ini")))
+    {
+	    return;
+    }
+    if (read_appkey(L"Compatibility",L"LastPlatformDir",cmp_ini,sizeof(cmp_ini),cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
+    {
+	#ifdef _LOGDEBUG
+	    logmsg("no movement of position,do nothing.\n");
+	#endif    	 	
+    	return;
+    }
+    if (true)
+    {
+	#ifdef _LOGDEBUG
+	    logmsg("we need rewrite addonStartup.json.lz4\n");
+	#endif    	
+        json_parser(path);
+    } 
+    return;            	
+}
 unsigned WINAPI 
 write_file(void *p)
 {
@@ -798,9 +851,7 @@ write_file(void *p)
     WCHAR   moz_profile[MAX_PATH+1] = {0};
     if (read_appint(L"General", L"DisDedicate") == 0)
     {
-    #ifdef _LOGDEBUG
-        logmsg("DisDedicate = 0\n");
-    #endif
+        clean_files(appdt);
         return (0);
     }  
     if (get_mozilla_profile(moz_profile, MAX_PATH, appdt) && PathFileExistsW(moz_profile))
@@ -858,7 +909,15 @@ write_file(void *p)
             write_ini_file(moz_profile);
         }
     }
-    if (szDir) SYS_FREE(szDir);
+    if (szDir) 
+    {
+        SYS_FREE(szDir);
+    }
+	if (true)
+    {
+	    SetEnvironmentVariableW(L"INI_FILEIO_DEFINED", L"1");
+    	clean_files(appdt);	
+    }
     return (1);
 }
 

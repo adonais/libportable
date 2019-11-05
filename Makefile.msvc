@@ -5,9 +5,9 @@ CXX      = cl
 MSVC_CRT =
 TCMALLOC =
 MY_DEBUG = 
-MSVC_CRT = 1900
+
 CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise /D "_UNICODE" /D "UNICODE" \
-           /D "_CRT_SECURE_NO_WARNINGS"
+           /D "_CRT_SECURE_NO_WARNINGS" /D "CJSON_HIDE_SYMBOLS"
 LDFLAGS  = /NOLOGO
        
 !if "$(CC)"=="clang-cl"
@@ -15,9 +15,7 @@ LD       = lld-link.exe /DLL
 RC       = llvm-rc.exe
 GEN_LIB  = llvm-dlltool.exe
 !ELSEIF "$(CC)"=="cl"
-CFLAGS   = $(CFLAGS) /GL /Gd
 LD       = link.exe /DLL
-LDFLAGS  = $(LDFLAGS) /LTCG
 RC       = rc.exe
 GEN_LIB  = lib.exe
 !else
@@ -40,11 +38,10 @@ CFLAGS   = $(CFLAGS) /O2 /D "NDEBUG" -flto=thin
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
 CRTFLAGS = /INCLUDE:"__tcmalloc" /LIBPATH:msrt libtcmalloc_minimal_$(PLATFORM)_vc15_mt.lib legacy_stdio_definitions.lib
-!ELSEIF "$(MSVC_CRT)">="1900"
+!else
+MSVC_CRT = 1900
 CFLAGS   = $(CFLAGS) /MD /GS- /GR- /Gs- /utf-8 /D "USE_UTF8" /D "VC12_CRT" /D "_NO_CRT_STDIO_INLINE"
 CRTFLAGS =
-!else
-CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
@@ -78,7 +75,8 @@ MIN_INC  = $(SRC)\minhook\include
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
            $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-           $(DEP)\share_lock.obj $(DEP)\updates.obj
+           $(DEP)\share_lock.obj $(DEP)\lz4.obj \
+           $(DEP)\cjson.obj $(DEP)\file_paser.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -99,11 +97,8 @@ OBJS     = $(DEP)\*.obj
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 !if "$(TCMALLOC)"=="1"
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /NODEFAULTLIB:MSVCRT /DEFAULTLIB:LIBCMT
-!ELSEIF "$(MSVC_CRT)">="1900"
-LDFLAGS  =  $(LDFLAGS) legacy_stdio_definitions.lib /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:MSVCRT
 !else
-OBJDLL   = $(OBJDLL) $(DEP)\msvcrt-light-$(PLATFORM).lib $(DEP)\ntdll-$(PLATFORM).lib
-LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /DEFAULTLIB:OLDNAMES /ENTRY:_DllMainCRTStartup
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:MSVCRT legacy_stdio_definitions.lib 
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib $(CRTFLAGS)
 OUT	 = $(DISTDIR)\portable$(BITS).dll
@@ -155,25 +150,13 @@ $(DEP)\on_tabs.obj      : $(SRC)\on_tabs.c $(SRC)\on_tabs.h
 	$(CC) $(CFLAGS) /TP /c $(SRC)\on_tabs.c /Fo$@
 $(DEP)\share_lock.obj   : $(SRC)\share_lock.c $(SRC)\share_lock.h
 	$(CC) $(CFLAGS) /c $(SRC)\share_lock.c /Fo$@
-$(DEP)\updates.obj      : $(SRC)\updates.c $(SRC)\updates.h
-	$(CC) $(CFLAGS) /c $(SRC)\updates.c /Fo$@
+$(DEP)\lz4.obj          : $(SRC)\lz4.c $(SRC)\lz4.h
+	$(CC) $(CFLAGS) /c $(SRC)\lz4.c /Fo$@
+$(DEP)\cjson.obj        : $(SRC)\cjson.c $(SRC)\cjson.h
+	$(CC) $(CFLAGS) /c $(SRC)\cjson.c /Fo$@
+$(DEP)\file_paser.obj   : $(SRC)\file_paser.c $(SRC)\file_paser.h
+	$(CC) $(CFLAGS) /c $(SRC)\file_paser.c /Fo$@	
 
-!if "$(TCMALLOC)"=="" && "$(VC12_CRT)"=="" && "$(MSVC_CRT)"<"1900"
-$(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def
-!if "$(CC)"=="clang-cl"
-	$(GEN_LIB) -D msvcrt.dll -d msrt\msvcrt-light-$(PLATFORM).def -l $(DEP)\msvcrt-light-$(PLATFORM).lib $(GEN_FLAGS)
-!else
-	$(GEN_LIB) /DEF:msrt\msvcrt-light-$(PLATFORM).def /OUT:$(DEP)\msvcrt-light-$(PLATFORM).lib \
-	           /NOLOGO /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:msvcrt.dll
-!endif	
-$(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
-!if "$(CC)"=="clang-cl"
-	$(GEN_LIB) -D ntdll.dll -d msrt\ntdll-$(PLATFORM).def -l $(DEP)\ntdll-$(PLATFORM).lib $(GEN_FLAGS)
-!else
-	$(GEN_LIB) /DEF:msrt\ntdll-$(PLATFORM).def /OUT:$(DEP)\ntdll-$(PLATFORM).lib /NOLOGO \
-	           /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll    
-!endif	    
-!endif
 $(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 
