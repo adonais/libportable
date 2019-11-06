@@ -219,7 +219,7 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
         if ((fp = _wfopen(file, L"rb")) == NULL)
         {
         #ifdef _LOGDEBUG
-            logmsg("fopen %s failed\n", file);
+            logmsg("fopen %ls failed\n", file);
         #endif          
             break;
         }

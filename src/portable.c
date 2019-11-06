@@ -402,7 +402,6 @@ diff_days(void)
 unsigned WINAPI
 update_thread(void *lparam)
 {
-    DWORD pid = 0;
     WCHAR *pos = NULL;
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[MAX_PATH+1] = {0};
@@ -429,13 +428,13 @@ update_thread(void *lparam)
     }
     if (read_appint(L"update", L"be_ready") > 0)
     {
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, pid, temp, path);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
     else if (diff_days())
     {
         Sleep(8000);
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, pid, temp);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, 2, NULL));
     }
     return (1);
@@ -506,7 +505,7 @@ window_hooks(void *p)
     HWND  hwnd = NULL;
     int   i = 15;
     DWORD pid = (DWORD)(uintptr_t)p;
-    while (i--)
+    while (--i)
     {
         bool  m_loop = false;
         DWORD dwProcessId = 0;
@@ -515,8 +514,7 @@ window_hooks(void *p)
         m_loop = (dwProcessId > 0 && dwProcessId == pid);
         if (NULL != hwnd && m_loop)
         {
-            if (get_os_version() > 503 &&
-                read_appint(L"General", L"Update") > 0 &&
+            if (get_os_version() > 503 && read_appint(L"General", L"Update") > 0 &&
                 read_appint(L"General", L"Portable") > 0)
             {
                 CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
@@ -534,9 +532,13 @@ window_hooks(void *p)
                 CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
             }
             if (read_appint(L"General", L"ProxyExe") > 0)
-            { 
+            {
                 CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
-            }       
+            }
+            if (read_appint(L"General",L"CreateCrashDump") != 0)
+            {
+                init_exeception(NULL);
+            }            
             break;
         }
         SleepEx(800,false);
@@ -572,17 +574,19 @@ do_it(void)
     {
         local_hook();
     }
-    if (is_browser(NULL) && (!get_env_status(L"LIBPORTABLE_UI_DEFINED") || read_appint(L"Env",L"LIBPORTABLE_RESTART_DEFINED") > 0))
+    if (read_appint(L"update", L"be_ready") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
+    }   
+    if (is_browser(NULL) && !get_env_status(L"LIBPORTABLE_UI_DEFINED"))
     {
         DWORD ver = get_os_version();
-        SetEnvironmentVariableW(L"LIBPORTABLE_UI_DEFINED", L"1");
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&window_hooks,(void *)(uintptr_t)GetCurrentProcessId(),0,NULL));
-        WritePrivateProfileStringW(L"Env", L"LIBPORTABLE_RESTART_DEFINED", NULL, sdata.ini);
-        if (read_appint(L"General",L"CreateCrashDump") != 0)
+        if (true)
         {
-            init_exeception(NULL);
+            SetEnvironmentVariableW(L"LIBPORTABLE_UI_DEFINED", L"1");
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&window_hooks,(void *)(uintptr_t)GetCurrentProcessId(),0,NULL));
         }
-    #if defined(_MSC_VER)
+    #if defined(_MSC_VER)  
         if (read_appint(L"General",L"OnTabs") > 0)
         {
             if (ver > 601)

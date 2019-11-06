@@ -11,7 +11,7 @@ bool WINAPI
 get_env_status(LPCWSTR env)
 {
     WCHAR   m_value[2] = {0};
-    if (GetEnvironmentVariableW(env, m_value, 1) > 0)
+    if (GetEnvironmentVariableW(env, m_value, 1) > 0 && *m_value == L'1')
     {
         return true;
     }

@@ -304,7 +304,11 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             #ifdef _LOGDEBUG
                 logmsg("WM_LBUTTONDBLCLK received!\n");
             #endif
-                send_click(MOUSEEVENTF_MIDDLEDOWN);
+                RECT rc;
+                if (mouse_on_tab(&rc, &msg->pt, NULL))
+                {
+                    send_click(MOUSEEVENTF_MIDDLEDOWN);
+                }
                 m_ingore = true;
             }
             b_track = true;

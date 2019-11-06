@@ -203,9 +203,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             #ifdef _LOGDEBUG
                 logmsg("firefox restart!\n");
             #endif
-                WCHAR ini[MAX_PATH] = {0};
-                get_ini_path(ini, MAX_PATH);
-                WritePrivateProfileStringW(L"env", L"LIBPORTABLE_RESTART_DEFINED", L"1", ini);
+                SetEnvironmentVariableW(L"LIBPORTABLE_UI_DEFINED", NULL);
             }
         }
     }
@@ -291,9 +289,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     #ifdef _LOGDEBUG
         logmsg("firefox restart!\n");
     #endif
-        WCHAR ini[MAX_PATH] = {0};
-        get_ini_path(ini, MAX_PATH);
-        WritePrivateProfileStringW(L"env", L"LIBPORTABLE_RESTART_DEFINED", L"1", ini);
+        SetEnvironmentVariableW(L"LIBPORTABLE_UI_DEFINED", NULL);
     }   
     else if (read_appint(L"General",L"SafeEx") > 0)
     {
