@@ -619,7 +619,7 @@ undo_it(void)
     kill_trees();
     jmp_end();
     MH_Uninitialize();
-#if !(__GNUC__ || __clang__)
+#if defined(_MSC_VER)
     /* 反注册IUIAutomation接口 */
     un_uia();
 #endif
