@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <assert.h>
 #include <windows.h>
 #include "lz4.h"
 #include "cjson.h"

@@ -63,7 +63,6 @@ extern void     WINAPI  init_logs(void);
 extern DWORD    WINAPI get_os_version(void);
 extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
 extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
-extern bool     WINAPI init_parser(LPWSTR inifull_name,DWORD buf_len);
 extern bool     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
                                    LPCWSTR lpkey,               /* 键名  */
                                    LPWSTR  prefstring,          /* 保存值缓冲区 */
@@ -87,6 +86,10 @@ extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
 extern bool     WINAPI print_process_module(DWORD pid);
+extern bool     WINAPI get_env_status(LPCWSTR env);
+extern bool     WINAPI get_ini_path(WCHAR *ini, int len);
+extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
+extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 
 #ifdef __cplusplus
 }

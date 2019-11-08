@@ -14,7 +14,7 @@ static SetWindowsHookExPtr pSetWindowsHookEx,sSetWindowsHookExStub;
 static HHOOK message_hook;
 static IUIAutomation* g_uia;
 static int mouse_time;
-static bool activation;
+static bool tab_event;
 static bool double_click;
 static bool mouse_close;
 volatile long g_once = 0;
@@ -272,7 +272,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
         switch (msg->message)
         {
         case WM_MOUSEHOVER:
-            if (!(activation || mouse_close))
+            if (!(tab_event || mouse_close))
             {
                 break;
             }
@@ -286,7 +286,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                     rc_t = rc;
                     rc_t.right -= 28;
                     in = PtInRect(&rc_t, msg->pt);
-                    if ((activation && !active && in) || (mouse_close && !in))
+                    if ((tab_event && !active && in) || (mouse_close && !in))
                     {
                     #ifdef _LOGDEBUG
                         logmsg("mouse on tab, send click message!\n");
@@ -364,11 +364,11 @@ init_uia(void)
     #ifdef _LOGDEBUG
         logmsg("mouse_time = 0, OnTabs will be disabled!\n");
     #endif
-        activation = false;
+        tab_event = false;
     }
     else
     {
-        activation = true;
+        tab_event = true;
     }
     if (read_appint(L"tabs", L"double_click_close") > 0)
     {
@@ -378,7 +378,7 @@ init_uia(void)
     {
         mouse_close = true;
     }
-    if (!(activation || double_click || mouse_close))
+    if (!(tab_event || double_click || mouse_close))
     {
         return false;
     }
@@ -386,7 +386,10 @@ init_uia(void)
     hr = CoCreateInstance(__uuidof(CUIAutomation), NULL, CLSCTX_INPROC_SERVER, 
          __uuidof(IUIAutomation), (void**)&g_uia);
 #ifdef _LOGDEBUG
-    print_process_module(GetCurrentProcessId());
+    if(FAILED(hr))
+    {
+        print_process_module(GetCurrentProcessId());
+    }
 #endif         
     return SUCCEEDED(hr);
 }
@@ -418,7 +421,6 @@ threads_on_win7(void)
     #ifdef _LOGDEBUG
         logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
     #endif
-        return;
     }
 }
 
@@ -439,7 +441,7 @@ threads_on_win10(void *lparam)
         if (!creator_hook((void*)pSetWindowsHookEx, (void*)HookSetWindowsHookEx, (LPVOID*)&sSetWindowsHookExStub))
         {
         #ifdef _LOGDEBUG
-            logmsg("creator_hook return false!\n", GetLastError());
+            logmsg("creator_hook return false in %s!\n", __FUNCTION__);
         #endif
             return 0;
         }

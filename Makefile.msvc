@@ -75,8 +75,7 @@ MIN_INC  = $(SRC)\minhook\include
 OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
            $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-           $(DEP)\share_lock.obj $(DEP)\lz4.obj \
-           $(DEP)\cjson.obj $(DEP)\file_paser.obj
+           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\file_paser.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -148,8 +147,6 @@ $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
 $(DEP)\on_tabs.obj      : $(SRC)\on_tabs.c $(SRC)\on_tabs.h
 	$(CC) $(CFLAGS) /TP /c $(SRC)\on_tabs.c /Fo$@
-$(DEP)\share_lock.obj   : $(SRC)\share_lock.c $(SRC)\share_lock.h
-	$(CC) $(CFLAGS) /c $(SRC)\share_lock.c /Fo$@
 $(DEP)\lz4.obj          : $(SRC)\lz4.c $(SRC)\lz4.h
 	$(CC) $(CFLAGS) /c $(SRC)\lz4.c /Fo$@
 $(DEP)\cjson.obj        : $(SRC)\cjson.c $(SRC)\cjson.h

@@ -5,7 +5,6 @@
 #include <windows.h>
 #include "set_env.h"
 #include "inipara.h"
-#include "share_lock.h"
 
 #define MAX_ENV_SIZE 8192
 typedef int(__cdecl *pSetEnv)(const wchar_t *env);
@@ -241,5 +240,5 @@ set_envp(void *p)
         setenv_tt();
         FreeLibrary(hMod);
     }
-    return SetEnvironmentVariableW(L"INI_SETENV_DEFINED", L"1");
+    return SetEnvironmentVariableW(L"LIBPORTABLE_SETENV_DEFINED", L"1");
 }

@@ -81,7 +81,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/share_lock.o \
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o \
            $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/file_paser.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
@@ -136,7 +136,7 @@ ifeq ($(findstring clang,$(CC)), clang)
 LDFLAGS += -static -Wno-unused-command-line-argument -v
 else ifeq ($(USE_GCC),1)
 LDLIBS  += $(MSCRT) --entry=$(DLL_MAIN_STDCALL_NAME)
-LDFLAGS += -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
+LDFLAGS += -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
 CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fno-use-linker-plugin -flto
@@ -180,8 +180,6 @@ $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
-	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/share_lock.o   : $(SRC)/share_lock.c $(SRC)/share_lock.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/file_paser.o   : $(SRC)/file_paser.c $(SRC)/file_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@

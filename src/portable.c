@@ -4,7 +4,9 @@
 
 #include "portable.h"
 #include "inipara.h"
+#ifndef DISABLE_SAFE
 #include "safe_ex.h"
+#endif
 #include "ice_error.h"
 #include "bosskey.h"
 #include "new_process.h"
@@ -13,7 +15,6 @@
 #include "set_env.h"
 #include "win_registry.h"
 #include "on_tabs.h"
-#include "share_lock.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -331,45 +332,6 @@ init_portable(void)
 #undef DLD
 }
 
-/* 初始化全局变量 */
-static bool
-init_global_env(LPWSTR appdt, LPWSTR localdt, LPWSTR ini, int len)
-{   
-    /* 如果ini文件里的appdata设置路径为相对路径 */
-    if (appdt[1] != L':')
-    {
-        path_to_absolute(appdt,len);
-    }
-    if (read_appkey(L"Env",L"TmpDataPath",localdt,sizeof(WCHAR)*len,ini))
-    {
-        /* 修正相对路径问题 */
-        if (localdt[1] != L':')
-        {
-            path_to_absolute(localdt,len);
-        }
-    }
-    else
-    {
-        wcsncpy(localdt,appdt,len);
-    }
-    if (appdt[0] != L'\0')
-    {
-        wcsncat(appdt,L"\\AppData",len);
-    }
-    if (localdt[0] != L'\0')
-    {
-        wcsncat(localdt,L"\\LocalAppData\\Temp\\Fx",len);
-    }
-    if (get_env_status(L"INI_FILEIO_DEFINED"))
-    {  
-#ifdef _LOGDEBUG
-    logmsg("INI_FILEIO_DEFINED!\n");
-#endif           
-        return true;
-    }  
-    return write_file(appdt);
-}
-
 #if defined(__GNUC__) && defined(__LTO__)
 #pragma GCC push_options
 #pragma GCC optimize ("O3")
@@ -443,35 +405,19 @@ update_thread(void *lparam)
 static bool 
 init_hook_data(void)
 {
-    if (!init_parser(sdata.ini, MAX_PATH))
-    {
-        return false;
-    }
-    if (!GetModuleFileNameW(NULL,sdata.process,MAX_PATH))
-    {
-        return false;
-    }
-    else if (!read_appkey(L"General",L"PortableDataPath",sdata.appdt,sizeof(sdata.appdt),sdata.ini))
-    {
-        wnsprintfW(sdata.appdt, MAX_PATH, L"%ls", L"../Profiles");
-    #ifdef _LOGDEBUG
-        logmsg("appdata[%ls]!\n", sdata.appdt);
-    #endif        
-    }
-    else
+    WCHAR appdt[MAX_PATH] = {0};
+    if (!get_appdt_path(appdt, MAX_PATH))
     {
     #ifdef _LOGDEBUG
-        logmsg("appdata[%ls]!\n", sdata.appdt);
-    #endif           
-    }
-    if (!init_global_env(sdata.appdt, sdata.localdt, sdata.ini, MAX_PATH))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("init_global_env return false!\n");
+        logmsg("get_appdt_path(appdt) return false!\n");
     #endif
-        return false;
+        return false;  
+    }        
+    if (!get_env_status(L"LIBPORTABLE_FILEIO_DEFINED"))
+    {        
+        write_file(appdt);
     }
-    if (!get_env_status(L"INI_SETENV_DEFINED"))
+    if (!get_env_status(L"LIBPORTABLE_SETENV_DEFINED"))
     {
         set_envp(NULL);
     }
@@ -491,59 +437,98 @@ local_hook(void)
     if (read_appint(L"General", L"Portable") > 0)
     {
         init_portable();
-        init_safed();
     }
+#ifndef DISABLE_SAFE    
+    if (read_appint(L"General",L"SafeEx") > 0)
+    {
+        init_safed();
+    } 
+#endif       
+}
+
+static void 
+window_hooks(void)
+{
+    DWORD ver = get_os_version();
+    if (ver > 503 && 
+        read_appint(L"General", L"Update") > 0 &&
+        read_appint(L"General", L"Portable") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
+    }
+    if (ff_info.hPid == 0)
+    {
+        ff_info.hPid = GetCurrentProcessId();
+    }
+    if (read_appint(L"General",L"CreateCrashDump") != 0)
+    {
+        init_exeception(NULL);
+    }
+#if defined(_MSC_VER)    /* mingw-w64 crt does not implement IUIAutomation interface */
+    if (read_appint(L"General",L"OnTabs") > 0)
+    {
+        if (ver > 601)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
+        #ifdef _LOGDEBUG
+            logmsg("win8--win10!\n");
+        #endif
+        }
+        else if (ver > 503 && ver < 602)
+        {
+            threads_on_win7();
+        #ifdef _LOGDEBUG
+            logmsg("vista--win7!\n");
+        #endif
+        }
+    }
+#endif
     if (read_appint(L"General", L"DisableScan") > 0)
     {
         init_winreg(NULL);
     }
+    if (read_appint(L"General",L"ProcessAffinityMask") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+    }
+    if (read_appint(L"General", L"Bosskey") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+    }
+    if (read_appint(L"General", L"ProxyExe") > 0)
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+    }
 }
 
-unsigned WINAPI
-window_hooks(void *p)
+static bool 
+child_proces_if(void)
 {
-    HWND  hwnd = NULL;
-    int   i = 15;
-    DWORD pid = (DWORD)(uintptr_t)p;
-    while (--i)
+    LPWSTR  *args = NULL;
+    int     count = 0;
+    bool    ret = false;
+    if (is_specialapp(L"plugin-container.exe"))
     {
-        bool  m_loop = false;
-        DWORD dwProcessId = 0;
-        hwnd = FindWindowExW(NULL, hwnd, L"MozillaWindowClass", NULL);
-        GetWindowThreadProcessId(hwnd, &dwProcessId);
-        m_loop = (dwProcessId > 0 && dwProcessId == pid);
-        if (NULL != hwnd && m_loop)
-        {
-            if (get_os_version() > 503 && read_appint(L"General", L"Update") > 0 &&
-                read_appint(L"General", L"Portable") > 0)
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
-            }
-            if (ff_info.hPid == 0)
-            {
-                ff_info.hPid = GetCurrentProcessId();
-            }
-            if (read_appint(L"General",L"ProcessAffinityMask") > 0)
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
-            }
-            if (read_appint(L"General", L"Bosskey") > 0)
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
-            }
-            if (read_appint(L"General", L"ProxyExe") > 0)
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
-            }
-            if (read_appint(L"General",L"CreateCrashDump") != 0)
-            {
-                init_exeception(NULL);
-            }            
-            break;
-        }
-        SleepEx(800,false);
+        return false;
     }
-    return (1);
+    if (is_browser(NULL))
+    {
+        args = CommandLineToArgvW(GetCommandLineW(), &count);
+        if ( NULL != args )
+        {
+            int i;
+            for (i = 0; i < count; ++i)
+            {
+                if ( (_wcsicmp(args[i], L"-greomni") == 0) )
+                {
+                    ret = true;
+                    break;
+                }
+            }
+            LocalFree(args);
+        }        
+    }
+    return ret;
 }
 
 /* uninstall hook and clean up */
@@ -570,42 +555,21 @@ undo_it(void)
 void WINAPI 
 do_it(void)
 {
-    if (init_hook_data())
+    if (!child_proces_if())
     {
-        local_hook();
+        if (is_browser(NULL) && init_hook_data())
+        {
+            local_hook(); 
+            if (!no_gui_boot())
+            {
+                window_hooks();
+            }
+        }
+        else
+        {
+            local_hook(); 
+        }   
     }
-    if (read_appint(L"update", L"be_ready") > 0)
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
-    }   
-    if (is_browser(NULL) && !get_env_status(L"LIBPORTABLE_UI_DEFINED"))
-    {
-        DWORD ver = get_os_version();
-        if (true)
-        {
-            SetEnvironmentVariableW(L"LIBPORTABLE_UI_DEFINED", L"1");
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&window_hooks,(void *)(uintptr_t)GetCurrentProcessId(),0,NULL));
-        }
-    #if defined(_MSC_VER)  
-        if (read_appint(L"General",L"OnTabs") > 0)
-        {
-            if (ver > 601)
-            {
-                CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
-            #ifdef _LOGDEBUG
-                logmsg("win8--win10!\n");
-            #endif
-            }
-            else if (ver > 503 && ver < 602)
-            {
-                threads_on_win7();
-            #ifdef _LOGDEBUG
-                logmsg("vista--win7!\n");
-            #endif
-            }
-        }
-    #endif    
-    }  
 }
 
 #if defined(__GNUC__) && defined(__LTO__)

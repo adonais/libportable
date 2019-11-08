@@ -6,7 +6,6 @@
 #include <tlhelp32.h>
 #include <shlobj.h>
 #include "inipara.h"
-#include "share_lock.h"
 #include "file_paser.h"
 #ifdef _MSC_VER
 #include <stdarg.h>
@@ -73,7 +72,18 @@ logmsg(const char * format, ...)
 #endif
 
 bool WINAPI
-init_parser(LPWSTR ini,DWORD len)
+get_env_status(LPCWSTR env)
+{
+    WCHAR   m_value[2] = {0};
+    if (GetEnvironmentVariableW(env, m_value, 1) > 0 && *m_value == L'1')
+    {
+        return true;
+    }
+    return false;
+}
+
+bool WINAPI
+get_ini_path(WCHAR *ini, int len)
 {
     bool ret = false;
     if (!GetModuleFileNameW(dll_module, ini, len))
@@ -915,10 +925,52 @@ write_file(void *p)
     }
 	if (true)
     {
-	    SetEnvironmentVariableW(L"INI_FILEIO_DEFINED", L"1");
+	    SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
     	clean_files(appdt);	
     }
     return (1);
+}
+
+bool WINAPI
+get_appdt_path(WCHAR *path, int len)
+{
+    WCHAR  ini[MAX_PATH] = {0};
+    if (!get_ini_path(ini, MAX_PATH))
+    {
+        return false;
+    }
+    if (!read_appkey(L"General", L"PortableDataPath", path, len*sizeof(WCHAR), ini))
+    {
+        wnsprintfW(path, MAX_PATH, L"%ls", L"../Profiles");
+    }
+    if (path[1] != L':')
+    {
+        path_to_absolute(path, len);
+    }
+    return !!wcsncat(path,L"\\AppData",len);
+}
+
+bool WINAPI
+get_localdt_path(WCHAR *path, int len)
+{
+    WCHAR  ini[MAX_PATH] = {0};
+    if (!get_ini_path(ini, MAX_PATH))
+    {
+        return false;
+    }    
+    if (read_appkey(L"Env", L"TmpDataPath", path, sizeof(WCHAR)*len, ini))
+    {
+        ;
+    }
+    else if (!read_appkey(L"General", L"PortableDataPath", path, len*sizeof(WCHAR), ini))
+    {
+        wnsprintfW(path, MAX_PATH, L"%ls", L"../Profiles");
+    }
+    if (path[1] != L':')
+    {
+        path_to_absolute(path, len);
+    }
+    return !!wcsncat(path,L"\\LocalAppData\\Temp\\Fx",len);
 }
 
 DWORD WINAPI 
