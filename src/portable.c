@@ -464,7 +464,6 @@ window_hooks(void)
     {
         init_exeception(NULL);
     }
-#if defined(_MSC_VER)    /* mingw-w64 crt does not implement IUIAutomation interface */
     if (read_appint(L"General",L"OnTabs") > 0)
     {
         if (ver > 601)
@@ -474,7 +473,7 @@ window_hooks(void)
             logmsg("win8--win10!\n");
         #endif
         }
-        else if (ver > 503 && ver < 602)
+        else
         {
             threads_on_win7();
         #ifdef _LOGDEBUG
@@ -482,7 +481,6 @@ window_hooks(void)
         #endif
         }
     }
-#endif
     if (read_appint(L"General", L"DisableScan") > 0)
     {
         init_winreg(NULL);

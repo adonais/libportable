@@ -146,7 +146,7 @@ $(DEP)\win_registry.obj : $(SRC)\win_registry.c $(SRC)\win_registry.h
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
 	$(CC) $(CFLAGS) /c $(SRC)\set_env.c /Fo$@
 $(DEP)\on_tabs.obj      : $(SRC)\on_tabs.c $(SRC)\on_tabs.h
-	$(CC) $(CFLAGS) /TP /c $(SRC)\on_tabs.c /Fo$@
+	$(CC) $(CFLAGS) /c $(SRC)\on_tabs.c /Fo$@
 $(DEP)\lz4.obj          : $(SRC)\lz4.c $(SRC)\lz4.h
 	$(CC) $(CFLAGS) /c $(SRC)\lz4.c /Fo$@
 $(DEP)\cjson.obj        : $(SRC)\cjson.c $(SRC)\cjson.h

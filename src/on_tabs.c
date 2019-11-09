@@ -1,9 +1,12 @@
-#include "on_tabs.h"
+#ifndef COBJMACROS
+#define COBJMACROS
+#endif
+
 #include "inipara.h"
 #include <stdio.h>
 #include <process.h>
 #include <windows.h>
-#include <UIAutomation.h>
+#include "win_automation.h"
 
 typedef HHOOK (WINAPI *SetWindowsHookExPtr)(int idHook,
               HOOKPROC  lpfn,
@@ -53,19 +56,23 @@ static IUIAutomationElement*
 find_next_child(IUIAutomationElement *pElement)
 {
     HRESULT hr;
-    IUIAutomationCondition* pCondition;
+    IUIAutomationCondition* pCondition = NULL;
     IUIAutomationElement* pFound = NULL;
     VARIANT var;
     do
     {
         var.vt = VT_I4;
         var.lVal = UIA_TabControlTypeId;
-        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
+        if (!pElement)
+        {
+            break;
+        }        
+        hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId,var, &pCondition);
         if (FAILED(hr))
         {
             break;
         } 
-        hr = pElement->FindFirst(TreeScope_Children,pCondition, &pFound);
+        hr = IUIAutomationElement_FindFirst(pElement, TreeScope_Children,pCondition, &pFound);
         if (FAILED(hr))
         {
             break;
@@ -73,7 +80,7 @@ find_next_child(IUIAutomationElement *pElement)
     }while (0);
     if (pCondition)
     {
-        pCondition->Release();
+        IUIAutomationCondition_Release(pCondition);
     }
     return pFound;
 }
@@ -92,24 +99,28 @@ find_ui_child(IUIAutomationElement *pElement)
         int c = 0;
         var.vt = VT_I4;
         var.lVal = UIA_ToolBarControlTypeId;
-        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
+        if (!pElement)
+        {
+            break;
+        }
+        hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId,var, &pCondition);
         if (FAILED(hr))
         {
             break;
         }
-        hr = pElement->FindAll(TreeScope_Children,pCondition, &pFoundArray);
+        hr = IUIAutomationElement_FindAll(pElement, TreeScope_Children, pCondition, &pFoundArray);
         if (FAILED(hr))
         {
             break;
         }
-        hr = pFoundArray->get_Length(&c);
+        hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
         if (FAILED(hr))
         {
             break;
         }
         for (int idx = 0; idx < c; idx++)
         {
-            hr = pFoundArray->GetElement(idx, &tmp);
+            hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
             if (FAILED(hr))
             {
                 break;
@@ -122,15 +133,15 @@ find_ui_child(IUIAutomationElement *pElement)
     }while (0);
     if (pCondition)
     {
-        pCondition->Release();
+        IUIAutomationCondition_Release(pCondition);
     }
     if (tmp)
     {
-        tmp->Release();
+        IUIAutomationElement_Release(tmp);
     }
     if (pFoundArray)
     {
-        pFoundArray->Release();
+        IUIAutomationElement_Release(pFoundArray);
     }
     return pFound;
 }
@@ -145,14 +156,14 @@ get_tab_bars(HWND hwnd)
 	{
 		return NULL;
 	}
-    hr = g_uia->ElementFromHandle(hwnd, &root);
+    hr = IUIAutomation_ElementFromHandle(g_uia, hwnd, &root);
     if (SUCCEEDED(hr))
     {
         pFound = find_ui_child(root);
     }
     if (root)
     {
-        root->Release();
+        IUIAutomationElement_Release(root);
     }
     return pFound;
 }
@@ -180,7 +191,7 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         int c = 0;
         var.vt = VT_I4;
         var.lVal = UIA_TabItemControlTypeId;
-        hr = g_uia->CreatePropertyCondition(UIA_ControlTypePropertyId,var, &pCondition);
+        hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -188,7 +199,7 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         #endif
             break;
         } 
-        hr = tab_bar->FindAll(TreeScope_Children,pCondition, &pFoundArray);
+        hr = IUIAutomationElement_FindAll(tab_bar, TreeScope_Children, pCondition, &pFoundArray);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -196,24 +207,24 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         #endif
             break;
         }
-        hr = pFoundArray->get_Length(&c);
+        hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
         if (FAILED(hr))
         {
             break;
         }
         for (int idx = 0; idx < c; idx++)
         {
-            hr = pFoundArray->GetElement(idx, &tmp);
+            hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
             if (FAILED(hr))
             {
                 break;
             }
-            hr = tmp->get_CurrentBoundingRectangle(pr); 
+            hr = IUIAutomationElement_get_CurrentBoundingRectangle(tmp, (tagRECT *)pr); 
             if (SUCCEEDED(hr) && PtInRect(pr, *pt))
             {
                 if (active != NULL)
                 {
-                    tmp->get_CurrentIsKeyboardFocusable(active);
+                    IUIAutomationElement_get_CurrentIsKeyboardFocusable(tmp, (long *)active);
                 }
                 res = true;
                 break;
@@ -222,19 +233,19 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
     }while (0);
     if (pCondition)
     {
-        pCondition->Release();
+        IUIAutomationCondition_Release(pCondition);
     }
     if (tmp)
     {
-        tmp->Release();
+        IUIAutomationElement_Release(tmp);
     }
     if (pFoundArray)
     {
-        pFoundArray->Release();
+        IUIAutomationElementArray_Release(pFoundArray);
     }
     if (tab_bar)
     {
-        tab_bar->Release();
+        IUIAutomationElement_Release(tab_bar);
     }
     return res;
 }
@@ -383,8 +394,7 @@ init_uia(void)
         return false;
     }
     CoInitialize(NULL);
-    hr = CoCreateInstance(__uuidof(CUIAutomation), NULL, CLSCTX_INPROC_SERVER, 
-         __uuidof(IUIAutomation), (void**)&g_uia);
+    hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&g_uia);
 #ifdef _LOGDEBUG
     if(FAILED(hr))
     {
@@ -399,7 +409,7 @@ un_uia(void)
 {
     if (g_uia)
     {
-        g_uia->Release();
+        IUIAutomation_Release(g_uia);
         CoUninitialize();
     }
     if (message_hook)

@@ -81,7 +81,7 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o \
+           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/on_tabs.o \
            $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/file_paser.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
@@ -181,6 +181,8 @@ $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) -c $< $(CFLAGS) -o $@
+$(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h $(SRC)/win_automation.h
+	$(CC) -c $< $(CFLAGS) -o $@	
 $(DEP)/file_paser.o   : $(SRC)/file_paser.c $(SRC)/file_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h

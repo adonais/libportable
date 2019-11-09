@@ -320,6 +320,12 @@ is_authorized(LPCWSTR lpFileName)
                                   };
     bool     wow64 = is_wow64();
     uint16_t line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
+    wchar_t  dllpath[MAX_PATH+1] = {0};
+    GetModuleFileNameW(dll_module,dllpath,MAX_PATH);
+    if (_wcsicmp(lpFileName,dllpath) == 0)
+    {
+        return true;
+    }    
     if (lpFileName[1] == L':')
     {
         wchar_t sysdir[VALUE_LEN+1] = {0};
@@ -332,11 +338,11 @@ is_authorized(LPCWSTR lpFileName)
         {
             PathAppendW(sysdir,L"system32");
         }
-        if ( _wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0 )
+        if (_wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0)
         {
             filename = PathFindFileNameW(lpFileName);
         }
-        else if ( wow64 && wcslen(sysdir)>0 )   /* compare system32 directory again */
+        else if (wow64 && wcslen(sysdir)>0)   /* compare system32 directory again */
         {
             PathRemoveFileSpecW(sysdir);
             PathAppendW(sysdir,L"system32");
@@ -352,7 +358,7 @@ is_authorized(LPCWSTR lpFileName)
         uint16_t  i;
         for(i=0; i<line; i++)
         {
-            if ( _wcsicmp(filename,szAuthorizedList[i]) == 0 )
+            if (_wcsicmp(filename,szAuthorizedList[i]) == 0)
             {
                 ret = true;
                 break;
