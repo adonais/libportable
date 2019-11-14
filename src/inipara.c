@@ -6,7 +6,7 @@
 #include <tlhelp32.h>
 #include <shlobj.h>
 #include "inipara.h"
-#include "file_paser.h"
+
 #ifdef _MSC_VER
 #include <stdarg.h>
 #endif
@@ -19,6 +19,7 @@
 typedef DWORD (WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD (WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
 typedef bool  (WINAPI *PFNVQVW)(LPCVOID, LPCWSTR, LPVOID, PUINT);
+extern  bool __stdcall json_parser(wchar_t *moz_profile);
 
 typedef struct _LANGANDCODEPAGE
 {
@@ -30,7 +31,7 @@ static PFNGFVSW   pfnGetFileVersionInfoSizeW;
 static PFNGFVIW   pfnGetFileVersionInfoW;
 static PFNVQVW    pfnVerQueryValueW;
 LoadLibraryExPtr  sLoadLibraryExStub = NULL;
-HMODULE           dll_module         = NULL;
+
 
 #ifdef _LOGDEBUG
 static char       logfile_buf[MAX_PATH+1];
@@ -107,8 +108,66 @@ get_ini_path(WCHAR *ini, int len)
     return ret;
 }
 
+static bool
+is_utf8_string(const char *utf)
+{
+#define CHECK_LENGTH MAX_PATH
+    int length = strlen(utf);
+    int check_sub = 0;
+    int i = 0;
+
+    if (length > CHECK_LENGTH) // 取前面特定长度的字符来验证
+    {
+        length = CHECK_LENGTH;
+    }
+    for (; i < length; i++)
+    {
+        if (check_sub == 0)
+        {
+            if ((utf[i] >> 7) == 0) // 0xxx xxxx
+            {
+                continue;
+            }
+            else if ((utf[i] & 0xE0) == 0xC0) // 110x xxxx
+            {
+                check_sub = 1;
+            }
+            else if ((utf[i] & 0xF0) == 0xE0) // 1110 xxxx
+            {
+                check_sub = 2;
+            }
+            else if ((utf[i] & 0xF8) == 0xF0) // 1111 0xxx
+            {
+                check_sub = 3;
+            }
+            else if ((utf[i] & 0xFC) == 0xF8) // 1111 10xx
+            {
+                check_sub = 4;
+            }
+            else if ((utf[i] & 0xFE) == 0xFC) // 1111 110x
+            {
+                check_sub = 5;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if ((utf[i] & 0xC0) != 0x80)
+            {
+                return false;
+            }
+            check_sub--;
+        }
+    }
+    return true;
+#undef CHECK_LENGTH
+}
+
 bool WINAPI
-read_appkey(LPCWSTR lpappname,           /* 区段名 */
+read_appkeyW(LPCWSTR lpappname,          /* 区段名 */
             LPCWSTR lpkey,               /* 键名  */
             LPWSTR  prefstring,          /* 保存值缓冲区 */
             DWORD   bufsize,             /* 缓冲区大小 */
@@ -116,7 +175,7 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
            )
 {
     DWORD   res = 0;
-    LPCWSTR pfile = (LPCWSTR)filename;
+	LPCWSTR pfile = (LPCWSTR)filename;
     WCHAR   ini[MAX_PATH] = {0};
     if (!pfile)
     {
@@ -125,17 +184,78 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
     if (pfile != NULL)
     {
         res = GetPrivateProfileStringW(lpappname, 
-                                       lpkey ,
-                                       L"", 
-                                       prefstring, 
-                                       bufsize, 
-                                       pfile);
+                                      lpkey ,
+                                      L"", 
+                                      prefstring, 
+                                      bufsize, 
+                                      pfile);
     }
     if (res == 0 && GetLastError() != 0x0)
     {
         return false;
     }
     prefstring[res] = L'\0';
+    return (res>0);
+}
+
+bool WINAPI
+read_appkeyA(LPCSTR lpappname,          /* 区段名 */
+            LPCSTR lpkey,               /* 键名  */
+            LPWSTR prefstring,          /* 保存值缓冲区 */
+            DWORD  bufsize,             /* 缓冲区大小 */
+            void*  filename             /* 文件名,默认为空 */
+           )
+
+{
+    DWORD   res = 0;
+	LPCWSTR pfile = (LPCWSTR)filename;
+    WCHAR   ini[MAX_PATH] = {0};
+	char    u8_path[MAX_PATH] = {0};
+	char    a8_ini[MAX_PATH] = {0};
+    if (!pfile)
+    {
+        pfile = get_ini_path(ini, MAX_PATH)? ini: NULL;
+    }
+    if (pfile == NULL)
+    {
+        return false;
+    }
+	if (!WideCharToMultiByte(CP_ACP, 0, pfile, -1, a8_ini, MAX_PATH, NULL, NULL))
+	{
+    #ifdef _LOGDEBUG
+        logmsg("WideCharToMultiByte false in %s\n", __FUNCTION__);
+    #endif
+        return false;
+	}
+    res = GetPrivateProfileStringA(lpappname, 
+                                  lpkey,
+                                  "", 
+                                  u8_path,
+                                  MAX_PATH, 
+                                  a8_ini);
+    if (res == 0 && GetLastError() != 0x0)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("GetPrivateProfileStringA false in %s , ini = %s\n", __FUNCTION__, a8_ini);
+    #endif
+        return false;
+    }
+	if (is_utf8_string(u8_path))
+	{
+		res = MultiByteToWideChar(CP_UTF8,0,u8_path,-1,prefstring,bufsize);
+	}
+	else
+	{
+		res = MultiByteToWideChar(CP_ACP,0,u8_path,-1,prefstring,bufsize);
+	}
+	if (res>0)
+	{
+		prefstring[res] = L'\0';
+	}
+	else
+	{
+		*prefstring = L'\0';
+	}
     return (res>0);
 }
 
@@ -724,7 +844,7 @@ get_profile_path(LPWSTR in_dir, int len, LPCWSTR appdt)
     {    	
     	return false;
     }   
-    if (!read_appkey(L"Profile0",L"Path",path,sizeof(path),in_dir))
+    if (!read_appkeyA("Profile0","Path",path,MAX_PATH,in_dir))
     {   	
     	return false;
     }
@@ -757,37 +877,44 @@ search_section_names(LPCWSTR moz_profile,
                      int len)
 {
     int    ret = -1;
-    LPWSTR m_section,str_section = NULL;
-    if ( (m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) == NULL )
+    LPWSTR m_section,u_section = NULL;
+    if ((m_section = (LPWSTR)SYS_MALLOC(MAX_ALLSECTIONS*sizeof(WCHAR)+1)) == NULL)
     {
         return ret;
     }
-    if ( GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0 )
+    if (GetPrivateProfileSectionNamesW(m_section,MAX_ALLSECTIONS,moz_profile) > 0)
     {
         int     i = 0;
         LPCWSTR pf = L"Profile";
         size_t  j  = wcslen(pf);
-        str_section = m_section;
-        while ( *str_section != L'\0' &&  i < MAX_SECTION )
+        u_section = m_section;
+        while (*u_section != L'\0' &&  i < MAX_SECTION)
         {
             WCHAR values[SECTION_NAMES] = {0};
-
-            if ( wcsncmp(str_section,pf,j) == 0 && \
-                 read_appkey(str_section,L"Name",values,sizeof(values),(void *)moz_profile) )
+            if (wcsncmp(u_section,pf,j) == 0)
             {
-                if ( wcsncmp(values, moz_values, wcslen(moz_values))==0 && \
-                     wnsprintfW(out_names,(size_t)len,L"%ls",str_section) > 0 )
+				char section[NAMES_LEN] = {0};
+	            if (!WideCharToMultiByte(CP_ACP, 0, u_section, wcslen(u_section), section, NAMES_LEN, NULL, NULL))
+	            {
+                    break;
+	            }
+				if (!read_appkeyA(section,"Name",values,SECTION_NAMES,(void *)moz_profile))
+	            {
+                    break;
+	            }
+                if (wcsncmp(values, moz_values, wcslen(moz_values))==0 &&
+                    wnsprintfW(out_names,(size_t)len,L"%ls",u_section) > 0)
                 {
                     ret = 0;
                     break;
                 }
                 else
                 {
-                    ret = StrToIntW(&str_section[j]);
+                    ret = StrToIntW(&u_section[j]);
                     if ( ret>=0 ) ++ret;
                 }
             }
-            str_section += wcslen(str_section)+1;
+            u_section += wcslen(u_section)+1;
             ++i;
         }
     }
@@ -836,7 +963,7 @@ clean_files(LPCWSTR appdt)
     {
 	    return;
     }
-    if (read_appkey(L"Compatibility",L"LastPlatformDir",cmp_ini,sizeof(cmp_ini),cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
+    if (read_appkeyA("Compatibility","LastPlatformDir",cmp_ini,MAX_PATH,cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
     {
 	#ifdef _LOGDEBUG
 	    logmsg("no movement of position,do nothing.\n");
@@ -939,7 +1066,7 @@ get_appdt_path(WCHAR *path, int len)
     {
         return false;
     }
-    if (!read_appkey(L"General", L"PortableDataPath", path, len*sizeof(WCHAR), ini))
+    if (!read_appkeyW(L"General", L"PortableDataPath", path, len, ini))
     {
         wnsprintfW(path, MAX_PATH, L"%ls", L"../Profiles");
     }
@@ -958,11 +1085,11 @@ get_localdt_path(WCHAR *path, int len)
     {
         return false;
     }    
-    if (read_appkey(L"Env", L"TmpDataPath", path, sizeof(WCHAR)*len, ini))
+    if (read_appkeyW(L"Env", L"TmpDataPath", path, len, ini))
     {
         ;
     }
-    else if (!read_appkey(L"General", L"PortableDataPath", path, len*sizeof(WCHAR), ini))
+    else if (!read_appkeyW(L"General", L"PortableDataPath", path, len, ini))
     {
         wnsprintfW(path, MAX_PATH, L"%ls", L"../Profiles");
     }

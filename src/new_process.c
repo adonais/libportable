@@ -69,7 +69,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
     LPWSTR lp = NULL;
     WCHAR  temp[VALUE_LEN+1]   = {0};
     WCHAR  m_para[VALUE_LEN+1] = {0};
-    if ( read_appkey(L"attach",L"ExPath",temp,sizeof(temp),NULL) )
+    if ( read_appkeyW(L"attach",L"ExPath",temp,VALUE_LEN,NULL) )
     {
         wdir[0] = L'\0';
         lp =  StrChrW(temp,L',');

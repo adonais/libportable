@@ -11,14 +11,14 @@
 #include <stdio.h>
 
 LoadLibraryExPtr            pLoadLibraryEx = NULL;
-_NtCreateUserProcess        sNtCreateUserProcess = NULL;
-_NtCreateUserProcess        pNtCreateUserProcess = NULL;
-_NtWriteVirtualMemory       sNtWriteVirtualMemory = NULL;
-_NtWriteVirtualMemory       pNtWriteVirtualMemory = NULL;
-_RtlNtStatusToDosError      pRtlNtStatusToDosError = NULL;
-_CreateProcessInternalW     sCreateProcessInternalW = NULL;
-_CreateProcessInternalW     pCreateProcessInternalW = NULL;
-_NtQueryInformationProcess  pNtQueryInformationProcess = NULL;
+static _NtCreateUserProcess    sNtCreateUserProcess;
+static _NtCreateUserProcess    pNtCreateUserProcess;
+static _NtWriteVirtualMemory   sNtWriteVirtualMemory;
+static _NtWriteVirtualMemory   pNtWriteVirtualMemory;
+static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
+static _CreateProcessInternalW pCreateProcessInternalW;
+static _CreateProcessInternalW sCreateProcessInternalW;
+
 
 
 static bool in_whitelist(LPCWSTR lpfile)

@@ -188,11 +188,7 @@ $(DEP)/file_paser.o   : $(SRC)/file_paser.c $(SRC)/file_paser.h
 $(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/cjson.o        : $(SRC)/cjson.c $(SRC)/cjson.h
-	$(CC) -c $< $(CFLAGS) -o $@	
-ifeq ($(MSVC),1)	
-$(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h
-	$(CXX) -c $< $(CFLAGS) -Wno-deprecated -o $@
-endif
+	$(CC) -c $< $(CFLAGS) -o $@
 ifeq ($(LIBPORTABLE_STATIC),)	
 $(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) $< $(RCFLAGS) $@

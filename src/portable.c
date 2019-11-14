@@ -60,6 +60,7 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
         HANDLE           hToken,
         PWSTR            *ppszPath);
 
+HMODULE dll_module = NULL;
 static  WNDINFO  ff_info;
 static  uintptr_t m_target[EXCLUDE_NUM];
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
@@ -341,7 +342,7 @@ static uint64_t
 read_long(LPCWSTR cat,LPCWSTR name)
 {
     WCHAR buf[NAMES_LEN+1] = {0};
-    if (!read_appkey(cat, name, buf, sizeof(buf), NULL))
+    if (!read_appkeyW(cat, name, buf, NAMES_LEN, NULL))
     {
         return 0;
     }
@@ -606,6 +607,9 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
         break;
     case DLL_PROCESS_DETACH:
         undo_it();
+    #if defined(ENABLE_TCMALLOC)
+        FreeLibraryAndExitThread(dll_module, 0);
+    #endif
         break;
     case DLL_THREAD_ATTACH:
         break;

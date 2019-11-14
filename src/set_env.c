@@ -177,7 +177,7 @@ static void /* 重定向插件目录 */
 set_plugins(void)
 {
     WCHAR val_str[VALUE_LEN + 1] = { 0 };
-    if (read_appkey(L"Env", L"NpluginPath", val_str, sizeof(val_str), NULL))
+    if (read_appkeyW(L"Env", L"NpluginPath", val_str, VALUE_LEN, NULL))
     {
         WCHAR env_str[VALUE_LEN + 1] = { 0 };
         path_to_absolute(val_str, VALUE_LEN);
