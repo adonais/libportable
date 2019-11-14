@@ -10,7 +10,19 @@
 #include <shlobj.h>
 #include <stdio.h>
 
-LoadLibraryExPtr            pLoadLibraryEx = NULL;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(VC12_CRT)
+const int _fltused = 0;
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+LoadLibraryExPtr               pLoadLibraryEx = NULL;
 static _NtCreateUserProcess    sNtCreateUserProcess;
 static _NtCreateUserProcess    pNtCreateUserProcess;
 static _NtWriteVirtualMemory   sNtWriteVirtualMemory;
@@ -18,7 +30,6 @@ static _NtWriteVirtualMemory   pNtWriteVirtualMemory;
 static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
 static _CreateProcessInternalW pCreateProcessInternalW;
 static _CreateProcessInternalW sCreateProcessInternalW;
-
 
 
 static bool in_whitelist(LPCWSTR lpfile)
@@ -395,7 +406,6 @@ unsigned WINAPI init_safed(void)
     DWORD		ver = get_os_version();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
-
     if ( hNtdll == NULL || hKernel  == NULL ||
         (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL )
     {

@@ -1,0 +1,12 @@
+LIBRARY	NTDLL.DLL
+EXPORTS
+	_chkstk
+	_alldiv
+	_allmul
+	_allshr
+	_aullrem
+	_aulldvrm
+	_aulldiv
+	_aullshr
+	_allshl
+	_fltused
