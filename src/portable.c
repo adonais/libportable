@@ -478,7 +478,7 @@ window_hooks(void)
         {
             threads_on_win7();
         #ifdef _LOGDEBUG
-            logmsg("vista--win7!\n");
+            logmsg("winxp--win7!\n");
         #endif
         }
     }

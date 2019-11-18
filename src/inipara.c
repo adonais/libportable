@@ -111,7 +111,7 @@ static bool
 is_utf8_string(const char *utf)
 {
 #define CHECK_LENGTH MAX_PATH
-    int length = strlen(utf);
+    int length = (int)strlen(utf);
     int check_sub = 0;
     int i = 0;
 
@@ -843,7 +843,7 @@ search_section_names(LPCWSTR moz_profile, LPCWSTR moz_values, LPWSTR out_names, 
             if (wcsncmp(u_section, pf, j) == 0)
             {
                 char section[NAMES_LEN] = { 0 };
-                if (!WideCharToMultiByte(CP_ACP, 0, u_section, wcslen(u_section), section, NAMES_LEN, NULL, NULL))
+                if (!WideCharToMultiByte(CP_ACP, 0, u_section, (int)wcslen(u_section), section, NAMES_LEN, NULL, NULL))
                 {
                     break;
                 }
