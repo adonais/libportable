@@ -34,25 +34,20 @@ send_key_click(int mouse)
     if (mouse == MOUSEEVENTF_MIDDLEDOWN)
     {
     #if defined(__GNUC__) || defined(__clang__)
-        INPUT input[] =
-        {
-            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, 0, 0, 0 } } },
-            { INPUT_KEYBOARD, {.ki = { VK_F4, 0, 0, 0, 0 } } },
-            { INPUT_KEYBOARD, {.ki = { VK_F4, 0, KEYEVENTF_KEYUP, 0, 0 } } },
-            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, KEYEVENTF_KEYUP, 0, 0 } } }
+        INPUT input[] = 
+        { 
+            { INPUT_MOUSE, {.mi = { 0, 0, 0, MOUSEEVENTF_MIDDLEDOWN, 0, 0 } } },
+            { INPUT_MOUSE, {.mi = { 0, 0, 0, MOUSEEVENTF_MIDDLEUP, 0, 0 } } }
+        };    
+    #else       
+        INPUT input[] = 
+        { 
+            { INPUT_MOUSE, {0, } }, 
+            { INPUT_MOUSE, {0, } } 
         };
-    #else             
-        INPUT input[] =
-        {
-            { INPUT_KEYBOARD, {0, } },
-            { INPUT_KEYBOARD, {0, } },
-            { INPUT_KEYBOARD, {0, } },
-            { INPUT_KEYBOARD, {0, } }
-        };
-        input[0].ki.wVk = input[3].ki.wVk = VK_RCONTROL;
-        input[1].ki.wVk = input[2].ki.wVk = VK_F4;
-        input[2].ki.dwFlags = input[3].ki.dwFlags = KEYEVENTF_KEYUP;
-    #endif    
+        input[0].mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
+        input[1].mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+    #endif
         SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
     }
 }
