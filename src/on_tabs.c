@@ -106,7 +106,7 @@ find_next_child(IUIAutomationElement *pElement)
         VARIANT var;
         var.vt = VT_I4;
         var.lVal = UIA_TabControlTypeId;
-        if (!pElement)
+        if (!(pElement && g_uia && cache_uia))
         {
         #ifdef _LOGDEBUG
             logmsg("%s false, cause: pElement = 0x%\n", __FUNCTION__, pElement);
@@ -149,7 +149,7 @@ get_tab_bars(IUIAutomationElement **tab_bar)
         int c = 0;
         var.vt = VT_I4;
         var.lVal = UIA_ToolBarControlTypeId;
-        if (!ice_root)
+        if (!(g_uia && ice_root && cache_uia))
         {
             break;
         }
@@ -170,11 +170,12 @@ get_tab_bars(IUIAutomationElement **tab_bar)
             break;
         }
         hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
-        if (FAILED(hr) || c == 0 || c > 64)
+        if (FAILED(hr) || c == 0 || c > VALUE_LEN)
         {
         #ifdef _LOGDEBUG
             logmsg("%s_IUIAutomationElementArray_get_Length false, c = %d!\n", __FUNCTION__, c);
-        #endif            
+        #endif
+            hr = 1;
             break;
         }          
         for (idx = 0; idx < c; idx++)
@@ -224,6 +225,13 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         #endif
             break;
         }   
+        if (!(g_uia && cache_uia && tab_bar))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("point exist null vaule!\n");
+        #endif
+            break;
+        }          
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
         if (FAILED(hr))
         {
@@ -241,11 +249,12 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
             break;
         }
         hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
-        if (FAILED(hr) || c == 0 || c > 64)
+        if (FAILED(hr) || c == 0 || c > VALUE_LEN)
         {
         #ifdef _LOGDEBUG
             logmsg("%s_IUIAutomationElementArray_get_Length false, c = %d!\n", __FUNCTION__, c);
-        #endif            
+        #endif
+            hr = 1;
             break;
         }          
         for (idx = 0; idx < c; idx++)
@@ -314,25 +323,17 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
 static HRESULT
 find_root_ui(HWND hwnd, IUIAutomationElement **proot)
 {
-    HRESULT hr;
-    do 
+    HRESULT hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);      
+    if (SUCCEEDED(hr) && cache_uia)
     {
-        hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);        
-        if (FAILED(hr))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("%s_IUIAutomation_CreateCacheRequest false!\n", __FUNCTION__);
-        #endif
-            break;
-        }
         hr = IUIAutomation_ElementFromHandleBuildCache(g_uia, hwnd, cache_uia, proot);
+    #ifdef _LOGDEBUG
         if (FAILED(hr))
         {
-        #ifdef _LOGDEBUG
             logmsg("%s_IUIAutomation_ElementFromHandleBuildCache NULL!\n", __FUNCTION__);
-        #endif
-        }                       
-    }while (0);
+        }
+    #endif    
+    }
     return hr;
 }
 
@@ -484,7 +485,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         send_click(MOUSEEVENTF_LEFTDOWN);
                     }
                 }
-                break;          
+                break;                   
             default:
                 break;
         }
