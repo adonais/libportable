@@ -17,11 +17,7 @@ get_cwd(LPSTR lpstrName, DWORD len)
     WCHAR wPath[MAX_PATH+1] = {0};
     if (getw_cwd(wPath,MAX_PATH))
     {
-	#ifdef USE_UTF8
-        i = WideCharToMultiByte(CP_UTF8, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
-	#else
         i = WideCharToMultiByte(CP_ACP, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
-	#endif
     }
     return (i>0 && i<(int)len);
 }
