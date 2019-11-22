@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <assert.h>
 #include <windows.h>
+#include <shlwapi.h>
 #include "lz4.h"
 #include "cjson.h"
 
@@ -20,7 +20,7 @@
 #endif
 
 #ifdef _LOGDEBUG
-extern void     __cdecl logmsg(const char * format, ...);
+extern void __cdecl logmsg(const char *format, ...);
 #endif
 
 static unsigned char *
@@ -42,44 +42,42 @@ bytes2int(unsigned char *src)
     return value;
 }
 
-static const char*
-fie2url(char* str)
+static const char *
+fie2url(char *str)
 {
     int i;
     int j = 0;
-    int m_size=0;
+    int m_size = 0;
     char *result = NULL;
     if (str == NULL)
     {
         return NULL;
     }
-    m_size=(int)strlen(str);
-    if ((result = (char *)malloc(3*m_size)) == NULL) 
+    m_size = (int) strlen(str);
+    if ((result = (char *) malloc(3 * m_size)) == NULL)
     {
         return NULL;
     }
-    for (i=0; i<m_size; ++i) 
+    for (i = 0; i < m_size; ++i)
     {
         char ch = str[i];
-        if (((ch>='A') && (ch<='Z')) ||
-            ((ch>='a') && (ch<='z')) ||
-            ((ch>='0') && (ch<='9'))) 
+        if (((ch >= 'A') && (ch <= 'Z')) || ((ch >= 'a') && (ch <= 'z')) || ((ch >= '0') && (ch <= '9')))
         {
             result[j++] = ch;
         }
-        else if (ch == ':' || ch == '/' || ch == '\\' || ch == '.' || ch == '-' || ch == '_' || ch == '&' ||
-                ch == '$' || ch == '[' || ch == ']' || ch == '@' || ch == '!' || ch == '=' ||
-                ch == ',' || ch == '~' || ch == '+' || ch == '\'') 
+        else if (ch == ':' || ch == '/' || ch == '\\' || ch == '.' || ch == '-' || ch == '_' || ch == '&' || ch == '$' ||
+                 ch == '[' || ch == ']' || ch == '@' || ch == '!' || ch == '=' || ch == ',' || ch == '~' || ch == '+' || ch == '\'')
         {
             result[j++] = ch;
-        } else 
+        }
+        else
         {
-            sprintf(result+j, "%%%02X", (unsigned char)ch);
+            wnsprintfA(result + j, 3 * m_size - j, "%%%02X", (unsigned char) ch);
             j += 3;
         }
     }
     result[j] = '\0';
-    strcpy(str,result);
+    strcpy(str, result);
     free(result);
     return str;
 }
@@ -94,7 +92,7 @@ mychr_replace(const char *path)
     {
         return ret;
     }
-    if ((ret = (char *)calloc(1, MAX_PATH)) == NULL)
+    if ((ret = (char *) calloc(1, MAX_PATH)) == NULL)
     {
         return ret;
     }
@@ -122,7 +120,7 @@ mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
     size_t resoffset = 0;
     char *needle;
     const char *in_ptr = in;
-    if ((res = (char *)calloc(1, in_size)) == NULL)
+    if ((res = (char *) calloc(1, in_size)) == NULL)
     {
         return NULL;
     }
@@ -138,6 +136,32 @@ mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
     return res;
 }
 
+static char *
+utf8_ansi(const char *utf8)
+{
+    char *a_8 = NULL;
+    int len = 0;
+    wchar_t u_16[MAX_PATH] = { 0 };
+    do
+    {
+        if (!MultiByteToWideChar(CP_UTF8, 0, utf8, -1, u_16, MAX_PATH))
+        {
+            break;
+        }
+        if ((len = WideCharToMultiByte(CP_ACP, 0, u_16, -1, NULL, 0, NULL, NULL)) > 0)
+        {
+            a_8 = (char *) calloc(1, len + 1);
+        }
+        if (a_8 && !WideCharToMultiByte(CP_ACP, 0, u_16, -1, a_8, len, NULL, NULL))
+        {
+            free(a_8);
+            a_8 = NULL;
+            break;
+        }
+    } while (0);
+    return a_8;
+}
+
 static bool
 value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub2, const char *by)
 {
@@ -148,10 +172,10 @@ value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub
     {
         return false;
     }
-    sub = strstr(path->valuestring, sub1)?sub1:NULL;
+    sub = strstr(path->valuestring, sub1) ? sub1 : NULL;
     if (sub == NULL && sub2 != NULL)
     {
-        sub = strstr(path->valuestring, sub2)?sub2:NULL;
+        sub = strstr(path->valuestring, sub2) ? sub2 : NULL;
     }
     if (sub)
     {
@@ -200,33 +224,32 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
     cJSON *json = NULL;
     do
     {
-        unsigned char numbers[4];    
+        unsigned char numbers[4];
         int decompressed_size = 0;
-        char *win_profiles_path = NULL;
-        char *unix_profiles_path = NULL;
-        char *win_app_path = NULL;
-        char *u8_app_path = NULL;
-        char *a8_app_path = NULL;
-        char *unix_profiles = NULL;
-        char *unix_app = NULL;
+        char *profiles_node_path = NULL;
+        char *win_node_path = NULL;
+        char *u8_enc_path = NULL;
+        char *a8_enc_path = NULL;
+        char *win_enc_profile = NULL;
+        char *win_enc_app = NULL;
         cJSON *app_profile = NULL;
         cJSON *system_default = NULL;
-        cJSON *system_addon = NULL; 
+        cJSON *system_addon = NULL;
         int src_size = 0;
-        int max_dst_size = 0;        
+        int max_dst_size = 0;
         char *compressed_data = NULL;
-        int compressed_data_size = 0; 
+        int compressed_data_size = 0;
         if ((fp = _wfopen(file, L"rb")) == NULL)
         {
         #ifdef _LOGDEBUG
             logmsg("fopen %ls failed\n", file);
-        #endif          
+        #endif
             break;
         }
         fseek(fp, 0L, SEEK_END);
         len = ftell(fp);
         fseek(fp, 0L, SEEK_SET);
-        bytes = fread(moz, 1, 8, fp);        
+        bytes = fread(moz, 1, 8, fp);
         if (strcmp(moz, moz_magic) != 0)
         {
             break;
@@ -237,129 +260,161 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
         if (dest == NULL)
         {
             break;
-        }    
+        }
         bytes = fread(dest, 1, len, fp);
         if (bytes < 1)
         {
             break;
-        }   
+        }
         regen_buffer = calloc(out_len, sizeof(char));
         if (regen_buffer == NULL)
         {
             break;
-        }   
+        }
         decompressed_size = LZ4_decompress_safe(dest, regen_buffer, (int) bytes, out_len);
         if (decompressed_size < 1)
         {
         #ifdef _LOGDEBUG
             logmsg("LZ4_decompress_safe faild, decompressed_size = %d\n", decompressed_size);
-        #endif 
-            break;            
-        } 
+        #endif
+            break;
+        }
     #ifdef _LOGDEBUG
         FILE *tptp = NULL;
         if ((tptp = _wfopen(L"test.json", L"wb")) != NULL)
         {
             fwrite(regen_buffer, 1, decompressed_size, tptp);
-            fclose(tptp);        
-        } 
+            fclose(tptp);
+        }
     #endif
-        if ((json = cJSON_Parse(regen_buffer)) == NULL) 
-        { 
+        if ((json = cJSON_Parse(regen_buffer)) == NULL)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("cJSON_Parse return false\n");
+        #endif
             break;
-        } 
+        }
         app_profile = cJSON_GetObjectItem(json, "app-profile");
         system_default = cJSON_GetObjectItem(json, "app-system-defaults");
         system_addon = cJSON_GetObjectItem(json, "app-system-addons");
-        unix_profiles = mychr_replace(win_profiles);
-        unix_app = mychr_replace(win_app);
-        if (system_default && (win_app_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
+        win_enc_profile = mychr_replace(win_profiles);
+        win_enc_app = mychr_replace(win_app);
+        if (system_default && (win_node_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
         {
-            wchar_t u_app_path[MAX_PATH+1] = {0};
-            char ansi_app_path[MAX_PATH+1] = {0};                    
-            if (strrchr(win_app_path, '\\') != NULL)
+            char *win_ansi_path = NULL;
+            if (strrchr(win_node_path, '\\') != NULL)
             {
-                *strrchr(win_app_path, '\\') = '\0';
-                if (strrchr(win_app_path, '\\') != NULL)
+                *strrchr(win_node_path, '\\') = '\0';
+                if (strrchr(win_node_path, '\\') != NULL)
                 {
-                    *strrchr(win_app_path, '\\') = '\0';
+                    *strrchr(win_node_path, '\\') = '\0';
                 }
             }
-            if (!MultiByteToWideChar(CP_UTF8,0,win_app_path,-1,u_app_path,MAX_PATH))
+            if ((win_ansi_path = utf8_ansi(win_node_path)) == NULL)
             {
                 break;
-            } 
-            if (!WideCharToMultiByte(CP_ACP, 0, u_app_path, -1, ansi_app_path, MAX_PATH, NULL, NULL))
-            {
-                break;
-            }                                     
-            u8_app_path = mychr_replace(win_app_path);
-            a8_app_path = mychr_replace(ansi_app_path);
-        #ifdef _LOGDEBUG
-            logmsg("u8_app_path = %s\n", u8_app_path);
-            logmsg("a8_app_path = %s\n", a8_app_path);
-        #endif            
+            }
+            u8_enc_path = mychr_replace(win_node_path);
+            a8_enc_path = mychr_replace(win_ansi_path);
             cJSON *addons = cJSON_GetArrayItem(system_default, 0);
             if (addons)
             {
-                node_path_fix(addons, "rootURI", u8_app_path, a8_app_path, unix_app);
+            #ifdef _LOGDEBUG
+                logmsg("u8_enc_path = %s, a8_enc_path = %s\n", u8_enc_path, a8_enc_path);
+            #endif
+                node_path_fix(addons, "rootURI", u8_enc_path, a8_enc_path, win_enc_app);
             }
-            value_repalce(system_default, "path", win_app_path, NULL, win_app);
-        }
-        if (app_profile && (win_profiles_path = _strdup(cJSON_GetObjectItem(app_profile, "path")->valuestring)) != NULL)
-        {            
-            if (strrchr(win_profiles_path, '\\') != NULL)
+            if (!value_repalce(system_default, "path", win_node_path, NULL, win_app))
             {
-                *strrchr(win_profiles_path, '\\') = '\0';
-            }               
-            unix_profiles_path = mychr_replace(win_profiles_path);
-        #ifdef _LOGDEBUG
-            logmsg("unix_profiles_path = %s\n", unix_profiles_path);
-            logmsg("unix_profiles = %s\n", unix_profiles);
-        #endif                  
+            #ifdef _LOGDEBUG
+                logmsg("value_repalce false, win_app = %s\n", win_app);
+            #endif
+            }
+            if (win_ansi_path)
+            {
+                free(win_ansi_path);
+                win_ansi_path = NULL;
+            }
+            if (u8_enc_path)
+            {
+                free(u8_enc_path);
+                u8_enc_path = NULL;
+            }
+            if (a8_enc_path)
+            {
+                free(a8_enc_path);
+                a8_enc_path = NULL;
+            }
+        }
+        if (app_profile && (profiles_node_path = _strdup(cJSON_GetObjectItem(app_profile, "path")->valuestring)) != NULL)
+        {
+            char *profiles_ansi_path = NULL;
+            if (strrchr(profiles_node_path, '\\') != NULL)
+            {
+                *strrchr(profiles_node_path, '\\') = '\0';
+            }
+            if ((profiles_ansi_path = utf8_ansi(profiles_node_path)) == NULL)
+            {
+                break;
+            }
+            u8_enc_path = mychr_replace(profiles_node_path);
+            a8_enc_path = mychr_replace(profiles_ansi_path);
             cJSON *addons = cJSON_GetArrayItem(app_profile, 0);
             if (addons)
             {
-                node_path_fix(addons, "rootURI", unix_profiles_path, NULL, unix_profiles);
+                node_path_fix(addons, "rootURI", u8_enc_path, a8_enc_path, win_enc_profile);
             }
-            value_repalce(app_profile, "path", win_profiles_path, NULL, win_profiles);
+            if (!value_repalce(app_profile, "path", profiles_node_path, NULL, win_profiles))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("value_repalce false, win_profiles1 = %s\n", win_profiles);
+            #endif
+            }
+            if (profiles_ansi_path)
+            {
+                free(profiles_ansi_path);
+                profiles_ansi_path = NULL;
+            }
         }
         if (system_addon != NULL)
         {
             cJSON *addons = cJSON_GetArrayItem(system_addon, 0);
             if (addons)
             {
-                node_path_fix(addons, "rootURI", unix_profiles_path, NULL, unix_profiles);
-            }             
-            value_repalce(system_addon, "path", win_profiles_path, NULL, win_profiles);
-        }        
-        if (win_profiles_path)
-        {
-            free(win_profiles_path);
+                node_path_fix(addons, "rootURI", u8_enc_path, a8_enc_path, win_enc_profile);
+            }
+            if (!value_repalce(system_addon, "path", profiles_node_path, NULL, win_profiles))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("value_repalce false, win_profiles2 = %s\n", win_profiles);
+            #endif
+            }
         }
-        if (win_app_path)
+        if (u8_enc_path)
         {
-            free(win_app_path);
+            free(u8_enc_path);
+            u8_enc_path = NULL;
         }
-        if (unix_profiles_path)
+        if (a8_enc_path)
         {
-            free(unix_profiles_path);
+            free(a8_enc_path);
+            a8_enc_path = NULL;
         }
-        if (u8_app_path)
+        if (win_node_path)
         {
-            free(u8_app_path);
+            free(win_node_path);
         }
-        if (a8_app_path)
+        if (profiles_node_path)
         {
-            free(a8_app_path);
-        }        
-        if (unix_profiles)
-        {
-            free(unix_profiles);
+            free(profiles_node_path);
         }
-        if (unix_app)
+        if (win_enc_profile)
         {
-            free(unix_app);
+            free(win_enc_profile);
+        }
+        if (win_enc_app)
+        {
+            free(win_enc_app);
         }
         out_json = cJSON_PrintUnformatted(json);
         src_size = (int) strlen(out_json);
@@ -382,7 +437,7 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
             ret = 0;
         #undef MAGICNUMBER_SIZE
         }
-    }while(0); 
+    } while (0);
     if (fp)
     {
         fclose(fp);
@@ -411,7 +466,7 @@ bool __stdcall json_parser(wchar_t *moz_profile)
     char win_profile[MAX_PATH + 1] = { 0 };
     wchar_t u_file[MAX_PATH + 1] = { 0 };
     wchar_t u_save[MAX_PATH + 1] = { 0 };
-    wchar_t u_app[MAX_PATH + 1] = { 0 };  
+    wchar_t u_app[MAX_PATH + 1] = { 0 };
     char win_app[MAX_PATH + 1] = { 0 };
     if (!GetModuleFileNameW(NULL, u_app, MAX_PATH))
     {
@@ -420,22 +475,15 @@ bool __stdcall json_parser(wchar_t *moz_profile)
     if (wcsrchr(u_app, '\\') != NULL)
     {
         *wcsrchr(u_app, '\\') = '\0';
-    } 
-#ifdef USE_UTF8    
+    }
     if (!WideCharToMultiByte(CP_UTF8, 0, u_app, -1, win_app, MAX_PATH, NULL, NULL))
-#else
-    if (!WideCharToMultiByte(CP_ACP, 0, u_app, -1, win_app, MAX_PATH, NULL, NULL))
-#endif 
     {
         return false;
-    }   
-    _snwprintf(u_file, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4");
-    _snwprintf(u_save, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4.new");
-#ifdef USE_UTF8    
+    }
+    wnsprintfW(u_file, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4");
+    wnsprintfW(u_save, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4.new");
+
     if (!WideCharToMultiByte(CP_UTF8, 0, moz_profile, -1, win_profile, MAX_PATH, NULL, NULL))
-#else
-    if (!WideCharToMultiByte(CP_ACP, 0, moz_profile, -1, win_profile, MAX_PATH, NULL, NULL))
-#endif                
     {
         return false;
     }
@@ -443,7 +491,7 @@ bool __stdcall json_parser(wchar_t *moz_profile)
     {
     #ifdef _LOGDEBUG
         logmsg("lookup_json return false.\n");
-    #endif        
+    #endif
         return false;
     }
     return MoveFileExW(u_save, u_file, MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING);

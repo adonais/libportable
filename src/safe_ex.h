@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-extern unsigned  __stdcall init_safed(void * lparam);
+extern unsigned  __stdcall init_safed(void);
 
 #ifdef __cplusplus
 }

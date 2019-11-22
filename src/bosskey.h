@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 extern unsigned __stdcall bosskey_thread(void * lparam);
+extern unsigned __stdcall uninstall_bosskey(void);
 
 #ifdef __cplusplus
 }

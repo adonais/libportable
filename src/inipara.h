@@ -45,17 +45,7 @@ typedef struct tagWNDINFO
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
 
-typedef struct _s_data
-{
-    uint32_t main;
-    bool     restart;
-    bool     noprofile;
-    bool     noremote;
-    WCHAR    appdt[MAX_PATH+1];
-    WCHAR    localdt[MAX_PATH+1];
-    WCHAR    process[MAX_PATH+1];
-    WCHAR    ini[MAX_PATH+1];
-} s_data;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +53,6 @@ extern "C" {
 
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
-extern s_data           sdata;
 extern bool creator_hook(void* target, void* func, void **original);
 
 #ifdef _LOGDEBUG
@@ -74,9 +63,15 @@ extern void     WINAPI  init_logs(void);
 extern DWORD    WINAPI get_os_version(void);
 extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
 extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
-extern bool     WINAPI init_parser(LPWSTR inifull_name,DWORD buf_len);
-extern bool     WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
+extern bool     WINAPI read_appkeyW(LPCWSTR lpappname,          /* 区段名 */
                                    LPCWSTR lpkey,               /* 键名  */
+                                   LPWSTR  prefstring,          /* 保存值缓冲区 */
+                                   DWORD   bufsize,             /* 缓冲区大小 */
+                                   void*   filename             /* 文件名,默认为空 */
+                                   );
+
+extern bool     WINAPI read_appkeyA(LPCSTR  lpappname,          /* 区段名 */
+                                   LPCSTR  lpkey,               /* 键名  */
                                    LPWSTR  prefstring,          /* 保存值缓冲区 */
                                    DWORD   bufsize,             /* 缓冲区大小 */
                                    void*   filename             /* 文件名,默认为空 */
@@ -88,7 +83,7 @@ extern bool     WINAPI foreach_section(LPCWSTR cat,                     /* ini �
                                        int line                         /* 二维数组行数 */
                                        );
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
-extern bool     WINAPI is_browser(void *);
+extern bool     WINAPI is_browser(void* path);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern bool     WINAPI getw_cwd(LPWSTR lpstrName, DWORD wlen);
 extern unsigned WINAPI write_file(void * p);
@@ -98,6 +93,10 @@ extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
 extern bool     WINAPI print_process_module(DWORD pid);
+extern bool     WINAPI get_env_status(LPCWSTR env);
+extern bool     WINAPI get_ini_path(WCHAR *ini, int len);
+extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
+extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 
 #ifdef __cplusplus
 }

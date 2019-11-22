@@ -5,7 +5,6 @@
 #include <windows.h>
 #include "set_env.h"
 #include "inipara.h"
-#include "share_lock.h"
 
 #define MAX_ENV_SIZE 8192
 typedef int(__cdecl *pSetEnv)(const wchar_t *env);
@@ -18,11 +17,7 @@ get_cwd(LPSTR lpstrName, DWORD len)
     WCHAR wPath[MAX_PATH+1] = {0};
     if (getw_cwd(wPath,MAX_PATH))
     {
-	#ifdef USE_UTF8
-        i = WideCharToMultiByte(CP_UTF8, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
-	#else
         i = WideCharToMultiByte(CP_ACP, 0, wPath, -1, lpstrName, (int)len, NULL, NULL);
-	#endif
     }
     return (i>0 && i<(int)len);
 }
@@ -162,10 +157,6 @@ foreach_env(void)
     {
         return;
     }
-    if (read_appint(L"Env",L"MOZ_NO_REMOTE") > 0)
-    {
-        set_process_remote(true);
-    }
     m_key = env_buf;
     while (*m_key != L'\0')
     {
@@ -182,7 +173,7 @@ static void /* 重定向插件目录 */
 set_plugins(void)
 {
     WCHAR val_str[VALUE_LEN + 1] = { 0 };
-    if (read_appkey(L"Env", L"NpluginPath", val_str, sizeof(val_str), NULL))
+    if (read_appkeyW(L"Env", L"NpluginPath", val_str, VALUE_LEN, NULL))
     {
         WCHAR env_str[VALUE_LEN + 1] = { 0 };
         path_to_absolute(val_str, VALUE_LEN);
@@ -245,5 +236,5 @@ set_envp(void *p)
         setenv_tt();
         FreeLibrary(hMod);
     }
-    return (1);
+    return SetEnvironmentVariableW(L"LIBPORTABLE_SETENV_DEFINED", L"1");
 }

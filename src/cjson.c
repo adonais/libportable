@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #ifdef ENABLE_LOCALES
 #include <locale.h>
@@ -56,17 +57,28 @@
 #endif
 
 #include "cjson.h"
+/* we need link to the old msvcrt sometimes, so ... */
+#if defined(_MSC_VER) && !defined(VC12_CRT)
+#include <windows.h>
+typedef int (__cdecl *sprintf_p)(char *buffer,const char *fmt, ...);
+typedef int (__cdecl *sscanf_p)(const char *string,const char *fmt, ...);
+static sprintf_p crt_sprintf;
+static sscanf_p crt_sscanf;
 
-/* define our own boolean type */
-#ifdef true
-#undef true
+bool init_crt_funcs(void)
+{
+    HMODULE h_crt = GetModuleHandleW(L"msvcrt.dll"); 
+    if (h_crt)
+    {
+        crt_sprintf = (sprintf_p)GetProcAddress(h_crt, "sprintf");
+        crt_sscanf = (sscanf_p)GetProcAddress(h_crt, "sscanf");
+    }
+    return (crt_sprintf&&crt_sscanf);
+}
+#else
+#define crt_sprintf sprintf
+#define crt_sscanf sscanf
 #endif
-#define true ((cJSON_bool)1)
-
-#ifdef false
-#undef false
-#endif
-#define false ((cJSON_bool)0)
 
 typedef struct {
     const unsigned char *json;
@@ -95,7 +107,7 @@ CJSON_PUBLIC(char *) cJSON_GetStringValue(cJSON *item) {
 CJSON_PUBLIC(const char*) cJSON_Version(void)
 {
     static char version[15];
-    sprintf(version, "%i.%i.%i", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
+    crt_sprintf(version, "%i.%i.%i", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
 
     return version;
 }
@@ -499,18 +511,18 @@ static cJSON_bool print_number(const cJSON * const item, printbuffer * const out
     /* This checks for NaN and Infinity */
     if ((d * 0) != 0)
     {
-        length = sprintf((char*)number_buffer, "null");
+        length = crt_sprintf((char*)number_buffer, "null");
     }
     else
     {
         /* Try 15 decimal places of precision to avoid nonsignificant nonzero digits */
-        length = sprintf((char*)number_buffer, "%1.15g", d);
+        length = crt_sprintf((char*)number_buffer, "%1.15g", d);
 
         /* Check whether the original double can be recovered */
-        if ((sscanf((char*)number_buffer, "%lg", &test) != 1) || ((double)test != d))
+        if ((crt_sscanf((char*)number_buffer, "%lg", &test) != 1) || ((double)test != d))
         {
             /* If not, print with 17 decimal places of precision */
-            length = sprintf((char*)number_buffer, "%1.17g", d);
+            length = crt_sprintf((char*)number_buffer, "%1.17g", d);
         }
     }
 
@@ -943,7 +955,7 @@ static cJSON_bool print_string_ptr(const unsigned char * const input, printbuffe
                     break;
                 default:
                     /* escape and print as unicode codepoint */
-                    sprintf((char*)output_pointer, "u%04x", *input_pointer);
+                    crt_sprintf((char*)output_pointer, "u%04x", *input_pointer);
                     output_pointer += 4;
                     break;
             }
@@ -1089,6 +1101,10 @@ fail:
 /* Default options for cJSON_Parse */
 CJSON_PUBLIC(cJSON *) cJSON_Parse(const char *value)
 {
+#if defined(_MSC_VER) && !defined(VC12_CRT)    
+    if (!init_crt_funcs())
+        return NULL;
+#endif        
     return cJSON_ParseWithOpts(value, 0, 0);
 }
 

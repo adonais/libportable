@@ -69,7 +69,7 @@ int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
     LPWSTR lp = NULL;
     WCHAR  temp[VALUE_LEN+1]   = {0};
     WCHAR  m_para[VALUE_LEN+1] = {0};
-    if ( read_appkey(L"attach",L"ExPath",temp,sizeof(temp),NULL) )
+    if ( read_appkeyW(L"attach",L"ExPath",temp,VALUE_LEN,NULL) )
     {
         wdir[0] = L'\0';
         lp =  StrChrW(temp,L',');
@@ -122,77 +122,6 @@ bool WINAPI no_gui_boot(void)
                  StrStrIW(args[i],L"headless") || StrStrIW(args[i],L"screenshot") )
             {
                 ret = true;
-                break;
-            }
-        }
-        LocalFree(args);
-    }
-    return ret;
-}
-
-bool WINAPI pie_boot(void)
-{
-    LPWSTR  *args = NULL;
-    int     count = 0;
-    bool    ret = false;
-    args = CommandLineToArgvW(GetCommandLineW(), &count);
-    if ( NULL != args )
-    {
-        int i;
-        for (i = 0; i < count; ++i)
-        {
-            if ( (_wcsicmp(args[i],L"-P") == 0) ||
-                 (_wcsicmp(args[i],L"-ProfileManager") == 0) )
-            {
-                ret = true;
-                break;
-            }
-        }
-        LocalFree(args);
-    }
-    return ret;
-}
-
-bool WINAPI profile_boot(void)
-{
-    LPWSTR  *args = NULL;
-    int     count = 0;
-    bool    ret = false;
-    args = CommandLineToArgvW(GetCommandLineW(), &count);
-    if ( NULL != args )
-    {
-        int i;      
-        for (i = 0; i < count; ++i)
-        {
-            if ( _wcsicmp(args[i],L"-profile") == 0 )
-            {
-                ret = true;
-                break;
-            }
-        }
-        LocalFree(args);
-    }
-    return ret;
-}
-
-bool WINAPI get_profile_boot(WCHAR* lpcmd, int len)
-{
-    LPWSTR  *args = NULL;
-    int     count = 0;
-    bool    ret = false;
-    args = CommandLineToArgvW(GetCommandLineW(), &count);
-    if ( NULL != args )
-    {
-        int i;      
-        for (i = 0; i < count; ++i)
-        {
-            if ( _wcsicmp(args[i],L"-profile") == 0 )
-            {
-                if (i < count -1)
-                {
-                    wnsprintfW(lpcmd,len,L"%ls",args[i+1]);
-                    ret = true;
-                }
                 break;
             }
         }
@@ -297,7 +226,7 @@ unsigned WINAPI run_process(void * pParam)
     Sleep(1000);  /* 重启外部进程需要延迟一下 */
     if ( wcslen(wcmd)>0 && !search_process(wcmd,0) )
     {
-        DWORD pid = 0;
+        DWORD pid = 0;      
         g_handle[0] = create_new(wcmd, pcd, flags, &pid);
         if ( g_handle[0] != NULL && (SleepEx(3000,false) == 0) )
         {

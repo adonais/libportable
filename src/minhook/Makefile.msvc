@@ -1,13 +1,12 @@
 # nmake -f Makefile.msvc
 CC       = $(CC).exe
 CXX      = $(CXX).exe
-
 CFLAGS   = /nologo /W3 /WX- /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
 LIBFLAGS = /NOLOGO
 
 !if "$(CC)"=="clang-cl.exe"
 AR       = llvm-lib.exe
-!ELSEIF "$(CC)"=="cl.exe"
+!elseif "$(CC)"=="cl.exe"
 AR       = lib.exe
 !else
 !ERROR Unsupported platforms!
@@ -31,9 +30,11 @@ CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 !endif
 
 !if "$(TCMALLOC)"=="1"
-CFLAGS   = $(CFLAGS) /MT /D "ENABLE_TCMALLOC" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
+CFLAGS   = $(CFLAGS) /MT /utf-8 /D "USE_UTF8" /D "VC12_CRT" /D "ENABLE_TCMALLOC" /D "_NO_CRT_STDIO_INLINE"
+!elseif "$(MSVC_CRT)"=="1"
+CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 !else
-CFLAGS   = $(CFLAGS) /MD /GS- /GR- /Gs- /utf-8 /D "USE_UTF8" /D "VC12_CRT"  /D "_NO_CRT_STDIO_INLINE"
+CFLAGS   = $(CFLAGS) /MD /GS- /GR- /utf-8 /D "USE_UTF8" /D "VC12_CRT"
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"

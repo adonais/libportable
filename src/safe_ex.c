@@ -2,9 +2,7 @@
 #error This file should not be compiled!
 #endif
 
-#include "safe_ex.h"
 #include "inipara.h"
-#include "share_lock.h"
 #include "winapis.h"
 #include "inject.h"
 #include <process.h>
@@ -12,15 +10,27 @@
 #include <shlobj.h>
 #include <stdio.h>
 
-LoadLibraryExPtr            pLoadLibraryEx = NULL;
-_NtCreateUserProcess        sNtCreateUserProcess = NULL;
-_NtCreateUserProcess        pNtCreateUserProcess = NULL;
-_NtWriteVirtualMemory       sNtWriteVirtualMemory = NULL;
-_NtWriteVirtualMemory       pNtWriteVirtualMemory = NULL;
-_RtlNtStatusToDosError      pRtlNtStatusToDosError = NULL;
-_CreateProcessInternalW     sCreateProcessInternalW = NULL;
-_CreateProcessInternalW     pCreateProcessInternalW = NULL;
-_NtQueryInformationProcess  pNtQueryInformationProcess = NULL;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(VC12_CRT)
+const int _fltused = 0;
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+LoadLibraryExPtr               pLoadLibraryEx = NULL;
+static _NtCreateUserProcess    sNtCreateUserProcess;
+static _NtCreateUserProcess    pNtCreateUserProcess;
+static _NtWriteVirtualMemory   sNtWriteVirtualMemory;
+static _NtWriteVirtualMemory   pNtWriteVirtualMemory;
+static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
+static _CreateProcessInternalW pCreateProcessInternalW;
+static _CreateProcessInternalW sCreateProcessInternalW;
+
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -173,22 +183,13 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         PPS_CREATE_INFO CreateInfo,
                         PPS_ATTRIBUTE_LIST AttributeList)
 {
-    bool      fn = false;
     NTSTATUS  status;
     bool      tohook = false;
-    bool      plugin = false;
-    
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
+    
     fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
-    plugin = process_plugin(ProcessParameters->ImagePathName.Buffer);
-    if ( !plugin && is_browser(ProcessParameters->ImagePathName.Buffer) )
-    {
-        if ( ProcessParameters->CommandLine.Length > 1 )
-        {
-            fn = is_browser(ProcessParameters->CommandLine.Buffer);
-        }
-    }
-    else if ( plugin )
+
+    if ( process_plugin(ProcessParameters->ImagePathName.Buffer) )
     {
         tohook = true;
     }
@@ -209,34 +210,18 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             ProcessParameters = &myProcessParameters;
         }
     }
-    else if ( in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+    else if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
     {
-        // 在白名单里面
-    }
-    else
-    {
-        if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
-            ProcessParameters = &myProcessParameters;
+        ProcessParameters = &myProcessParameters;
     }
     status = sNtCreateUserProcess(ProcessHandle, ThreadHandle,
                                   ProcessDesiredAccess, ThreadDesiredAccess,
                                   ProcessObjectAttributes, ThreadObjectAttributes,
                                   CreateProcessFlags, CreateThreadFlags, ProcessParameters,
                                   CreateInfo, AttributeList);
-    if (!NT_SUCCESS(status))
-    {
-        return status;
-    }
-    if (fn)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("firefox restart,new main_id is %lu!\n", GetProcessId(*ProcessHandle));
-    #endif
-        set_process_pid(GetProcessId(*ProcessHandle));
-    }
     /* 静态编译时,不能启用远程注入 */
 #if !defined(LIBPORTABLE_STATIC)
-    if (tohook)
+    if (tohook && NT_SUCCESS(status))
     {
         PROCESS_INFORMATION ProcessInformation;
     #ifdef _LOGDEBUG
@@ -266,17 +251,12 @@ HookCreateProcessInternalW(HANDLE hToken,
                            PHANDLE hNewToken)
 {
     bool	ret= false;
-    bool    fn = false;
     LPWSTR	lpfile = lpCommandLine;
     bool    tohook = false;
     
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
-    }
-    if (lpCommandLine && wcslen(lpCommandLine)>1)
-    {
-        fn = is_browser(lpCommandLine);
     }
     /* 禁止启动16位程序 */
     if (dwCreationFlags&CREATE_SHARED_WOW_VDM || dwCreationFlags&CREATE_SEPARATE_WOW_VDM)
@@ -287,7 +267,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     /* 存在不安全插件,注入保护 */
     if ( process_plugin(lpfile) )
     {
-        /* 静态编译时,不能启用远程注入 */
+    /* 静态编译时,不能启用远程注入 */
     #if !defined(LIBPORTABLE_STATIC)
         tohook = true;
     #endif
@@ -298,20 +278,16 @@ HookCreateProcessInternalW(HANDLE hToken,
         if ( !in_whitelist((LPCWSTR)lpfile) )
         {
         #ifdef _LOGDEBUG
-            logmsg("the process %ls disabled-runes\n",lpfile);
+            logmsg("the process %ls disabled-runes by libportable\n",lpfile);
         #endif
             SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
             return ret;
         }
     }
-    else if ( in_whitelist((LPCWSTR)lpfile) )
-    {
-        // 在白名单里面
-    }
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
-    else
+    else if ( process_cui(lpfile) )
     {
-        if ( process_cui(lpfile) )
+        
         {
         #ifdef _LOGDEBUG
             logmsg("%ls process, disabled-runes\n",lpfile);
@@ -324,18 +300,7 @@ HookCreateProcessInternalW(HANDLE hToken,
                                   lpThreadAttributes,bInheritHandles,dwCreationFlags,
                                   lpEnvironment,lpCurrentDirectory,
                                   lpStartupInfo,lpProcessInformation,hNewToken);
-    if (!ret)
-    {
-        return ret;
-    }
-    if (fn)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("firefox restart,new main_id is %lu!\n", lpProcessInformation->dwProcessId);
-    #endif
-        set_process_pid(lpProcessInformation->dwProcessId);
-    }
-    if ( tohook )
+    if ( tohook && ret )
     {
         InjectDll(lpProcessInformation);
     }
@@ -366,6 +331,12 @@ is_authorized(LPCWSTR lpFileName)
                                   };
     bool     wow64 = is_wow64();
     uint16_t line = sizeof(szAuthorizedList)/sizeof(szAuthorizedList[0]);
+    wchar_t  dllpath[MAX_PATH+1] = {0};
+    GetModuleFileNameW(dll_module,dllpath,MAX_PATH);
+    if (_wcsicmp(lpFileName,dllpath) == 0)
+    {
+        return true;
+    }    
     if (lpFileName[1] == L':')
     {
         wchar_t sysdir[VALUE_LEN+1] = {0};
@@ -378,11 +349,11 @@ is_authorized(LPCWSTR lpFileName)
         {
             PathAppendW(sysdir,L"system32");
         }
-        if ( _wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0 )
+        if (_wcsnicmp(lpFileName,sysdir,wcslen(sysdir)) == 0)
         {
             filename = PathFindFileNameW(lpFileName);
         }
-        else if ( wow64 && wcslen(sysdir)>0 )   /* compare system32 directory again */
+        else if (wow64 && wcslen(sysdir)>0)   /* compare system32 directory again */
         {
             PathRemoveFileSpecW(sysdir);
             PathAppendW(sysdir,L"system32");
@@ -398,7 +369,7 @@ is_authorized(LPCWSTR lpFileName)
         uint16_t  i;
         for(i=0; i<line; i++)
         {
-            if ( _wcsicmp(filename,szAuthorizedList[i]) == 0 )
+            if (_wcsicmp(filename,szAuthorizedList[i]) == 0)
             {
                 ret = true;
                 break;
@@ -429,16 +400,14 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
 }
 
-unsigned WINAPI init_safed(void * pParam)
+unsigned WINAPI init_safed(void)
 {
     HMODULE		hNtdll, hKernel;
     DWORD		ver = get_os_version();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
-
     if ( hNtdll == NULL || hKernel  == NULL ||
-        (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL ||
-        (pNtWriteVirtualMemory = (_NtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory")) == NULL )
+        (pRtlNtStatusToDosError = (_RtlNtStatusToDosError)GetProcAddress(hNtdll, "RtlNtStatusToDosError")) == NULL )
     {
         return 0;
     }
@@ -461,6 +430,9 @@ unsigned WINAPI init_safed(void * pParam)
             logmsg("pCreateProcessInternalW hook failed!\n");
         #endif
         }
+    }
+    if (ver < 600)
+    {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
         if (!creator_hook(pLoadLibraryEx, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExStub))
         {
@@ -468,6 +440,13 @@ unsigned WINAPI init_safed(void * pParam)
             logmsg("LoadLibraryExW hook failed!\n");
         #endif
         }
+        pNtWriteVirtualMemory = (_NtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory");
+        if (!creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("NtWriteVirtualMemory hook failed!\n");
+        #endif
+        }        
     }
-    return creator_hook(pNtWriteVirtualMemory, HookNtWriteVirtualMemory, (LPVOID*)&sNtWriteVirtualMemory);
+    return (1);
 }

@@ -1,4 +1,7 @@
-#include "inject.h"
+#ifdef DISABLE_SAFE
+#error This file should not be compiled!
+#endif
+
 #include "inipara.h"
 #include "winapis.h"
 
