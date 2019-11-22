@@ -1,7 +1,8 @@
-#include "bosskey.h"
 #include "inipara.h"
 #include <string.h>
 #include <shlwapi.h>
+
+static int g_atom = 0;
 
 bool init_bosskey(LPWNDINFO pInfo)
 {
@@ -103,19 +104,31 @@ void set_hotkey(LPWNDINFO pInfo)
     }
 }
 
-unsigned WINAPI bosskey_thread(void * lparam)
+void WINAPI uninstall_bosskey(void)
 {
-    MSG msg;
-    LPWNDINFO lpInfo = (LPWNDINFO)lparam;
-    set_hotkey(lpInfo);
-    if ( init_bosskey(lpInfo) )
+    if (g_atom)
     {
-        while( GetMessageW(&msg, NULL, 0, 0) > 0 )
-        {
+        UnregisterHotKey(NULL, g_atom);
+        GlobalDeleteAtom(g_atom);  
+        g_atom = 0;
+    }     
+}
+
+unsigned WINAPI bosskey_thread(void *lparam)
+{
+    WNDINFO  ff_info = { 0 };
+    ff_info.hPid = GetCurrentProcessId();
+    set_hotkey(&ff_info);
+    if ( init_bosskey(&ff_info) )
+    {
+        MSG msg;
+        g_atom = ff_info.atom_str;     
+        while (GetMessageW(&msg, NULL, 0, 0) > 0)
+        {         
             TranslateMessage(&msg);
             DispatchMessage(&msg);
-            EnumWindows(find_chwnd, (LPARAM)lpInfo);
-        }
+            EnumWindows(find_chwnd, (LPARAM)&ff_info);
+        }           
     }
     return (1);
 }

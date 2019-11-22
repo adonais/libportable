@@ -22,11 +22,13 @@ static bool double_click;
 static bool mouse_close;
 static bool left_click;
 static bool right_click;
+static bool left_new;
+static bool button_new;
 volatile long g_once = 0;
 volatile long grb_locked = 0;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
-#define KEY_UP(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 0 : 1)
+#define ON_BUTTON_FLAGS 999
 
 static void
 send_key_click(int mouse)
@@ -50,6 +52,30 @@ send_key_click(int mouse)
     #endif
         SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
     }
+    else if (mouse == WM_NCLBUTTONDBLCLK)
+    {
+    #if defined(__GNUC__) || defined(__clang__)
+        INPUT input[] =
+        {
+            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, 0, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { 'T', 0, 0, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { 'T', 0, KEYEVENTF_KEYUP, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, KEYEVENTF_KEYUP, 0, 0 } } }
+        };
+    #else             
+        INPUT input[] =
+        {
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } }
+        };
+        input[0].ki.wVk = input[3].ki.wVk = VK_RCONTROL;
+        input[1].ki.wVk = input[2].ki.wVk = 'T';
+        input[2].ki.dwFlags = input[3].ki.dwFlags = KEYEVENTF_KEYUP;
+    #endif    
+        SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
+    }    
 }
 
 static void
@@ -97,7 +123,7 @@ send_click(int mouse)
 }
 
 static IUIAutomationElement *
-find_next_child(IUIAutomationElement *pElement)
+find_next_child(IUIAutomationElement *pElement, long uia_id)
 {
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElement *pFound = NULL;
@@ -105,7 +131,7 @@ find_next_child(IUIAutomationElement *pElement)
     {
         VARIANT var;
         var.vt = VT_I4;
-        var.lVal = UIA_TabControlTypeId;
+        var.lVal = uia_id;
         if (!(pElement && g_uia && cache_uia))
         {
         #ifdef _LOGDEBUG
@@ -182,7 +208,7 @@ get_tab_bars(IUIAutomationElement **tab_bar)
         {
             IUIAutomationElement *tmp = NULL;
             hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
-            if (SUCCEEDED(hr) && (*tab_bar = find_next_child(tmp)) != NULL)
+            if (SUCCEEDED(hr) && (*tab_bar = find_next_child(tmp, UIA_TabControlTypeId)) != NULL)
             {                
                 hr = 0;
                 break;
@@ -201,6 +227,7 @@ get_tab_bars(IUIAutomationElement **tab_bar)
 }
 
 /* 得到标签页的事件指针, 当标签没激活时把active参数设为标签序号 */
+/* 当传入参数active=-1时, 返回标签栏而不是标签事件,active为-1 */
 static bool
 mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
@@ -231,7 +258,29 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
             logmsg("point exist null vaule!\n");
         #endif
             break;
-        }          
+        }
+        /* 返回标签栏事件 */
+        if (active != NULL && *active == -1)
+        {
+            res = true;
+            break;
+        }
+        if (button_new && active != NULL)
+        {
+             /* 获取新建标签按钮 */
+            IUIAutomationElement *botton = find_next_child(tab_bar, UIA_ButtonControlTypeId);
+            if (botton != NULL)
+            {
+                RECT rc;
+                hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, (tagRECT *)&rc); 
+                if (SUCCEEDED(hr) && PtInRect(&rc, *pt))
+                {    
+                    *active = ON_BUTTON_FLAGS;
+                }
+                IUIAutomationElement_Release(botton);
+                botton = NULL;
+            }
+        }
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
         if (FAILED(hr))
         {
@@ -254,7 +303,6 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         #ifdef _LOGDEBUG
             logmsg("%s_IUIAutomationElementArray_get_Length false, c = %d!\n", __FUNCTION__, c);
         #endif
-            hr = 1;
             break;
         }          
         for (idx = 0; idx < c; idx++)
@@ -342,6 +390,31 @@ newWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+        case WM_NCLBUTTONDBLCLK:
+        {
+            POINT pos;
+            int active = -1;
+            if (!left_new || KEY_DOWN(VK_SHIFT))
+            {
+                break;
+            }
+            if (!GetCursorPos(&pos))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("GetCursorPos(&pos) false from %s!\n", __FUNCTION__);
+            #endif                 
+                break;
+            } 
+            if (!mouse_on_tab(NULL, &pos, &active))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("WM_NCLBUTTONDBLCLK[mouse_on_tab return null]\n");
+            #endif
+                break;
+            }
+            send_key_click(WM_NCLBUTTONDBLCLK); 
+        }
+            return 1; 
         case WM_LBUTTONDBLCLK:
         {
             POINT pos;
@@ -445,7 +518,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         #endif                            
                         }
                     }
-                    if (hwnd && (double_click || right_click))
+                    if (hwnd && (double_click || right_click || left_new))
                     {
                         oldWindowProc = (WNDPROC) SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR) newWindowProc);
                         if (oldWindowProc)
@@ -459,30 +532,34 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
             }  
                 break;
             case WM_MOUSEHOVER:
-                if (tab_event || mouse_close)
+                if (tab_event || mouse_close || button_new)
                 {
                     RECT rc;
-                    bool in;
                     int active = 0;
-                    if (!mouse_on_tab(&rc, &msg->pt, &active))
+                    if (mouse_on_tab(&rc, &msg->pt, &active))
                     {
-                    #ifdef _LOGDEBUG
-                        logmsg("WM_MOUSEHOVER[mouse not on tab!]\n");
-                    #endif                        
+                        bool in;
+                        rc.right -= 26;
+                        in = PtInRect(&rc, msg->pt);
+                        if (tab_event && in && active > 0)
+                        {
+                        #ifdef _LOGDEBUG
+                            logmsg("mouse on inactive tab[%d]\n", active);
+                        #endif                                               
+                            send_click(MOUSEEVENTF_LEFTDOWN);
+                        } 
+                        else if (mouse_close && !in)
+                        {
+                            send_click(MOUSEEVENTF_LEFTDOWN);
+                        }                                               
                         break;
                     }
-                    rc.right -= 26;
-                    in = PtInRect(&rc, msg->pt);
-                    if (tab_event && in && active > 0)
+                    else if (active == ON_BUTTON_FLAGS)
                     {
                     #ifdef _LOGDEBUG
-                        logmsg("mouse on inactive tab[%d]\n", active);
-                    #endif                                               
-                        send_click(MOUSEEVENTF_LEFTDOWN);
-                    } 
-                    else if (mouse_close && !in)
-                    {
-                        send_click(MOUSEEVENTF_LEFTDOWN);
+                        logmsg("WM_MOUSEHOVER[mouse on new botton!]\n");
+                    #endif                         
+                        send_key_click(WM_NCLBUTTONDBLCLK);
                     }
                 }
                 break;                   
@@ -538,11 +615,7 @@ init_uia(void)
     if (read_appint(L"tabs", L"double_click_close") > 0)
     {
         double_click = true;
-    }
-    if (read_appint(L"tabs", L"mouse_hover_close") > 0)
-    {
-        mouse_close = true;
-    }    
+    } 
     if (tab_event && double_click && read_appint(L"tabs", L"left_click_close") > 0)
     {
         left_click = true;
@@ -551,7 +624,19 @@ init_uia(void)
     {
         right_click = true;
     }
-    if (!(tab_event || double_click || mouse_close || right_click))
+    if (read_appint(L"tabs", L"double_click_new") > 0)
+    {
+        left_new = true;
+    } 
+    if (read_appint(L"tabs", L"mouse_hover_close") > 0)
+    {
+        mouse_close = true;
+    }       
+    if (read_appint(L"tabs", L"mouse_hover_new") > 0)
+    {
+        button_new = true;
+    }       
+    if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new))
     {
         return false;
     }

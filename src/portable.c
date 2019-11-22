@@ -61,7 +61,6 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
         PWSTR            *ppszPath);
 
 HMODULE dll_module = NULL;
-static  WNDINFO  ff_info;
 static  uintptr_t m_target[EXCLUDE_NUM];
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
@@ -457,10 +456,6 @@ window_hooks(void)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
     }
-    if (ff_info.hPid == 0)
-    {
-        ff_info.hPid = GetCurrentProcessId();
-    }
     if (read_appint(L"General",L"CreateCrashDump") != 0)
     {
         init_exeception(NULL);
@@ -488,11 +483,11 @@ window_hooks(void)
     }
     if (read_appint(L"General",L"ProcessAffinityMask") > 0)
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,&ff_info,0,NULL)); 
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL)); 
     }
     if (read_appint(L"General", L"Bosskey") > 0)
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,&ff_info,0,NULL));
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
     }
     if (read_appint(L"General", L"ProxyExe") > 0)
     {
@@ -535,11 +530,7 @@ void WINAPI
 undo_it(void)
 {
     /* 解除快捷键 */
-    if (ff_info.atom_str)
-    {
-        UnregisterHotKey(NULL, ff_info.atom_str);
-        GlobalDeleteAtom(ff_info.atom_str);
-    }
+    uninstall_bosskey();    
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
