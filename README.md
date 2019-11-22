@@ -18,8 +18,8 @@ https://sourceforge.net/projects/msys2/
 	nmake -f Makefile.msvc clean  
 	nmake -f Makefile.msvc
 	
-	enable tcmalloc memory allocator:  
-	nmake -f Makefile.msvc TCMALLOC=1  
+	link against minimal msvcrt.dll:
+	nmake -f Makefile.msvc MSVC_CRT=1
 
 - gcc/mingw64 compiler (msys shell)
 
