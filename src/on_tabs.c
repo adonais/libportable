@@ -24,11 +24,18 @@ static bool left_click;
 static bool right_click;
 static bool left_new;
 static bool button_new;
+static bool right_double;
 volatile long g_once = 0;
 volatile long grb_locked = 0;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
 #define ON_BUTTON_FLAGS 999
+#ifndef GET_X_LPARAM
+#define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
+#endif
+#ifndef GET_Y_LPARAM
+#define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
+#endif
 
 static void
 send_key_click(int mouse)
@@ -75,7 +82,36 @@ send_key_click(int mouse)
         input[2].ki.dwFlags = input[3].ki.dwFlags = KEYEVENTF_KEYUP;
     #endif    
         SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
-    }    
+    } 
+    else if (mouse == WM_NCRBUTTONDOWN)
+    {
+    #if defined(__GNUC__) || defined(__clang__)
+        INPUT input[] =
+        {
+            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, 0, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { VK_RSHIFT, 0, 0, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { 'T', 0, 0, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, KEYEVENTF_KEYUP, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0, 0 } } },
+            { INPUT_KEYBOARD, {.ki = { 'T', 0, KEYEVENTF_KEYUP, 0, 0 } } }
+        };
+    #else             
+        INPUT input[] =
+        {
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },
+            { INPUT_KEYBOARD, {0, } },            
+            { INPUT_KEYBOARD, {0, } }
+        };
+        input[0].ki.wVk = input[3].ki.wVk = VK_RCONTROL;
+        input[1].ki.wVk = input[4].ki.wVk = VK_RSHIFT;
+        input[2].ki.wVk = input[5].ki.wVk = 'T';
+        input[3].ki.dwFlags = input[4].ki.dwFlags = input[5].ki.dwFlags = KEYEVENTF_KEYUP;
+    #endif    
+        SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
+    }        
 }
 
 static void
@@ -398,13 +434,8 @@ newWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 break;
             }
-            if (!GetCursorPos(&pos))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("GetCursorPos(&pos) false from %s!\n", __FUNCTION__);
-            #endif                 
-                break;
-            } 
+            pos.x = GET_X_LPARAM(lParam);
+            pos.y = GET_Y_LPARAM(lParam);            
             if (!mouse_on_tab(NULL, &pos, &active))
             {
             #ifdef _LOGDEBUG
@@ -422,13 +453,8 @@ newWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 break;
             }
-            if (!GetCursorPos(&pos))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("GetCursorPos(&pos) false, cause:%lu!\n", GetLastError());
-            #endif                 
-                break;
-            }            
+            pos.x = GET_X_LPARAM(lParam);
+            pos.y = GET_Y_LPARAM(lParam);           
             if (!mouse_on_tab(NULL, &pos, NULL))
             {
             #ifdef _LOGDEBUG
@@ -463,13 +489,33 @@ newWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
             if (!mouse_on_tab(NULL, &pos, NULL))
             {
             #ifdef _LOGDEBUG
-                logmsg("%s_mouse_on_tab false!\n", __FUNCTION__);
+                logmsg("%s_WM_RBUTTONUP false!\n", __FUNCTION__);
             #endif                
                 break;
             }
             send_key_click(MOUSEEVENTF_MIDDLEDOWN);
         }
-            return 1;     
+            return 1;
+        case WM_NCRBUTTONDOWN: 
+        {
+            POINT pos;
+            int active = -1;
+            if (!right_double || KEY_DOWN(VK_SHIFT))
+            {
+                break;
+            }
+            pos.x = GET_X_LPARAM(lParam);
+            pos.y = GET_Y_LPARAM(lParam);
+            if (!mouse_on_tab(NULL, &pos, &active))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("%s_WM_NCRBUTTONDOWN false!\n", __FUNCTION__);
+            #endif                
+                break;
+            }        
+            send_key_click(WM_NCRBUTTONDOWN);
+        }
+            return 1;                                 
         default:          
             break;
     }
@@ -518,7 +564,7 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         #endif                            
                         }
                     }
-                    if (hwnd && (double_click || right_click || left_new))
+                    if (hwnd && (double_click || right_click || left_new || right_double))
                     {
                         oldWindowProc = (WNDPROC) SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR) newWindowProc);
                         if (oldWindowProc)
@@ -635,8 +681,12 @@ init_uia(void)
     if (read_appint(L"tabs", L"mouse_hover_new") > 0)
     {
         button_new = true;
-    }       
-    if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new))
+    } 
+    if (read_appint(L"tabs", L"right_click_recover") > 0)
+    {
+        right_double = true;
+    }            
+    if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new || right_double))
     {
         return false;
     }
