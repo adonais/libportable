@@ -148,8 +148,7 @@ init_data(thread_data *pt)
     fzero(pt, sizeof(thread_data));
     pt->dwFuncAddr   = (uintptr_t)GetProcAddress(nt_handle, "LdrLoadDll");
     pt->dwRtlInitStr = (uintptr_t)GetProcAddress(nt_handle, "RtlInitUnicodeString");
-    if (pt->dwFuncAddr && pt->dwRtlInitStr && 
-        GetModuleFileNameW(dll_module,dll_name,VALUE_LEN) >0)
+    if (pt->dwFuncAddr && pt->dwRtlInitStr && GetModuleFileNameW(dll_module,dll_name,VALUE_LEN) >0)
     {
         wcsncpy(pt->strDll,dll_name,VALUE_LEN);
         res = true;
@@ -166,16 +165,15 @@ write_memory(HANDLE handle, LPVOID base, LPCVOID buffer, size_t size)
         if (!WriteProcessMemory(handle, base, buffer, size, NULL))
         {
         #ifdef _LOGDEBUG
-            logmsg("WriteProcessMemory(buffer) error:[%lu]\n", __FUNCTION__, GetLastError());
+            logmsg("%s_WriteProcessMemory error:[%lu]\n", __FUNCTION__, GetLastError());
         #endif
-            break;
-        }
-        if (!FlushInstructionCache(handle, base, size))
-        {
             break;
         }
         if (!VirtualProtectEx(handle, base, size, PAGE_EXECUTE_READ, &flags))
         {
+        #ifdef _LOGDEBUG
+            logmsg("%s_VirtualProtectExy error:[%lu]\n", __FUNCTION__, GetLastError());
+        #endif
             break;
         }
     }while (0);
@@ -217,6 +215,15 @@ InjectDll(void *process)
     df.data_size = sizeof(thread_data);
     df.code_size = sizeof(shell_code);
     df.func_size = ((LPBYTE)&AfterThreadProc - (LPBYTE)&ThreadProc + 0x0F) & ~0x0F;
+    /* 有可能会被编译器优化掉 */
+    if (df.func_size < 1 || df.func_size > 16384)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("size error , func_size = %lu\n",df.func_size);
+    #endif
+        /* 我们并不需要获取函数精确的尺寸,不小于函数体就行 */
+        df.func_size = VALUE_LEN;
+    }    
     t_size = df.data_size + df.code_size + df.func_size;
     do
     {
@@ -227,15 +234,6 @@ InjectDll(void *process)
         #endif
             break;
         }
-        /* 有可能会被编译器优化掉 */
-        if (df.func_size < 1 || df.func_size > 16384)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("size error , func_size = %lu\n",df.func_size);
-        #endif
-            /* 我们并不需要获取函数精确的尺寸,不小于函数体就行 */
-            df.func_size = VALUE_LEN;
-        }
         ctx.ContextFlags = CONTEXT_CONTROL;
         if(!GetThreadContext(pi.hThread, &ctx))
         {
@@ -244,37 +242,38 @@ InjectDll(void *process)
         #endif
             break;
         }
-        if (init_data(&dt))
+        if (!init_data(&dt))
         {
-            bool exit;
-            df.code_buff = VirtualAllocEx(pi.hProcess, 0, t_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            if (df.code_buff == NULL)
-            {
-            #ifdef _LOGDEBUG
-                logmsg("VirtualAllocEx error:[%lu]\n", GetLastError());
-            #endif
-                break;
-            }
-            if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size, &dt, df.data_size))
-            {
-                break;
-            } 
-            if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size+df.data_size, ThreadProc, df.func_size))
-            {
-                break;
-            }
-            install_jmp(&ctx, &df);
-            if (!write_memory(pi.hProcess, df.code_buff, shell_code, df.code_size))
-            {
-                break;
-            }
-            exit = SetThreadContext(pi.hThread, &ctx);
-            if (!exit)
-            {
-            #ifdef _LOGDEBUG
-                logmsg("SetThreadContext(ctx) error:[%lu]\n", GetLastError());
-            #endif
-            }
+        #ifdef _LOGDEBUG
+            logmsg("init_data false\n");
+        #endif  
+            break;          
+        }
+        if ((df.code_buff = VirtualAllocEx(pi.hProcess, 0, t_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE)) == NULL)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("VirtualAllocEx error:[%lu]\n", GetLastError());
+        #endif
+            break;
+        }
+        if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size, &dt, df.data_size))
+        {
+            break;
+        } 
+        if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size+df.data_size, ThreadProc, df.func_size))
+        {
+            break;
+        }
+        install_jmp(&ctx, &df);
+        if (!write_memory(pi.hProcess, df.code_buff, shell_code, df.code_size))
+        {
+            break;
+        }
+        if (!SetThreadContext(pi.hThread, &ctx))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("SetThreadContext(ctx) error:[%lu]\n", GetLastError());
+        #endif
         }
     }while (0);
     if(df.code_buff && t_size)
