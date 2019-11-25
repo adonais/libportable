@@ -11,8 +11,7 @@
 typedef HHOOK(WINAPI *SetWindowsHookExPtr)(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId);
 
 static SetWindowsHookExPtr pSetWindowsHookEx, sSetWindowsHookExStub;
-static HHOOK message_hook;
-static WNDPROC oldWindowProc;
+static HHOOK message_hook, mouse_hook;
 static IUIAutomation *g_uia;
 static IUIAutomationCacheRequest *cache_uia;
 static IUIAutomationElement *ice_root;
@@ -26,7 +25,6 @@ static bool left_new;
 static bool button_new;
 static bool right_double;
 volatile long g_once = 0;
-volatile long grb_locked = 0;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
 #define ON_BUTTON_FLAGS 999
@@ -117,7 +115,7 @@ send_key_click(int mouse)
 static void
 send_click(int mouse)
 {
-    static uint32_t pre_rec;
+    static uint32_t pre_rec = 0;
     if (mouse == MOUSEEVENTF_LEFTDOWN)
     {
     #if defined(__GNUC__) || defined(__clang__)
@@ -148,7 +146,7 @@ send_click(int mouse)
         }
         else if (left_click)
         {
-            static uint32_t pre_left;
+            static uint32_t pre_left = 0;
             if (m_rec - pre_left > (uint32_t) GetDoubleClickTime())
             {
                 pre_left = m_rec;
@@ -263,7 +261,6 @@ get_tab_bars(IUIAutomationElement **tab_bar)
 }
 
 /* 得到标签页的事件指针, 当标签没激活时把active参数设为标签序号 */
-/* 当传入参数active=-1时, 返回标签栏而不是标签事件,active为-1 */
 static bool
 mouse_on_tab(RECT *pr, POINT *pt, int *active)
 {
@@ -287,18 +284,12 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
             logmsg("get_tab_bars false, tab_bar = 0x%x!\n", tab_bar);
         #endif
             break;
-        }   
+        }
         if (!(g_uia && cache_uia && tab_bar))
         {
         #ifdef _LOGDEBUG
             logmsg("point exist null vaule!\n");
         #endif
-            break;
-        }
-        /* 返回标签栏事件 */
-        if (active != NULL && *active == -1)
-        {
-            res = true;
             break;
         }
         if (button_new && active != NULL)
@@ -329,7 +320,7 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
-            logmsg("FindAll false!\n");
+            logmsg("IUIAutomationElement_FindAllBuildCache false!\n");
         #endif
             break;
         }
@@ -405,12 +396,23 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
 }
 
 static HRESULT
-find_root_ui(HWND hwnd, IUIAutomationElement **proot)
+find_root_ui(HWND hwnd)
 {
-    HRESULT hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);      
+    HRESULT hr = 1;
+    if (ice_root)
+    {
+        IUIAutomationElement_Release(ice_root);
+        ice_root = NULL;
+    }    
+    if (cache_uia)
+    {
+        IUIAutomationCacheRequest_Release(cache_uia);
+        cache_uia = NULL;
+    }
+    hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);      
     if (SUCCEEDED(hr) && cache_uia)
     {
-        hr = IUIAutomation_ElementFromHandleBuildCache(g_uia, hwnd, cache_uia, proot);
+        hr = IUIAutomation_ElementFromHandleBuildCache(g_uia, hwnd, cache_uia, &ice_root);
     #ifdef _LOGDEBUG
         if (FAILED(hr))
         {
@@ -421,162 +423,15 @@ find_root_ui(HWND hwnd, IUIAutomationElement **proot)
     return hr;
 }
 
-LRESULT CALLBACK
-newWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-        case WM_NCLBUTTONDBLCLK:
-        {
-            POINT pos;
-            int active = -1;
-            if (!left_new || KEY_DOWN(VK_SHIFT))
-            {
-                break;
-            }
-            pos.x = GET_X_LPARAM(lParam);
-            pos.y = GET_Y_LPARAM(lParam);            
-            if (!mouse_on_tab(NULL, &pos, &active))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("WM_NCLBUTTONDBLCLK[mouse_on_tab return null]\n");
-            #endif
-                break;
-            }
-            send_key_click(WM_NCLBUTTONDBLCLK); 
-        }
-            return 1; 
-        case WM_LBUTTONDBLCLK:
-        {
-            POINT pos;
-            if (!double_click)
-            {
-                break;
-            }
-            pos.x = GET_X_LPARAM(lParam);
-            pos.y = GET_Y_LPARAM(lParam);           
-            if (!mouse_on_tab(NULL, &pos, NULL))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("WM_LBUTTONDBLCLK[mouse_on_tab return null]\n");
-            #endif
-                break;
-            }               
-            if (tab_event)
-            {
-                send_click(MOUSEEVENTF_MIDDLEDOWN);
-            }
-            else
-            {
-                send_key_click(MOUSEEVENTF_MIDDLEDOWN);
-            }
-        }
-            return 1;         
-        case WM_RBUTTONUP:
-        {
-            POINT pos;
-            if (!right_click || KEY_DOWN(VK_SHIFT))
-            {
-                break;
-            }
-            if (!GetCursorPos(&pos))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("GetCursorPos(&pos) false from %s!\n", __FUNCTION__);
-            #endif                 
-                break;
-            }
-            if (!mouse_on_tab(NULL, &pos, NULL))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("%s_WM_RBUTTONUP false!\n", __FUNCTION__);
-            #endif                
-                break;
-            }
-            send_key_click(MOUSEEVENTF_MIDDLEDOWN);
-        }
-            return 1;
-        case WM_NCRBUTTONDOWN: 
-        {
-            POINT pos;
-            int active = -1;
-            if (!right_double || KEY_DOWN(VK_SHIFT))
-            {
-                break;
-            }
-            pos.x = GET_X_LPARAM(lParam);
-            pos.y = GET_Y_LPARAM(lParam);
-            if (!mouse_on_tab(NULL, &pos, &active))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("%s_WM_NCRBUTTONDOWN false!\n", __FUNCTION__);
-            #endif                
-                break;
-            }        
-            send_key_click(WM_NCRBUTTONDOWN);
-        }
-            return 1;                                 
-        default:          
-            break;
-    }
-    return CallWindowProc(oldWindowProc, handle, message, wParam, lParam);
-}
-
 static LRESULT CALLBACK
-mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
+message_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
+    
     if (nCode == HC_ACTION)
     {
-        HWND  hwnd = NULL;
         MSG   *msg = (MSG *) lParam;
         switch (msg->message)
-        {
-            case WM_MOUSEMOVE:
-            {
-                TRACKMOUSEEVENT MouseEvent;
-                MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
-                MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
-                MouseEvent.hwndTrack = WindowFromPoint(msg->pt);
-                if (mouse_time)
-                {
-                    MouseEvent.dwHoverTime = mouse_time;
-                }
-                else
-                {
-                    MouseEvent.dwHoverTime = HOVER_DEFAULT;
-                }
-                TrackMouseEvent(&MouseEvent);
-                Sleep(0); 
-                if (!grb_locked)
-                {
-                    DWORD m_pid = 0;
-                    GetWindowThreadProcessId(MouseEvent.hwndTrack, &m_pid);
-                    if (m_pid == GetCurrentProcessId())
-                    {
-                        HRESULT hr;
-                        *(long volatile *) &grb_locked = 1;
-                        hwnd = MouseEvent.hwndTrack;
-                        hr = find_root_ui(hwnd, &ice_root);
-                        if (SUCCEEDED(hr))
-                        {
-                        #ifdef _LOGDEBUG
-                            logmsg("UI ice_root = 0x%x\n", ice_root);
-                        #endif                            
-                        }
-                    }
-                    if (hwnd && (double_click || right_click || left_new || right_double))
-                    {
-                        oldWindowProc = (WNDPROC) SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR) newWindowProc);
-                        if (oldWindowProc)
-                        {
-                        #ifdef _LOGDEBUG
-                            logmsg("mouse into browser window. hwnd = 0x%x\n", hwnd);
-                        #endif
-                        }
-                    }
-                }
-            }  
-                break;
+        {    
             case WM_MOUSEHOVER:
                 if (tab_event || mouse_close || button_new)
                 {
@@ -596,7 +451,13 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         } 
                         else if (mouse_close && !in)
                         {
-                            send_click(MOUSEEVENTF_LEFTDOWN);
+                            rc.top += 6;
+                            rc.right += 18;
+                            rc.bottom -= 6;
+                            if (PtInRect(&rc, msg->pt))
+                            {
+                                send_click(MOUSEEVENTF_LEFTDOWN);
+                            }
                         }                                               
                         break;
                     }
@@ -608,12 +469,102 @@ mouse_message(int nCode, WPARAM wParam, LPARAM lParam)
                         send_key_click(WM_NCLBUTTONDBLCLK);
                     }
                 }
-                break;                   
+                break;           
             default:
                 break;
         }
     }
     return CallNextHookEx(message_hook, nCode, wParam, lParam);
+}
+
+static LRESULT CALLBACK
+mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION)
+    {
+        static HWND pre_hwnd = NULL;
+        PMOUSEHOOKSTRUCT pmouse = (PMOUSEHOOKSTRUCT) lParam;
+        switch (wParam)
+        {
+            case WM_MOUSEMOVE:
+            {
+                TRACKMOUSEEVENT MouseEvent;
+                MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
+                MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
+                MouseEvent.hwndTrack = pmouse->hwnd; 
+                if (mouse_time)
+                {
+                    MouseEvent.dwHoverTime = mouse_time;
+                }
+                else
+                {
+                    MouseEvent.dwHoverTime = HOVER_DEFAULT;
+                } 
+                TrackMouseEvent(&MouseEvent);
+                Sleep(0);
+                if (!ice_root || pre_hwnd != pmouse->hwnd)
+                {
+                    pre_hwnd = pmouse->hwnd;
+                    find_root_ui(pmouse->hwnd);
+                }
+            }  
+                break;                
+            case WM_NCLBUTTONDBLCLK:
+            {
+                if (!left_new || KEY_DOWN(VK_SHIFT))
+                {
+                    break;
+                }
+                send_key_click(WM_NCLBUTTONDBLCLK);
+            }
+                 return 1;  
+            case WM_LBUTTONDBLCLK:
+            {            
+                if (!double_click)
+                {
+                    break;
+                }
+                if (!mouse_on_tab(NULL, &pmouse->pt, NULL))
+                {
+                    break;
+                }
+                if (tab_event)
+                {
+                    send_click(MOUSEEVENTF_MIDDLEDOWN);
+                }
+                else
+                {
+                    send_key_click(MOUSEEVENTF_MIDDLEDOWN);
+                }
+            }
+                return 1;   
+            case WM_NCRBUTTONDOWN: 
+            {
+                if (!right_double || KEY_DOWN(VK_SHIFT))
+                {
+                    break;
+                }
+                send_key_click(WM_NCRBUTTONDOWN);
+            }
+                return 1;                           
+            case WM_RBUTTONUP:
+            {         
+                if (!right_click || KEY_DOWN(VK_SHIFT))
+                {
+                    break;
+                }
+                if (!mouse_on_tab(NULL, &pmouse->pt, NULL))
+                {
+                    break; 
+                }
+                send_key_click(MOUSEEVENTF_MIDDLEDOWN);
+            }
+                return 1;             
+            default:
+                break;
+        }
+    }
+    return CallNextHookEx(mouse_hook, nCode, wParam, lParam);
 }
 
 static HHOOK WINAPI
@@ -622,23 +573,56 @@ HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId
     if (idHook == WH_GETMESSAGE && !g_once)
     {
         *(long volatile *) &g_once = 1;
-        message_hook = sSetWindowsHookExStub(idHook, mouse_message, dll_module, dwThreadId);
-        if (message_hook != NULL)
+        mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, dwThreadId);
+        message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, dwThreadId);
+        if (mouse_hook && message_hook && remove_hook((void **)&pSetWindowsHookEx))
         {
-            return message_hook;
+        #ifdef _LOGDEBUG
+            logmsg("remove_hook(pSetWindowsHookEx)\n");
+        #endif 
+            return NULL; 
         }
     }
     return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
+}
+
+void WINAPI
+un_uia(void)
+{  
+    if (mouse_hook)
+    {     
+        UnhookWindowsHookEx(mouse_hook);
+        mouse_hook = NULL;
+    }
+    if (message_hook)
+    {      
+        UnhookWindowsHookEx(message_hook);
+        message_hook = NULL;
+    }
+    if (cache_uia)
+    {       
+        IUIAutomationCacheRequest_Release(cache_uia);
+        cache_uia = NULL;       
+    } 
+    if (g_uia)
+    {        
+        IUIAutomation_Release(g_uia);        
+        CoUninitialize();
+        g_uia = NULL;
+    #ifdef _LOGDEBUG
+        logmsg("IUIAutomation_Release(g_uia)\n");
+    #endif         
+    }  
 }
 
 static bool
 init_uia(void)
 {
     HRESULT hr;
-    if (message_hook != NULL)
+    if (message_hook || mouse_hook)
     {
     #ifdef _LOGDEBUG
-        logmsg("message_hook used\n");
+        logmsg("message hook used\n");
     #endif
         return false;
     }
@@ -697,32 +681,8 @@ init_uia(void)
     {
         print_process_module(GetCurrentProcessId());
     }
-#endif
+#endif    
     return SUCCEEDED(hr);
-}
-
-void WINAPI
-un_uia(void)
-{
-    if (ice_root)
-    {
-        IUIAutomationElement_Release(ice_root);
-        ice_root = NULL;
-    }    
-    if (cache_uia)
-    {
-        IUIAutomationCacheRequest_Release(cache_uia);
-        cache_uia = NULL;
-    }    
-    if (g_uia)
-    {
-        IUIAutomation_Release(g_uia);
-        CoUninitialize();
-    }
-    if (message_hook)
-    {
-        UnhookWindowsHookEx(message_hook);
-    }
 }
 
 void WINAPI
@@ -732,7 +692,14 @@ threads_on_win7(void)
     {
         return;
     }
-    message_hook = SetWindowsHookExW(WH_GETMESSAGE, mouse_message, dll_module, GetCurrentThreadId());
+    mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, GetCurrentThreadId());
+    if (mouse_hook == NULL)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
+    #endif
+    }    
+    message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, GetCurrentThreadId());
     if (message_hook == NULL)
     {
     #ifdef _LOGDEBUG

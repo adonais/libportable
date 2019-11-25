@@ -45,15 +45,14 @@ typedef struct tagWNDINFO
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
 
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif 
 
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
-extern bool creator_hook(void* target, void* func, void **original);
+extern bool creator_hook(void *target, void *func, void **original);
+extern bool remove_hook(void **target);
 
 #ifdef _LOGDEBUG
 extern void     __cdecl logmsg(const char * format, ...);

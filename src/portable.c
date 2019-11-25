@@ -76,16 +76,6 @@ typedef struct _dyn_link_desc
     pointer_to_handler* original;
 }dyn_link_desc;
 
-bool
-creator_hook(void* target, void* func, void **original)
-{
-    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
-    {
-        return ( MH_EnableHook(target) == MH_OK );
-    }
-    return false;
-}
-
 /* AVX memset with non-temporal instructions */
 TETE_EXT_CLASS void * __cdecl 
 memset_nontemporal_tt (void *dest, int c, size_t count)
@@ -111,6 +101,27 @@ TETE_EXT_CLASS intptr_t
 GetAppDirHash_tt(void)
 {
     return 0;
+}
+
+bool
+creator_hook(void *target, void *func, void **original)
+{
+    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
+    {
+        return ( MH_EnableHook(target) == MH_OK );
+    }
+    return false;
+}
+
+bool
+remove_hook(void **target)
+{
+    if ( NULL != target && MH_RemoveHook(*target) == MH_OK )
+    {
+        *target = NULL;
+        return true;
+    }
+    return false;
 }
 
 HRESULT WINAPI 
@@ -529,17 +540,17 @@ child_proces_if(void)
 void WINAPI 
 undo_it(void)
 {
+    /* 反注册uia */
+    un_uia();
     /* 解除快捷键 */
     uninstall_bosskey();    
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
     MH_Uninitialize();
-#if defined(_MSC_VER)
-    /* 反注册IUIAutomation接口 */
-    un_uia();
+#ifdef _LOGDEBUG
+    logmsg("all clean!\n");
 #endif
-    return;
 }
 
 void WINAPI 
@@ -556,7 +567,7 @@ do_it(void)
             }
         }
         else
-        {
+        {        
             local_hook(); 
         }   
     }
