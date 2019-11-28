@@ -1027,21 +1027,23 @@ get_localdt_path(WCHAR *path, int len)
 DWORD WINAPI
 get_os_version(void)
 {
-    OSVERSIONINFOEXW osvi;
-    DWORD ver = 0L;
-    fzero(&osvi, sizeof(OSVERSIONINFOEXW));
-
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-    if (GetVersionExW((OSVERSIONINFOW *) &osvi))
+	typedef void (WINAPI *RtlGetNtVersionNumbersPtr)(DWORD*, DWORD*, DWORD*);
+    RtlGetNtVersionNumbersPtr fnRtlGetNtVersionNumbers = NULL;
+    DWORD dwMajorVer, dwMinorVer, dwBuildNumber;
+	DWORD ver = 0;
+	HMODULE nt_dll = GetModuleHandleW(L"ntdll.dll");
+    if (nt_dll)
     {
-        if (VER_PLATFORM_WIN32_NT == osvi.dwPlatformId && osvi.dwMajorVersion > 4)
-        {
-#define VER_NUM 5
-            WCHAR pszOS[VER_NUM] = { 0 };
-            wnsprintfW(pszOS, VER_NUM, L"%lu%d%lu", osvi.dwMajorVersion, 0, osvi.dwMinorVersion);
-            ver = wcstol(pszOS, NULL, 10);
-#undef VER_NUM
-        }
+	    fnRtlGetNtVersionNumbers = (RtlGetNtVersionNumbersPtr)GetProcAddress(nt_dll, "RtlGetNtVersionNumbers");
+    }
+    if (fnRtlGetNtVersionNumbers)
+    {
+	#define VER_NUM 5
+		WCHAR pszOS[VER_NUM] = { 0 };
+	    fnRtlGetNtVersionNumbers(&dwMajorVer, &dwMinorVer,&dwBuildNumber);
+		_snwprintf(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
+		ver = wcstol(pszOS, NULL, 10);
+	#undef VER_NUM
     }
     return ver;
 }

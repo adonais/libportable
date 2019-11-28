@@ -14,7 +14,6 @@ static SetWindowsHookExPtr pSetWindowsHookEx, sSetWindowsHookExStub;
 static HHOOK message_hook, mouse_hook;
 static IUIAutomation *g_uia;
 static IUIAutomationCacheRequest *cache_uia;
-static IUIAutomationElement *ice_root;
 static uint32_t mouse_time;
 static bool tab_event;
 static bool double_click;
@@ -197,11 +196,12 @@ find_next_child(IUIAutomationElement *pElement, long uia_id)
 }
 
 static HRESULT
-get_tab_bars(IUIAutomationElement **tab_bar)
+get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd)
 {
     HRESULT hr = 1;
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
+	IUIAutomationElement *ice_root = NULL;
     VARIANT var;
     do
     {
@@ -209,10 +209,18 @@ get_tab_bars(IUIAutomationElement **tab_bar)
         int c = 0;
         var.vt = VT_I4;
         var.lVal = UIA_ToolBarControlTypeId;
-        if (!(g_uia && ice_root && cache_uia))
+        if (!(g_uia && cache_uia && hwnd))
         {
             break;
         }
+		hr = IUIAutomation_ElementFromHandle(g_uia, hwnd, &ice_root);
+        if (FAILED(hr) || !ice_root)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("%s_IUIAutomation_ElementFromHandleBuildCache false, cause: %lu\n", __FUNCTION__, GetLastError());
+        #endif             
+            break;
+        } 
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
         if (FAILED(hr))
         {
@@ -257,6 +265,10 @@ get_tab_bars(IUIAutomationElement **tab_bar)
     {
         IUIAutomationElement_Release(pFoundArray);
     }
+	if (ice_root)
+	{
+		IUIAutomationElement_Release(ice_root);
+	}
     return hr;
 }
 
@@ -275,9 +287,10 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
     {
         int idx;
         int c = 0;
+        HWND hwnd = WindowFromPoint(*pt);
         var.vt = VT_I4;
         var.lVal = UIA_TabItemControlTypeId;
-        hr = get_tab_bars(&tab_bar);
+        hr = get_tab_bars(&tab_bar, hwnd);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -395,38 +408,9 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
     return res;
 }
 
-static HRESULT
-find_root_ui(HWND hwnd)
-{
-    HRESULT hr = 1;
-    if (ice_root)
-    {
-        IUIAutomationElement_Release(ice_root);
-        ice_root = NULL;
-    }    
-    if (cache_uia)
-    {
-        IUIAutomationCacheRequest_Release(cache_uia);
-        cache_uia = NULL;
-    }
-    hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);      
-    if (SUCCEEDED(hr) && cache_uia)
-    {
-        hr = IUIAutomation_ElementFromHandleBuildCache(g_uia, hwnd, cache_uia, &ice_root);
-    #ifdef _LOGDEBUG
-        if (FAILED(hr))
-        {
-            logmsg("%s_IUIAutomation_ElementFromHandleBuildCache NULL!\n", __FUNCTION__);
-        }
-    #endif    
-    }
-    return hr;
-}
-
 static LRESULT CALLBACK
 message_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
-    
     if (nCode == HC_ACTION)
     {
         MSG   *msg = (MSG *) lParam;
@@ -482,8 +466,11 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
-        static HWND pre_hwnd = NULL;
         PMOUSEHOOKSTRUCT pmouse = (PMOUSEHOOKSTRUCT) lParam;
+		if (GetWindowThreadProcessId(pmouse->hwnd, NULL) != GetCurrentThreadId())
+		{
+			return CallNextHookEx(mouse_hook, nCode, wParam, lParam);
+		}        
         switch (wParam)
         {
             case WM_MOUSEMOVE:
@@ -501,12 +488,6 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
                     MouseEvent.dwHoverTime = HOVER_DEFAULT;
                 } 
                 TrackMouseEvent(&MouseEvent);
-                Sleep(0);
-                if (!ice_root || pre_hwnd != pmouse->hwnd)
-                {
-                    pre_hwnd = pmouse->hwnd;
-                    find_root_ui(pmouse->hwnd);
-                }
             }  
                 break;                
             case WM_NCLBUTTONDBLCLK:
@@ -676,12 +657,10 @@ init_uia(void)
     }
     CoInitialize(NULL);
     hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **) &g_uia);
-#ifdef _LOGDEBUG
-    if (FAILED(hr))
-    {
-        print_process_module(GetCurrentProcessId());
-    }
-#endif    
+	if (SUCCEEDED(hr) && g_uia)
+	{
+	    hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
+	}
     return SUCCEEDED(hr);
 }
 
