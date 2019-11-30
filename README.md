@@ -57,35 +57,29 @@ https://sourceforge.net/projects/msys2/
 ## Add libportable into Firefox?
 **Binary static injection,example:**
 	
-	setdll32 /d:portable32.dll xul.dll       // 32 bits firefox    
-	setdll64 /d:portable64.dll xul.dll       // 64 bits firefox    
+	setdll32 /d:portable32.dll mozglue.dll       // 32 bits firefox    
+	setdll64 /d:portable64.dll mozglue.dll       // 64 bits firefox    
 
 **Compiled from firefox's source code,patches example:**   
 ```
-diff --git a/toolkit/library/moz.build b/toolkit/library/moz.build
---- a/toolkit/library/moz.build
-+++ b/toolkit/library/moz.build
-@@ -290,16 +290,22 @@ if CONFIG['OS_ARCH'] == 'SunOS':
-         ]
+diff --git a/toolkit/library/nsDllMain.cpp b/toolkit/library/nsDllMain.cpp
+--- a/toolkit/library/nsDllMain.cpp
++++ b/toolkit/library/nsDllMain.cpp
+@@ -8,6 +8,16 @@
+ #include "mozilla/Assertions.h"
+ #include "mozilla/WindowsVersion.h"
  
- if CONFIG['OS_ARCH'] == 'FreeBSD':
-     OS_LIBS += [
-         'util',
-     ]
- 
- if CONFIG['OS_ARCH'] == 'WINNT':
-+    if CONFIG['CPU_ARCH'] == 'x86_64':
-+        OS_LIBS += ['portable64']
-+    else:
-+        OS_LIBS += ['portable32']
-+    
-+if CONFIG['OS_ARCH'] == 'WINNT':
-     OS_LIBS += [
-         'shell32',
-         'ole32',
-         'version',
-         'winspool',
-         'comdlg32',
-         'imm32',
-         'msimg32',
++#if defined(_MSC_VER) && defined(TT_MEMUTIL)
++#if defined(_M_IX86)
++#pragma comment(lib,"portable32.lib")
++#pragma comment(linker, "/include:_GetCpuFeature_tt")
++#elif defined(_M_AMD64) || defined(_M_X64)
++#pragma comment(lib,"portable64.lib")
++#pragma comment(linker, "/include:GetCpuFeature_tt")
++#endif
++#endif /* _MSC_VER && TT_MEMUTIL */
++
+ #if defined(__GNUC__)
+ // If DllMain gets name mangled, it won't be seen.
+ extern "C" {
 ```
