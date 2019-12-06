@@ -184,7 +184,7 @@ read_appkeyW(LPCWSTR lpappname, /* 区段名 */
     {
         res = GetPrivateProfileStringW(lpappname, lpkey, L"", prefstring, bufsize, pfile);
     }
-    if (res == 0 && GetLastError() != 0x0)
+    if ((res == 0 && GetLastError() != 0x0) || *prefstring == L'\0')
     {
         return false;
     }
@@ -222,7 +222,7 @@ read_appkeyA(LPCSTR lpappname,  /* 区段名 */
         return false;
     }
     res = GetPrivateProfileStringA(lpappname, lpkey, "", u8_path, MAX_PATH, a8_ini);
-    if (res == 0 && GetLastError() != 0x0)
+    if ((res == 0 && GetLastError() != 0x0) || *u8_path == '\0')
     {
     #ifdef _LOGDEBUG
         logmsg("GetPrivateProfileStringA false in %s , ini = %s\n", __FUNCTION__, a8_ini);
@@ -530,13 +530,32 @@ create_dir(LPCWSTR dir)
 }
 
 bool WINAPI
-path_to_absolute(LPWSTR lpfile, int len)
+path_to_absolute(LPWSTR path, int len)
 {
+    WCHAR lpfile[MAX_PATH + 1] = { 0 };
     int n = 1;
-    if (NULL == lpfile || *lpfile == L' ')
+    if (NULL == path || *path == L'\0' || *path == L' ')
     {
         return false;
     }
+    if ((*path != L'"' || *path != L'%') && wcslen(path) > 1 && path[1] == L':')
+    {
+        return true;
+    }
+    if (*path == L'"')
+    {
+        if (wcslen(path) < 3 || path[wcslen(path) - 1] != L'"')
+        {
+            return false;
+        }
+        wnsprintfW(lpfile, MAX_PATH, L"%ls", &path[1]);
+        lpfile[wcslen(lpfile) - 1] = L'\0';
+    }
+    else
+    {
+        wnsprintfW(lpfile, MAX_PATH, L"%ls", path);
+    }
+    wchr_replace(lpfile);
     if (lpfile[0] == L'%')
     {
         WCHAR buf_env[VALUE_LEN + 1] = { 0 };
@@ -553,23 +572,23 @@ path_to_absolute(LPWSTR lpfile, int len)
         }
         if (wcslen(buf_env) > 1 && ExpandEnvironmentStringsW(buf_env, buf_env, VALUE_LEN) > 0)
         {
-            WCHAR tmp_env[VALUE_LEN + 1] = { 0 };
-            wnsprintfW(tmp_env, len, L"%ls%ls", buf_env, &lpfile[n]);
-            n = wnsprintfW(lpfile, len, L"%ls", tmp_env);
+            n = wnsprintfW(path, len, L"%ls%ls", buf_env, &lpfile[n]);
         }
     }
-    if (lpfile[1] != L':')
+    else if (lpfile[1] != L':')
     {
         WCHAR modname[VALUE_LEN + 1] = { 0 };
-        wchr_replace(lpfile);
-        if (GetModuleFileNameW(dll_module, modname, VALUE_LEN) > 0)
+        if (GetModuleFileNameW(NULL, modname, VALUE_LEN) > 0)
         {
-            WCHAR tmp_path[MAX_PATH] = { 0 };
-            if (PathRemoveFileSpecW(modname) && PathCombineW(tmp_path, modname, lpfile))
+            if (PathRemoveFileSpecW(modname) && PathCombineW(lpfile, modname, lpfile))
             {
-                n = wnsprintfW(lpfile, len, L"%ls", tmp_path);
+                n = wnsprintfW(path, len, L"%ls", lpfile);
             }
         }
+    }
+    else
+    {
+        n = wnsprintfW(path, len, L"%ls", lpfile);
     }
     return (n > 0 && n < len);
 }

@@ -8,6 +8,7 @@
 #include <windows.h>
 #include "win_automation.h"
 
+#define WAIT_TIMES 9000
 typedef HHOOK(WINAPI *SetWindowsHookExPtr)(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId);
 
 static SetWindowsHookExPtr pSetWindowsHookEx, sSetWindowsHookExStub;
@@ -708,6 +709,10 @@ threads_on_win10(void *lparam)
         #endif
             return 0;
         }
+        Sleep(WAIT_TIMES);
     }
+#ifdef _LOGDEBUG
+    logmsg("threads_on_win10 exit!\n");
+#endif    
     return (1);
 }

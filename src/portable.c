@@ -474,13 +474,7 @@ window_hooks(void)
     }
     if (read_appint(L"General",L"OnTabs") > 0)
     {
-		if (ver > 603 && IsWindowsServer())
-		{
-        #ifdef _LOGDEBUG
-            logmsg("windows server, Ontabs disabled!\n");
-        #endif
-		}        
-        else if (ver > 601)
+        if (ver > 601)
         {
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
         #ifdef _LOGDEBUG
@@ -508,7 +502,7 @@ window_hooks(void)
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
     }
     if (read_appint(L"General", L"ProxyExe") > 0)
-    {
+    {       
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
     }
 }

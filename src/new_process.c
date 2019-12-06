@@ -10,7 +10,8 @@
 #define PROCESS_NUM 10
 static  void* g_handle[PROCESS_NUM];
 
-HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
+static HANDLE 
+search_process(LPCWSTR lpstr, DWORD m_parent)
 {
     bool   b_more;
     PROCESSENTRY32W pe32;
@@ -63,51 +64,74 @@ HANDLE search_process(LPCWSTR lpstr, DWORD m_parent)
     return m_handle;
 }
 
-int get_parameters(LPWSTR wdir, LPWSTR lpstrCmd, DWORD len)
+static int 
+get_parameters(LPWSTR cmd, LPWSTR wdir, DWORD len)
 {
     int    ret = -1;
     LPWSTR lp = NULL;
     WCHAR  temp[VALUE_LEN+1]   = {0};
     WCHAR  m_para[VALUE_LEN+1] = {0};
-    if ( read_appkeyW(L"attach",L"ExPath",temp,VALUE_LEN,NULL) )
+    if (!read_appkeyW(L"attach",L"ExPath",temp,VALUE_LEN,NULL))
     {
-        wdir[0] = L'\0';
-        lp =  StrChrW(temp,L',');
-        if ( (NULL != lp) && isdigit(temp[wcslen(temp)-1]) )
+        return ret;
+    }
+    if ((lp =  StrChrW(temp, L',')) == NULL  || !isdigit(temp[wcslen(temp) - 1]))
+    {
+        return ret;
+    }
+    if (true)
+    {
+        ret = temp[wcslen(temp)-1] - L'0';
+        temp[lp-temp] = L'\0';
+        *wdir = L'\0';        
+    }
+    if (*temp == L'"')
+    {
+        if ((lp = StrChrW(&temp[1], L'"')) == NULL)
         {
-            ret = temp[wcslen(temp)-1] - L'0';
+            return -1;
+        }
+        wnsprintfW(cmd, lp - temp, L"%ls", &temp[1]);
+        if ((lp =  StrChrW(lp, L' ')) != NULL)
+        {
+            wnsprintfW(m_para, VALUE_LEN, L" "L"%ls", lp + 1);                 
+        }
+    }
+    else 
+    {
+         /* 如果第三方进程存在参数且没有使用双引号,工作目录设为浏览器主进程所在目录 */
+        if ((lp =  StrChrW(temp, L' ')) != NULL)
+        {
             temp[lp-temp] = L'\0';
-            lp =  StrChrW(temp,L' ');
-            /* 如果第三方进程存在参数,工作目录设为浏览器主进程所在目录 */
-            if ( lp )
+            wnsprintfW(m_para, VALUE_LEN, L" "L"%ls", lp + 1);
+            if (!getw_cwd(wdir,len))
             {
-                temp[lp-temp] = L'\0';
-                wnsprintfW(m_para,VALUE_LEN,L" "L"%ls",lp+1);
-                if ( !getw_cwd(wdir,len) )
-                {
-                    wdir[0] = L'\0';
-                }
-            }
-            wnsprintfW(lpstrCmd,len,L"%ls",temp);
-            if ( lpstrCmd[0] == L'.' || lpstrCmd[0] == L'%' )
-            {
-                path_to_absolute(lpstrCmd,VALUE_LEN);
-            }
-            wcsncat(lpstrCmd,m_para,len);
-            if ( wcslen(wdir) == 0 )
-            {
-                wnsprintfW(wdir,len,L"%ls",lpstrCmd);
-                if ( !PathRemoveFileSpecW(wdir) )
-                {
-                    wdir[0] = L'\0';
-                }
-            }
+                wdir[0] = L'\0';
+            }                    
+        }
+        wnsprintfW(cmd, len, L"%ls", temp);
+    }
+    if (cmd[0] == L'.' || cmd[0] == L'%')
+    {
+        path_to_absolute(cmd, VALUE_LEN);
+    }
+    if (wcslen(m_para) > 1)
+    {
+        wcsncat(cmd , m_para, len);
+    }
+    if (*wdir == L'\0')
+    {
+        wnsprintfW(wdir, len, L"%ls", cmd);
+        if (!PathRemoveFileSpecW(wdir))
+        {
+            wdir[0] = L'\0';
         }
     }
     return ret;
 }
 
-bool WINAPI no_gui_boot(void)
+bool WINAPI 
+no_gui_boot(void)
 {
     LPWSTR  *args = NULL;
     int     m_arg = 0;
@@ -130,7 +154,8 @@ bool WINAPI no_gui_boot(void)
     return ret;
 }
 
-void WINAPI refresh_tray(void)
+void WINAPI 
+refresh_tray(void)
 {
     HWND hwnd ;          /* tray hwnd */
     RECT m_trayToolBar;
@@ -147,7 +172,8 @@ void WINAPI refresh_tray(void)
     }
 }
 
-void WINAPI kill_trees(void)
+void WINAPI 
+kill_trees(void)
 {
     if (g_handle[0]>0)
     {
@@ -163,11 +189,16 @@ void WINAPI kill_trees(void)
 }
 
 HANDLE WINAPI 
-create_new(LPCWSTR wcmd, const LPCWSTR pcd, int flags, DWORD *opid)
+create_new(LPWSTR wcmd, LPCWSTR pcd, int flags, DWORD *opid)
 {
     PROCESS_INFORMATION pi;
     STARTUPINFOW si;
     DWORD dwCreat = 0;
+	LPCWSTR lp_dir = NULL;
+	if (pcd != NULL && wcslen(pcd) > 1)
+	{
+		lp_dir = pcd;
+	}
     if (true)
     {
         fzero(&si,sizeof(si));
@@ -187,17 +218,17 @@ create_new(LPCWSTR wcmd, const LPCWSTR pcd, int flags, DWORD *opid)
             dwCreat |= CREATE_NEW_PROCESS_GROUP;
         }
         if(!CreateProcessW(NULL,
-                          (LPWSTR)wcmd,
+                          wcmd,
                           NULL,
                           NULL,
                           FALSE,
                           dwCreat,
                           NULL,
-                          pcd,   
+                          lp_dir,
                           &si,&pi))
         {
         #ifdef _LOGDEBUG
-            logmsg("CreateProcessW error %lu\n",GetLastError());
+            logmsg("CreateProcessW %ls error, cause: %lu\n", wcmd, GetLastError());
         #endif
             return NULL;
         }
@@ -209,26 +240,27 @@ create_new(LPCWSTR wcmd, const LPCWSTR pcd, int flags, DWORD *opid)
     return pi.hProcess;
 }
 
-unsigned WINAPI run_process(void * pParam)
+unsigned WINAPI 
+run_process(void * lparam)
 {
     WCHAR wcmd[VALUE_LEN+1] = {0};
     WCHAR pcd[VALUE_LEN+1] = {0};
-    int flags = get_parameters(pcd, wcmd, VALUE_LEN);
+    int flags = get_parameters(wcmd, pcd, VALUE_LEN);
     if (flags<0)
     {
         return (0);
     }
     /* 如果是无界面启动,直接返回 */
-    if ( no_gui_boot() )
+    if (no_gui_boot())
     {
         return (0);
     }
     Sleep(1000);  /* 重启外部进程需要延迟一下 */
-    if ( wcslen(wcmd)>0 && !search_process(wcmd,0) )
+    if (wcslen(wcmd)>0 && !search_process(wcmd,0))
     {
         DWORD pid = 0;      
         g_handle[0] = create_new(wcmd, pcd, flags, &pid);
-        if ( g_handle[0] != NULL && (SleepEx(3000,false) == 0) )
+        if (g_handle[0] != NULL && (SleepEx(3000,false) == 0))
         {
             /* 延迟3s,不然无法结束进程树 */
             search_process(NULL, pid);
