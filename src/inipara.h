@@ -92,7 +92,6 @@ extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
 extern bool     WINAPI print_process_module(DWORD pid);
-extern bool     WINAPI get_env_status(LPCWSTR env);
 extern bool     WINAPI get_ini_path(WCHAR *ini, int len);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);

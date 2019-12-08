@@ -425,14 +425,20 @@ init_hook_data(void)
     #endif
         return false;  
     }        
-    if (!get_env_status(L"LIBPORTABLE_FILEIO_DEFINED"))
-    {        
+    if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+    {  
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
+    #endif               
         write_file(appdt);
-    }
-    if (!get_env_status(L"LIBPORTABLE_SETENV_DEFINED"))
+    }   
+    if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
     {
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_SETENV_DEFINED!\n");
+    #endif         
         set_envp(NULL);
-    }
+    }    
     return true;
 }
 

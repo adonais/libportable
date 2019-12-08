@@ -72,17 +72,6 @@ logmsg(const char *format, ...)
 #endif
 
 bool WINAPI
-get_env_status(LPCWSTR env)
-{
-    WCHAR m_value[2] = { 0 };
-    if (GetEnvironmentVariableW(env, m_value, 1) > 0 && *m_value == L'1')
-    {
-        return true;
-    }
-    return false;
-}
-
-bool WINAPI
 get_ini_path(WCHAR *ini, int len)
 {
     bool ret = false;
@@ -921,7 +910,7 @@ clean_files(LPCWSTR appdt)
     {
         return;
     }
-    if (read_appkeyA("Compatibility", "LastPlatformDir", cmp_ini, MAX_PATH, cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
+    if (!(read_appkeyA("Compatibility", "LastPlatformDir", cmp_ini, MAX_PATH, cmp_ini) && _wcsicmp(temp, cmp_ini)))
     {
     #ifdef _LOGDEBUG
         logmsg("no movement of position,do nothing.\n");
@@ -937,6 +926,7 @@ clean_files(LPCWSTR appdt)
     }
     return;
 }
+
 unsigned WINAPI
 write_file(void *p)
 {
@@ -944,6 +934,7 @@ write_file(void *p)
     LPWSTR szDir = NULL;
     LPCWSTR appdt = (LPCWSTR) p;
     WCHAR moz_profile[MAX_PATH + 1] = { 0 };
+    SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
     if (read_appint(L"General", L"DisDedicate") == 0)
     {
         clean_files(appdt);
@@ -995,7 +986,6 @@ write_file(void *p)
     }
     if (true)
     {
-        SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
         clean_files(appdt);
     }
     return (1);

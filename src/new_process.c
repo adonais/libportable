@@ -154,7 +154,7 @@ no_gui_boot(void)
     return ret;
 }
 
-void WINAPI 
+static void 
 refresh_tray(void)
 {
     HWND hwnd ;          /* tray hwnd */
@@ -254,8 +254,8 @@ run_process(void * lparam)
     if (no_gui_boot())
     {
         return (0);
-    }
-    Sleep(1000);  /* 重启外部进程需要延迟一下 */
+    } 
+    Sleep(1000);  /* 重启外部进程需要延迟一下 */      
     if (wcslen(wcmd)>0 && !search_process(wcmd,0))
     {
         DWORD pid = 0;      
