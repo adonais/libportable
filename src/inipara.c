@@ -508,7 +508,6 @@ create_dir(LPCWSTR dir)
     p = wcschr(tmp_name, L'\\');
     for (; p != NULL; *p = L'\\', p = wcschr(p + 1, L'\\'))
     {
-        printf("this path %ls", p);
         *p = L'\0';
         if (exists_dir(tmp_name))
         {
