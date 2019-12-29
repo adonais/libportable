@@ -508,14 +508,51 @@ create_dir(LPCWSTR dir)
     p = wcschr(tmp_name, L'\\');
     for (; p != NULL; *p = L'\\', p = wcschr(p + 1, L'\\'))
     {
+        printf("this path %ls", p);
         *p = L'\0';
         if (exists_dir(tmp_name))
         {
             continue;
         }
-        CreateDirectoryW(tmp_name, NULL);
+        if (!CreateDirectoryW(tmp_name, NULL))
+        {
+            return false;
+        }
     }
-    return (CreateDirectoryW(tmp_name, NULL) || GetLastError() == ERROR_ALREADY_EXISTS);
+    return (exists_dir(tmp_name)? true: (CreateDirectoryW(tmp_name, NULL)));
+}
+
+static WCHAR *
+rand_str(WCHAR *str, const int len)
+{
+    int i;
+    for (i = 0; i < len; ++i)
+        str[i] = 'A' + rand() % 26;
+    str[len] = '\0';
+    return str;
+}
+
+bool WINAPI
+test_path(LPCWSTR dir)
+{
+#define LEN_NAME 6    
+    HANDLE pfile = INVALID_HANDLE_VALUE;
+    WCHAR dist_path[MAX_PATH] = { 0 };
+    WCHAR temp[LEN_NAME + 1] = { 0 };
+    if (exists_dir(dir) || create_dir(dir))
+    {
+        wnsprintfW(dist_path,MAX_PATH,L"%ls\\%ls", dir, rand_str(temp, LEN_NAME));  
+        pfile = CreateFileW(dist_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (pfile == INVALID_HANDLE_VALUE)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("create %ls failed\n", dist_path);
+        #endif
+        }
+        CloseHandle(pfile);
+    }
+    return (pfile != INVALID_HANDLE_VALUE);
+#undef LEN_NAME    
 }
 
 bool WINAPI
@@ -935,6 +972,10 @@ write_file(void *p)
     LPCWSTR appdt = (LPCWSTR) p;
     WCHAR moz_profile[MAX_PATH + 1] = { 0 };
     SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
+    if (read_appint(L"General", L"Portable") <= 0)
+    {
+        return (0);
+    }
     if (read_appint(L"General", L"DisDedicate") == 0)
     {
         clean_files(appdt);

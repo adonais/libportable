@@ -400,6 +400,10 @@ update_thread(void *lparam)
         wcsncpy(wcmd, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
     }
+    if (!test_path(wcmd))
+    {
+        return (0);
+    }
     if (read_appint(L"update", L"be_ready") > 0)
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
@@ -424,12 +428,12 @@ init_hook_data(void)
         logmsg("get_appdt_path(appdt) return false!\n");
     #endif
         return false;  
-    }        
+    }
     if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
     {  
     #ifdef _LOGDEBUG
         logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
-    #endif               
+    #endif  
         write_file(appdt);
     }   
     if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
@@ -454,7 +458,11 @@ local_hook(void)
     }
     if (read_appint(L"General", L"Portable") > 0)
     {
-        init_portable();
+        WCHAR appdt[MAX_PATH] = {0};
+        if (get_appdt_path(appdt, MAX_PATH) && test_path(appdt))
+        {
+            init_portable();
+        }
     }
 #ifndef DISABLE_SAFE    
     if (read_appint(L"General",L"SafeEx") > 0)

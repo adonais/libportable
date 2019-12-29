@@ -85,6 +85,7 @@ extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void* path);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern bool     WINAPI getw_cwd(LPWSTR lpstrName, DWORD wlen);
+extern bool     WINAPI test_path(LPCWSTR dir);
 extern unsigned WINAPI write_file(void * p);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
