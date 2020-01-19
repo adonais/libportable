@@ -45,15 +45,14 @@ typedef struct tagWNDINFO
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
 
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif 
 
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
-extern bool creator_hook(void* target, void* func, void **original);
+extern bool creator_hook(void *target, void *func, void **original);
+extern bool remove_hook(void **target);
 
 #ifdef _LOGDEBUG
 extern void     __cdecl logmsg(const char * format, ...);
@@ -86,6 +85,7 @@ extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void* path);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern bool     WINAPI getw_cwd(LPWSTR lpstrName, DWORD wlen);
+extern bool     WINAPI test_path(LPCWSTR dir);
 extern unsigned WINAPI write_file(void * p);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
@@ -93,7 +93,6 @@ extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI exists_dir(LPCWSTR path);
 extern bool     WINAPI create_dir(LPCWSTR full_path);
 extern bool     WINAPI print_process_module(DWORD pid);
-extern bool     WINAPI get_env_status(LPCWSTR env);
 extern bool     WINAPI get_ini_path(WCHAR *ini, int len);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);

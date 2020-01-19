@@ -12,9 +12,9 @@
 #endif
 
 #define MAX_MESSAGE 1024
-#define MAX_ALLSECTIONS 320
+#define MAX_ALLSECTIONS 640
 #define SECTION_NAMES 32
-#define MAX_SECTION 10
+#define MAX_SECTION 16
 
 typedef DWORD(WINAPI *PFNGFVSW)(LPCWSTR, LPDWORD);
 typedef DWORD(WINAPI *PFNGFVIW)(LPCWSTR, DWORD, DWORD, LPVOID);
@@ -70,17 +70,6 @@ logmsg(const char *format, ...)
     return;
 }
 #endif
-
-bool WINAPI
-get_env_status(LPCWSTR env)
-{
-    WCHAR m_value[2] = { 0 };
-    if (GetEnvironmentVariableW(env, m_value, 1) > 0 && *m_value == L'1')
-    {
-        return true;
-    }
-    return false;
-}
 
 bool WINAPI
 get_ini_path(WCHAR *ini, int len)
@@ -184,7 +173,7 @@ read_appkeyW(LPCWSTR lpappname, /* 区段名 */
     {
         res = GetPrivateProfileStringW(lpappname, lpkey, L"", prefstring, bufsize, pfile);
     }
-    if (res == 0 && GetLastError() != 0x0)
+    if ((res == 0 && GetLastError() != 0x0) || *prefstring == L'\0')
     {
         return false;
     }
@@ -222,7 +211,7 @@ read_appkeyA(LPCSTR lpappname,  /* 区段名 */
         return false;
     }
     res = GetPrivateProfileStringA(lpappname, lpkey, "", u8_path, MAX_PATH, a8_ini);
-    if (res == 0 && GetLastError() != 0x0)
+    if ((res == 0 && GetLastError() != 0x0) || *u8_path == '\0')
     {
     #ifdef _LOGDEBUG
         logmsg("GetPrivateProfileStringA false in %s , ini = %s\n", __FUNCTION__, a8_ini);
@@ -256,7 +245,7 @@ read_appint(LPCWSTR cat, LPCWSTR name)
     {
         return -1;
     }
-    return GetPrivateProfileIntW(cat, name, -1, pfile);
+    return GetPrivateProfileIntW(cat, name, 0, pfile);
 }
 
 bool WINAPI
@@ -524,19 +513,74 @@ create_dir(LPCWSTR dir)
         {
             continue;
         }
-        CreateDirectoryW(tmp_name, NULL);
+        if (!CreateDirectoryW(tmp_name, NULL))
+        {
+            return false;
+        }
     }
-    return (CreateDirectoryW(tmp_name, NULL) || GetLastError() == ERROR_ALREADY_EXISTS);
+    return (exists_dir(tmp_name)? true: (CreateDirectoryW(tmp_name, NULL)));
+}
+
+static WCHAR *
+rand_str(WCHAR *str, const int len)
+{
+    int i;
+    for (i = 0; i < len; ++i)
+        str[i] = 'A' + rand() % 26;
+    str[len] = '\0';
+    return str;
 }
 
 bool WINAPI
-path_to_absolute(LPWSTR lpfile, int len)
+test_path(LPCWSTR dir)
 {
+#define LEN_NAME 6    
+    HANDLE pfile = INVALID_HANDLE_VALUE;
+    WCHAR dist_path[MAX_PATH] = { 0 };
+    WCHAR temp[LEN_NAME + 1] = { 0 };
+    if (exists_dir(dir) || create_dir(dir))
+    {
+        wnsprintfW(dist_path,MAX_PATH,L"%ls\\%ls", dir, rand_str(temp, LEN_NAME));  
+        pfile = CreateFileW(dist_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (pfile == INVALID_HANDLE_VALUE)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("create %ls failed\n", dist_path);
+        #endif
+        }
+        CloseHandle(pfile);
+    }
+    return (pfile != INVALID_HANDLE_VALUE);
+#undef LEN_NAME    
+}
+
+bool WINAPI
+path_to_absolute(LPWSTR path, int len)
+{
+    WCHAR lpfile[MAX_PATH + 1] = { 0 };
     int n = 1;
-    if (NULL == lpfile || *lpfile == L' ')
+    if (NULL == path || *path == L'\0' || *path == L' ')
     {
         return false;
     }
+    if ((*path != L'"' || *path != L'%') && wcslen(path) > 1 && path[1] == L':')
+    {
+        return true;
+    }
+    if (*path == L'"')
+    {
+        if (wcslen(path) < 3 || path[wcslen(path) - 1] != L'"')
+        {
+            return false;
+        }
+        wnsprintfW(lpfile, MAX_PATH, L"%ls", &path[1]);
+        lpfile[wcslen(lpfile) - 1] = L'\0';
+    }
+    else
+    {
+        wnsprintfW(lpfile, MAX_PATH, L"%ls", path);
+    }
+    wchr_replace(lpfile);
     if (lpfile[0] == L'%')
     {
         WCHAR buf_env[VALUE_LEN + 1] = { 0 };
@@ -553,23 +597,23 @@ path_to_absolute(LPWSTR lpfile, int len)
         }
         if (wcslen(buf_env) > 1 && ExpandEnvironmentStringsW(buf_env, buf_env, VALUE_LEN) > 0)
         {
-            WCHAR tmp_env[VALUE_LEN + 1] = { 0 };
-            wnsprintfW(tmp_env, len, L"%ls%ls", buf_env, &lpfile[n]);
-            n = wnsprintfW(lpfile, len, L"%ls", tmp_env);
+            n = wnsprintfW(path, len, L"%ls%ls", buf_env, &lpfile[n]);
         }
     }
-    if (lpfile[1] != L':')
+    else if (lpfile[1] != L':')
     {
         WCHAR modname[VALUE_LEN + 1] = { 0 };
-        wchr_replace(lpfile);
-        if (GetModuleFileNameW(dll_module, modname, VALUE_LEN) > 0)
+        if (GetModuleFileNameW(NULL, modname, VALUE_LEN) > 0)
         {
-            WCHAR tmp_path[MAX_PATH] = { 0 };
-            if (PathRemoveFileSpecW(modname) && PathCombineW(tmp_path, modname, lpfile))
+            if (PathRemoveFileSpecW(modname) && PathCombineW(lpfile, modname, lpfile))
             {
-                n = wnsprintfW(lpfile, len, L"%ls", tmp_path);
+                n = wnsprintfW(path, len, L"%ls", lpfile);
             }
         }
+    }
+    else
+    {
+        n = wnsprintfW(path, len, L"%ls", lpfile);
     }
     return (n > 0 && n < len);
 }
@@ -788,37 +832,6 @@ get_mozilla_profile(LPWSTR in_dir, int len, LPCWSTR appdt)
     return (m > 0 && m < len);
 }
 
-static bool
-get_profile_path(LPWSTR in_dir, int len, LPCWSTR appdt)
-{
-    WCHAR path[MAX_PATH] = { 0 };
-    if (!get_mozilla_profile(in_dir, len, appdt))
-    {
-        return false;
-    }
-    if (!read_appkeyA("Profile0", "Path", path, MAX_PATH, in_dir))
-    {
-        return false;
-    }
-    wchr_replace(path);
-    if (path[0] == L'.')
-    {
-        PathRemoveFileSpecW(in_dir);
-        PathAppendW(in_dir, path);
-        PathCombineW(in_dir, NULL, in_dir);
-    }
-    else
-    {
-        PathRemoveFileSpecW(in_dir);
-        PathAppendW(in_dir, path);
-    }
-    if (in_dir[wcslen(in_dir) - 1] == L'\\')
-    {
-        in_dir[wcslen(in_dir) - 1] = L'\0';
-    }
-    return true;
-}
-
 /* 查找moz_values所在段,并把段名保存在out_names数组
  * 函数成功返回值为0,返回任何其他值意味着段没有找到
  */
@@ -870,6 +883,108 @@ search_section_names(LPCWSTR moz_profile, LPCWSTR moz_values, LPWSTR out_names, 
     return ret;
 }
 
+static bool 
+get_profile_arg(LPCWSTR moz_profile, LPWSTR out_path, int len)
+{
+    LPWSTR  *args = NULL;
+    int     m_arg = 0;
+    bool    ret = false;
+    args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
+    if ( NULL != args )
+    {
+        int i;
+        for (i = 1; i < m_arg; ++i)
+        {
+            if ((_wcsicmp(args[i], L"-p") == 0  || _wcsicmp(args[i], L"-profile") == 0 ) && i < m_arg - 1)
+            {
+                WCHAR m_sec[NAMES_LEN+1] = { 0 };
+                if (!search_section_names(moz_profile, args[i+1], m_sec, NAMES_LEN))
+                {
+                    char  a_sec[NAMES_LEN+1] = { 0 };
+                    WideCharToMultiByte(CP_ACP, 0, m_sec, -1, a_sec, NAMES_LEN, NULL, NULL);
+                    if (read_appkeyA(a_sec, "Path", out_path, len, (void *)moz_profile))
+                    {
+                        ret = true;
+                    }                    
+                }
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
+static bool
+find_locked_path(LPCWSTR moz_profile, LPWSTR out_path, int len)
+{
+    bool ret = false;
+    LPWSTR m_section, u_section = NULL;
+    if ((m_section = (LPWSTR) SYS_MALLOC(MAX_ALLSECTIONS * sizeof(WCHAR) + 1)) == NULL)
+    {
+        return ret;
+    }
+    u_section = m_section;
+    if (GetPrivateProfileSectionNamesW(u_section, MAX_ALLSECTIONS, moz_profile) > 0)
+    {
+        int i = 0;
+        while (*u_section != L'\0' && i < MAX_SECTION)
+        {
+            if (GetPrivateProfileIntW(u_section, L"Locked", 0, moz_profile) > 0)
+            {
+                char  a_sec[NAMES_LEN+1] = { 0 };
+                WideCharToMultiByte(CP_ACP, 0, u_section, -1, a_sec, NAMES_LEN, NULL, NULL);
+                if (read_appkeyA(a_sec, "Default", out_path, len, (void *)moz_profile))
+                {
+                    ret = true;
+                }
+            #ifdef _LOGDEBUG
+                logmsg("out_path =  %ls\n", out_path);
+            #endif
+                break;
+            }
+            u_section += wcslen(u_section) + 1;
+            ++i;
+        }
+    }
+    SYS_FREE(m_section);
+    return ret;
+}
+
+static bool
+get_profile_path(LPWSTR in_dir, int len, LPCWSTR appdt)
+{
+    WCHAR path[MAX_PATH] = { 0 };
+    if (!get_mozilla_profile(in_dir, len, appdt))
+    {
+        return false;
+    }
+    if (!(get_profile_arg(in_dir, path, MAX_PATH) || find_locked_path(in_dir, path, MAX_PATH) || read_appkeyA("Profile0", "Path", path, MAX_PATH, in_dir)))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("get_profile_path false in %s\n", __FUNCTION__);
+    #endif        
+        return false;
+    }
+    wchr_replace(path);
+    if (path[0] == L'.')
+    {
+        PathRemoveFileSpecW(in_dir);
+        PathAppendW(in_dir, path);
+        PathCombineW(in_dir, NULL, in_dir);
+    }
+    else
+    {
+        PathRemoveFileSpecW(in_dir);
+        PathAppendW(in_dir, path);
+    }
+    if (in_dir[wcslen(in_dir) - 1] == L'\\')
+    {
+        in_dir[wcslen(in_dir) - 1] = L'\0';
+    }
+    return true;
+}
+
 static void
 write_ini_file(LPCWSTR path)
 {
@@ -896,13 +1011,16 @@ clean_files(LPCWSTR appdt)
     WCHAR cmp_ini[MAX_PATH] = { 0 };
     if (!(getw_cwd(temp, MAX_PATH) && get_profile_path(path, MAX_PATH, appdt)))
     {
+    #ifdef _LOGDEBUG
+        logmsg("profile path[%ls]\n", path);
+    #endif        
         return;
-    }
+    }    
     if (!(wnsprintfW(cmp_ini, MAX_PATH, L"%ls", path) > 0 && PathAppendW(cmp_ini, L"compatibility.ini")))
     {
         return;
     }
-    if (read_appkeyA("Compatibility", "LastPlatformDir", cmp_ini, MAX_PATH, cmp_ini) && _wcsicmp(temp, cmp_ini) == 0)
+    if (!(read_appkeyA("Compatibility", "LastPlatformDir", cmp_ini, MAX_PATH, cmp_ini) && _wcsicmp(temp, cmp_ini)))
     {
     #ifdef _LOGDEBUG
         logmsg("no movement of position,do nothing.\n");
@@ -918,6 +1036,7 @@ clean_files(LPCWSTR appdt)
     }
     return;
 }
+
 unsigned WINAPI
 write_file(void *p)
 {
@@ -925,9 +1044,13 @@ write_file(void *p)
     LPWSTR szDir = NULL;
     LPCWSTR appdt = (LPCWSTR) p;
     WCHAR moz_profile[MAX_PATH + 1] = { 0 };
-    if (read_appint(L"General", L"DisDedicate") == 0)
+    SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
+    if (read_appint(L"General", L"Portable") <= 0)
     {
-        clean_files(appdt);
+        return (0);
+    }
+    if (read_appint(L"General", L"DisDedicate") <= 0)
+    {
         return (0);
     }
     if (get_mozilla_profile(moz_profile, MAX_PATH, appdt) && PathFileExistsW(moz_profile))
@@ -976,7 +1099,6 @@ write_file(void *p)
     }
     if (true)
     {
-        SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
         clean_files(appdt);
     }
     return (1);
@@ -1027,21 +1149,23 @@ get_localdt_path(WCHAR *path, int len)
 DWORD WINAPI
 get_os_version(void)
 {
-    OSVERSIONINFOEXW osvi;
-    DWORD ver = 0L;
-    fzero(&osvi, sizeof(OSVERSIONINFOEXW));
-
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-    if (GetVersionExW((OSVERSIONINFOW *) &osvi))
+	typedef void (WINAPI *RtlGetNtVersionNumbersPtr)(DWORD*, DWORD*, DWORD*);
+    RtlGetNtVersionNumbersPtr fnRtlGetNtVersionNumbers = NULL;
+    DWORD dwMajorVer, dwMinorVer, dwBuildNumber;
+	DWORD ver = 0;
+	HMODULE nt_dll = GetModuleHandleW(L"ntdll.dll");
+    if (nt_dll)
     {
-        if (VER_PLATFORM_WIN32_NT == osvi.dwPlatformId && osvi.dwMajorVersion > 4)
-        {
-#define VER_NUM 5
-            WCHAR pszOS[VER_NUM] = { 0 };
-            wnsprintfW(pszOS, VER_NUM, L"%lu%d%lu", osvi.dwMajorVersion, 0, osvi.dwMinorVersion);
-            ver = wcstol(pszOS, NULL, 10);
-#undef VER_NUM
-        }
+	    fnRtlGetNtVersionNumbers = (RtlGetNtVersionNumbersPtr)GetProcAddress(nt_dll, "RtlGetNtVersionNumbers");
+    }
+    if (fnRtlGetNtVersionNumbers)
+    {
+	#define VER_NUM 5
+		WCHAR pszOS[VER_NUM] = { 0 };
+	    fnRtlGetNtVersionNumbers(&dwMajorVer, &dwMinorVer,&dwBuildNumber);
+		_snwprintf(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
+		ver = wcstol(pszOS, NULL, 10);
+	#undef VER_NUM
     }
     return ver;
 }

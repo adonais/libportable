@@ -70,6 +70,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         WCHAR temp[VALUE_LEN+1];
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
         wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
+		wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
         PathRemoveFileSpecW(temp);
         for(num=2; num<i; ++num)
         {
@@ -86,8 +87,7 @@ static bool in_whitelist(LPCWSTR lpfile)
             {
                 continue;
             }
-            if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && \
-                 white_list[i][1] != L':' )
+            if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':' )
             {
                 path_to_absolute(white_list[i],VALUE_LEN);
             }

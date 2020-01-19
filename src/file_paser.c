@@ -461,7 +461,8 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
     return ret;
 }
 
-bool __stdcall json_parser(wchar_t *moz_profile)
+bool WINAPI
+json_parser(wchar_t *moz_profile)
 {
     char win_profile[MAX_PATH + 1] = { 0 };
     wchar_t u_file[MAX_PATH + 1] = { 0 };

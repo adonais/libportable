@@ -19,6 +19,7 @@
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <knownfolders.h>
+#include <versionhelpers.h>
 #include <process.h>
 #include <stdio.h>
 #include <time.h>
@@ -76,16 +77,6 @@ typedef struct _dyn_link_desc
     pointer_to_handler* original;
 }dyn_link_desc;
 
-bool
-creator_hook(void* target, void* func, void **original)
-{
-    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
-    {
-        return ( MH_EnableHook(target) == MH_OK );
-    }
-    return false;
-}
-
 /* AVX memset with non-temporal instructions */
 TETE_EXT_CLASS void * __cdecl 
 memset_nontemporal_tt (void *dest, int c, size_t count)
@@ -111,6 +102,27 @@ TETE_EXT_CLASS intptr_t
 GetAppDirHash_tt(void)
 {
     return 0;
+}
+
+bool
+creator_hook(void *target, void *func, void **original)
+{
+    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
+    {
+        return ( MH_EnableHook(target) == MH_OK );
+    }
+    return false;
+}
+
+bool
+remove_hook(void **target)
+{
+    if ( NULL != target && MH_RemoveHook(*target) == MH_OK )
+    {
+        *target = NULL;
+        return true;
+    }
+    return false;
 }
 
 HRESULT WINAPI 
@@ -170,7 +182,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     int       folder = nFolder & 0xff;
     HRESULT   ret = E_FAIL;
 #ifndef LIBPORTABLE_STATIC
-    WCHAR		dllname[VALUE_LEN+1];
+    WCHAR	  dllname[VALUE_LEN+1];
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
 #endif
     dwCaller = (uintptr_t)_ReturnAddress();
@@ -268,7 +280,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         {
             return S_FALSE;
         }
-        *ppszPath = CoTaskMemAlloc((wcslen(appdata_path) + 1) * sizeof(WCHAR));
+        *ppszPath = CoTaskMemAlloc(sizeof(appdata_path));
         if (!*ppszPath) 
         {
             return E_OUTOFMEMORY;
@@ -287,7 +299,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         {
             return S_FALSE;
         }
-        *ppszPath = CoTaskMemAlloc((wcslen(localdt_path) + 1) * sizeof(WCHAR));
+        *ppszPath = CoTaskMemAlloc(sizeof(localdt_path));
         if (!*ppszPath)
         {
             return E_OUTOFMEMORY;
@@ -388,6 +400,10 @@ update_thread(void *lparam)
         wcsncpy(wcmd, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
     }
+    if (!test_path(wcmd))
+    {
+        return (0);
+    }
     if (read_appint(L"update", L"be_ready") > 0)
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
@@ -412,15 +428,21 @@ init_hook_data(void)
         logmsg("get_appdt_path(appdt) return false!\n");
     #endif
         return false;  
-    }        
-    if (!get_env_status(L"LIBPORTABLE_FILEIO_DEFINED"))
-    {        
+    }
+    if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+    {  
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
+    #endif  
         write_file(appdt);
-    }
-    if (!get_env_status(L"LIBPORTABLE_SETENV_DEFINED"))
+    }   
+    if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
     {
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_SETENV_DEFINED!\n");
+    #endif         
         set_envp(NULL);
-    }
+    }    
     return true;
 }
 
@@ -436,7 +458,11 @@ local_hook(void)
     }
     if (read_appint(L"General", L"Portable") > 0)
     {
-        init_portable();
+        WCHAR appdt[MAX_PATH] = {0};
+        if (get_appdt_path(appdt, MAX_PATH) && test_path(appdt))
+        {
+            init_portable();
+        }
     }
 #ifndef DISABLE_SAFE    
     if (read_appint(L"General",L"SafeEx") > 0)
@@ -490,7 +516,7 @@ window_hooks(void)
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
     }
     if (read_appint(L"General", L"ProxyExe") > 0)
-    {
+    {       
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
     }
 }
@@ -529,17 +555,17 @@ child_proces_if(void)
 void WINAPI 
 undo_it(void)
 {
+    /* 反注册uia */
+    un_uia();
     /* 解除快捷键 */
     uninstall_bosskey();    
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
     MH_Uninitialize();
-#if defined(_MSC_VER)
-    /* 反注册IUIAutomation接口 */
-    un_uia();
+#ifdef _LOGDEBUG
+    logmsg("all clean!\n");
 #endif
-    return;
 }
 
 void WINAPI 
@@ -556,7 +582,7 @@ do_it(void)
             }
         }
         else
-        {
+        {        
             local_hook(); 
         }   
     }
