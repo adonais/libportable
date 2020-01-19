@@ -139,20 +139,20 @@ foreach_env(void)
     LPWSTR m_key;
     WCHAR  ini[MAX_PATH+1] = {0};
     WCHAR env_buf[MAX_ENV_SIZE + 1];
-#if defined(_WIN64)    
-    if (read_appint(L"Env",L"MOZ_DISABLE_NPAPI_SANDBOX") <= 0)
-    {
-        envPtrW(L"MOZ_DISABLE_NPAPI_SANDBOX=1");
-    }
-#endif
     if (!get_ini_path(ini, MAX_PATH))
     {
         return;
     }
-    if (get_file_version() >= 670 && read_appint(L"General",L"DisDedicate") > 0)
+#if defined(_WIN64)
+    if (read_appint(L"Env",L"MOZ_DISABLE_NPAPI_SANDBOX") <= 0)
+    {
+        envPtrW(L"MOZ_DISABLE_NPAPI_SANDBOX=1");
+    }
+#endif    
+    if (read_appint(L"General",L"Portable") > 0)
     {      
         envPtrW(L"SNAP_NAME=1");
-    }    
+    }
     if (GetPrivateProfileSectionW(L"Env", env_buf, MAX_ENV_SIZE, ini) < 4)
     {
         return;

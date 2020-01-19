@@ -182,7 +182,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     int       folder = nFolder & 0xff;
     HRESULT   ret = E_FAIL;
 #ifndef LIBPORTABLE_STATIC
-    WCHAR		dllname[VALUE_LEN+1];
+    WCHAR	  dllname[VALUE_LEN+1];
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
 #endif
     dwCaller = (uintptr_t)_ReturnAddress();
@@ -280,7 +280,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         {
             return S_FALSE;
         }
-        *ppszPath = CoTaskMemAlloc((wcslen(appdata_path) + 1) * sizeof(WCHAR));
+        *ppszPath = CoTaskMemAlloc(sizeof(appdata_path));
         if (!*ppszPath) 
         {
             return E_OUTOFMEMORY;
@@ -299,7 +299,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         {
             return S_FALSE;
         }
-        *ppszPath = CoTaskMemAlloc((wcslen(localdt_path) + 1) * sizeof(WCHAR));
+        *ppszPath = CoTaskMemAlloc(sizeof(localdt_path));
         if (!*ppszPath)
         {
             return E_OUTOFMEMORY;
