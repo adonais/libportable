@@ -1159,7 +1159,7 @@ get_os_version(void)
 	#define VER_NUM 5
 		WCHAR pszOS[VER_NUM] = { 0 };
 	    fnRtlGetNtVersionNumbers(&dwMajorVer, &dwMinorVer,&dwBuildNumber);
-		_snwprintf(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
+		wnsprintfW(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
 		ver = wcstol(pszOS, NULL, 10);
 	#undef VER_NUM
     }
