@@ -51,7 +51,8 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"upcheck.exe",
                               L"updater.exe",
                               L"wow_helper.exe",
-                              L"pingsender.exe"
+                              L"pingsender.exe",
+                              L"default-browser-agent.exe"
                              };
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
     int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);

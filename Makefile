@@ -84,7 +84,7 @@ OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex
            $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/on_tabs.o \
            $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/file_paser.o
 MIN_INC  = $(SRC)/minhook/include
-CFLAGS   += -I$(MIN_INC) -I$(SRC)
+CFLAGS   += -fvisibility=hidden -DCJSON_HIDE_SYMBOLS -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libminhook$(BITS).a
 ifeq ($(MSVC),1)	
