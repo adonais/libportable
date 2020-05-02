@@ -56,7 +56,7 @@ CFLAGS   = $(CFLAGS) --target=i686-pc-windows-msvc
 !endif
 
 MD       = @mkdir
-CP       = copy
+CP       = copy /y
 RM       = @del /q
 RMDIR    = @rmdir /s /q
 SRC      = src
@@ -106,19 +106,16 @@ OBJS     = $(OBJDLL)
 DISTDIR	 = Release
 OUT1	 = $(DISTDIR)\minhook$(BITS).lib
 
-EXEC     = \
-	@echo coming to src subdir...  && \
-	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
-	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
+all                     : dirs $(OUT1) $(OUT)
 
-all                     : $(OUT1) $(OUT)
 $(OUT1)			        : $(SUB_DIR)/Makefile.msvc
 	$(SUBMK)
+
 $(OUT)			        : $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(LDFLAGS) $(MIN_LIB) $(CRTFLAGS)
-	-copy /y $(OUT) $(TETE) 2>&1>NUL
+	-$(CP) $(OUT) $(TETE) 2>&1>NUL
+
 $(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
-	$(EXEC)
 	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
 $(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
@@ -167,6 +164,24 @@ $(DEP)\ntdll-$(PLATFORM).lib        : msrt\ntdll-$(PLATFORM).def
 	           /NODEFAULTLIB /IGNORE:4102 /MACHINE:$(PLATFORM) /NAME:ntdll.dll    
 !endif
 !endif
+
+.PHONY		            : dirs
+dirs:
+    @if not exist "$(DISTDIR)" mkdir "$(DISTDIR)" && echo.   Created $(DISTDIR)
+    @if not exist "$(DEP)" mkdir "$(DEP)" && echo.   Created $(DEP)
+
+.PHONY		            : install
+install                 : all
+    @if not defined LIBPORTABLE_PATH @echo please defined LIBPORTABLE_PATH environment variable&exit 1
+    @if not exist "%LIBPORTABLE_PATH%" mkdir "%LIBPORTABLE_PATH%"
+    @if not exist "%LIBPORTABLE_PATH%\bin" mkdir "%LIBPORTABLE_PATH%\bin"
+    @if not exist "%LIBPORTABLE_PATH%\lib" mkdir "%LIBPORTABLE_PATH%\lib"
+    @if not exist "%LIBPORTABLE_PATH%\include" mkdir "%LIBPORTABLE_PATH%\include"
+    -$(CP) $(SRC)\portable.h "%LIBPORTABLE_PATH%\include"
+    -$(CP) $(DISTDIR)\portable$(BITS).lib "%LIBPORTABLE_PATH%\lib"
+    -$(CP) $(OUT) "%LIBPORTABLE_PATH%\bin"
+    -$(CP) $(SRC)\portable(example).ini "%LIBPORTABLE_PATH%\bin"
+
 $(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 

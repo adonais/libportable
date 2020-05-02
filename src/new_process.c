@@ -91,7 +91,7 @@ get_parameters(LPWSTR cmd, LPWSTR wdir, DWORD len)
         {
             return -1;
         }
-        wnsprintfW(cmd, lp - temp, L"%ls", &temp[1]);
+        wnsprintfW(cmd, (int)(lp - temp), L"%ls", &temp[1]);
         if ((lp =  StrChrW(lp, L' ')) != NULL)
         {
             wnsprintfW(m_para, VALUE_LEN, L" "L"%ls", lp + 1);                 
