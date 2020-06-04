@@ -9,9 +9,7 @@
 #include "win_automation.h"
 
 #define WAIT_TIMES 9000
-typedef HHOOK(WINAPI *SetWindowsHookExPtr)(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId);
 
-static SetWindowsHookExPtr pSetWindowsHookEx, sSetWindowsHookExStub;
 static HHOOK message_hook, mouse_hook;
 static IUIAutomation *g_uia;
 static IUIAutomationCacheRequest *cache_uia;
@@ -24,7 +22,6 @@ static bool right_click;
 static bool left_new;
 static bool button_new;
 static bool right_double;
-volatile long g_once = 0;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
 #define ON_BUTTON_FLAGS 999
@@ -202,7 +199,7 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd)
     HRESULT hr = 1;
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
-	IUIAutomationElement *ice_root = NULL;
+    IUIAutomationElement *ice_root = NULL;
     VARIANT var;
     do
     {
@@ -214,7 +211,7 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd)
         {
             break;
         }
-		hr = IUIAutomation_ElementFromHandle(g_uia, hwnd, &ice_root);
+        hr = IUIAutomation_ElementFromHandle(g_uia, hwnd, &ice_root);
         if (FAILED(hr) || !ice_root)
         {
         #ifdef _LOGDEBUG
@@ -266,10 +263,10 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd)
     {
         IUIAutomationElement_Release(pFoundArray);
     }
-	if (ice_root)
-	{
-		IUIAutomationElement_Release(ice_root);
-	}
+    if (ice_root)
+    {
+        IUIAutomationElement_Release(ice_root);
+    }
     return hr;
 }
 
@@ -451,7 +448,7 @@ message_function(int nCode, WPARAM wParam, LPARAM lParam)
                     #ifdef _LOGDEBUG
                         logmsg("WM_MOUSEHOVER[mouse on new botton!]\n");
                     #endif                         
-                        send_key_click(WM_NCLBUTTONDBLCLK);
+                        send_click(MOUSEEVENTF_LEFTDOWN);
                     }
                 }
                 break;           
@@ -468,10 +465,10 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
     if (nCode == HC_ACTION)
     {
         PMOUSEHOOKSTRUCT pmouse = (PMOUSEHOOKSTRUCT) lParam;
-		if (GetWindowThreadProcessId(pmouse->hwnd, NULL) != GetCurrentThreadId())
-		{
-			return CallNextHookEx(mouse_hook, nCode, wParam, lParam);
-		}        
+        if (GetWindowThreadProcessId(pmouse->hwnd, NULL) != GetCurrentThreadId())
+        {
+            return CallNextHookEx(mouse_hook, nCode, wParam, lParam);
+        }        
         switch (wParam)
         {
             case WM_MOUSEMOVE:
@@ -549,25 +546,6 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(mouse_hook, nCode, wParam, lParam);
 }
 
-static HHOOK WINAPI
-HookSetWindowsHookEx(int idHook, HOOKPROC lpfn, HINSTANCE hMod, DWORD dwThreadId)
-{
-    if (idHook == WH_GETMESSAGE && !g_once)
-    {
-        *(long volatile *) &g_once = 1;
-        mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, dwThreadId);
-        message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, dwThreadId);
-        if (mouse_hook && message_hook && remove_hook((void **)&pSetWindowsHookEx))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("remove_hook(pSetWindowsHookEx)\n");
-        #endif 
-            return NULL; 
-        }
-    }
-    return sSetWindowsHookExStub(idHook, lpfn, hMod, dwThreadId);
-}
-
 void WINAPI
 un_uia(void)
 {  
@@ -601,13 +579,6 @@ static bool
 init_uia(void)
 {
     HRESULT hr;
-    if (message_hook || mouse_hook)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("message hook used\n");
-    #endif
-        return false;
-    }
     mouse_time = read_appint(L"tabs", L"mouse_time");
     if (mouse_time < 0)
     {
@@ -658,18 +629,41 @@ init_uia(void)
     }
     CoInitialize(NULL);
     hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **) &g_uia);
-	if (SUCCEEDED(hr) && g_uia)
-	{
-	    hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
-	}
+    if (SUCCEEDED(hr) && g_uia)
+    {
+        hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
+    }
     return SUCCEEDED(hr);
 }
 
-void WINAPI
-threads_on_win7(void)
+unsigned WINAPI
+threads_on_win10(void *lparam)
 {
-    if (!init_uia())
+    if (init_uia())
     {
+        Sleep(WAIT_TIMES);
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("win10 uia error!\n");
+    #endif        
+    }
+#ifdef _LOGDEBUG
+    logmsg("threads_on_win10 exit!\n");
+#endif  
+    return (1);
+}
+
+void WINAPI
+threads_on_tabs(void)
+{
+    DWORD ver = get_os_version();
+    if (ver <= 601 && !init_uia())
+    {
+    #ifdef _LOGDEBUG
+        logmsg("win7 uia error!\n");
+    #endif
         return;
     }
     mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, GetCurrentThreadId());
@@ -686,33 +680,8 @@ threads_on_win7(void)
         logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
     #endif
     }
-}
-
-unsigned WINAPI
-threads_on_win10(void *lparam)
-{
-    if (init_uia())
+    if (ver >601)
     {
-        HMODULE m_user32 = GetModuleHandleW(L"user32.dll");
-        if (!m_user32)
-        {
-            return 0;
-        }
-        if ((pSetWindowsHookEx = (SetWindowsHookExPtr) GetProcAddress(m_user32, "SetWindowsHookExW")) == NULL)
-        {
-            return 0;
-        }
-        if (!creator_hook((void *) pSetWindowsHookEx, (void *) HookSetWindowsHookEx, (LPVOID *) &sSetWindowsHookExStub))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("creator_hook return false in %s!\n", __FUNCTION__);
-        #endif
-            return 0;
-        }
-        Sleep(WAIT_TIMES);
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
     }
-#ifdef _LOGDEBUG
-    logmsg("threads_on_win10 exit!\n");
-#endif    
-    return (1);
 }

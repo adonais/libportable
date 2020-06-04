@@ -488,20 +488,7 @@ window_hooks(void)
     }
     if (read_appint(L"General",L"OnTabs") > 0)
     {
-        if (ver > 601)
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
-        #ifdef _LOGDEBUG
-            logmsg("win8--win10!\n");
-        #endif
-        }
-        else
-        {
-            threads_on_win7();
-        #ifdef _LOGDEBUG
-            logmsg("winxp--win7!\n");
-        #endif
-        }
+        threads_on_tabs();
     }
     if (read_appint(L"General", L"DisableScan") > 0)
     {
