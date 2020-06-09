@@ -72,8 +72,8 @@ $(DISTDIR)\$(OUT)      : $(OBJECTS)
 $(DEP)\buffer.obj      : $(SRC)\buffer.c $(SRC)\buffer.h
 	$(EXEC)
 	$(CC)  $(CFLAGS) /c $(SRC)\buffer.c /Fo$@
-$(DEP)\hde$(BITS).obj  : $(SRC)\HDE\hde$(BITS).c $(SRC)\HDE\hde$(BITS).h
-	$(CC) $(CFLAGS) /c $(SRC)\HDE\hde$(BITS).c /Fo$@
+$(DEP)\hde$(BITS).obj  : $(SRC)\hde\hde$(BITS).c $(SRC)\hde\hde$(BITS).h
+	$(CC) $(CFLAGS) /c $(SRC)\hde\hde$(BITS).c /Fo$@
 $(DEP)\hook.obj        : $(SRC)\hook.c $(MIN_INC)\MinHook.h
 	$(CC) $(CFLAGS) /c $(SRC)\hook.c /Fo$@
 $(DEP)\trampoline.obj  : $(SRC)\trampoline.c $(SRC)\trampoline.h

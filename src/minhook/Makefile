@@ -78,7 +78,7 @@ $(DISTDIR)/$(OUT)      : $(OBJECTS)
 $(DEP)/buffer.o        : $(SRC)/buffer.c $(SRC)/buffer.h
 	$(call EXEC)
 	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/hde$(BITS).o    : $(SRC)/HDE/hde$(BITS).c $(SRC)/HDE/hde$(BITS).h
+$(DEP)/hde$(BITS).o    : $(SRC)/hde/hde$(BITS).c $(SRC)/hde/hde$(BITS).h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/hook.o          : $(SRC)/hook.c $(MIN_INC)/MinHook.h
 	$(CC) -c $< $(CFLAGS) -o $@

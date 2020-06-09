@@ -32,15 +32,9 @@ BITS	 = 64
 endif
 endif
 
-ifeq ($(BITS),64)
-DLL_MAIN_STDCALL_NAME = _DllMainCRTStartup
-else
-DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
-endif
-
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
             -Wno-unknown-pragmas -finline-functions -DINITGUID \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601  -mavx
+            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -DVC12_CRT -mavx
 
 ifeq ($(findstring clang,$(CC)),clang)
 CXX      = $(CC)++
@@ -135,7 +129,7 @@ OBJS     = $(OBJECTS)
 ifeq ($(findstring clang,$(CC)), clang)
 LDFLAGS += -static -Wno-unused-command-line-argument -v
 else ifeq ($(USE_GCC),1)
-LDLIBS  += $(MSCRT) --entry=$(DLL_MAIN_STDCALL_NAME)
+LDLIBS  += $(MSCRT)
 LDFLAGS += -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar

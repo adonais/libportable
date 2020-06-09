@@ -7,7 +7,7 @@ Microsoft Visual Studio .
 
 - gcc, msys/msys2  
 gcc for windows:  
-https://sourceforge.net/projects/libportable/files/Tools/mingw9.2.1-clang-win64_32.7z  
+https://sourceforge.net/projects/libportable/files/Tools/gcc-win64-10.1.1.7z  
 msys msys2 project on:  
 https://sourceforge.net/projects/mingw/files/MSYS  
 https://sourceforge.net/projects/msys2/

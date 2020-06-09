@@ -29,9 +29,9 @@
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
+#include "intrin_c.h"
 #include <tlhelp32.h>
 #include <limits.h>
-#include <intrin_c.h>
 
 // Initial capacity of the HOOK_ENTRY buffer.
 #define INITIAL_HOOK_CAPACITY   32

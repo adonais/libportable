@@ -639,19 +639,18 @@ init_uia(void)
 unsigned WINAPI
 threads_on_win10(void *lparam)
 {
-    if (init_uia())
+    WNDINFO  ff_info = { 0 };
+    ff_info.hPid = GetCurrentProcessId();
+    if (!get_moz_hwnd(&ff_info))
     {
-        Sleep(WAIT_TIMES);
-    }
-    else
+        return 0;
+    }     
+    if (!init_uia())
     {
     #ifdef _LOGDEBUG
         logmsg("win10 uia error!\n");
-    #endif        
+    #endif
     }
-#ifdef _LOGDEBUG
-    logmsg("threads_on_win10 exit!\n");
-#endif  
     return (1);
 }
 
@@ -680,7 +679,7 @@ threads_on_tabs(void)
         logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
     #endif
     }
-    if (ver >601)
+    if (ver > 601)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&threads_on_win10,NULL,0,NULL));
     }
