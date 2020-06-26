@@ -3,7 +3,7 @@
 #endif
 
 #include "portable.h"
-#include "inipara.h"
+#include "general.h"
 #ifndef DISABLE_SAFE
 #include "safe_ex.h"
 #endif
@@ -15,6 +15,8 @@
 #include "set_env.h"
 #include "win_registry.h"
 #include "on_tabs.h"
+#include "ini_parser.h"
+#include "json_paser.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -25,7 +27,7 @@
 #include <time.h>
 #include <wchar.h>
 
-#if defined(VC12_CRT) 
+#if defined(VC12_CRT) || defined(__MINGW32__)
 #undef _DllMainCRTStartup
 #define _DllMainCRTStartup DllMain
 #endif
@@ -155,7 +157,7 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
                 {
                     break;
                 }
-                if ( localdt_path[0] != L'\0' && create_dir(localdt_path) )
+                if ( localdt_path[0] != L'\0' && wcreate_dir(localdt_path) )
                 {
                     result = SHILCreateFromPath(localdt_path, &pidlnew, NULL);
                 }
@@ -218,7 +220,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
             {
                 break;
             }
-            if (localdt_path[0] != L'\0' && create_dir(localdt_path))
+            if (localdt_path[0] != L'\0' && wcreate_dir(localdt_path))
             {
                 int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdt_path);
                 if (num>0 && num<MAX_PATH ) 
@@ -344,33 +346,31 @@ init_portable(void)
 #undef DLD
 }
 
-#if defined(__GNUC__) && defined(__LTO__)
-#pragma GCC push_options
-#pragma GCC optimize ("O3")
-#endif
-
 static uint64_t
-read_long(LPCWSTR cat,LPCWSTR name)
+ini_read_uint64(const char *sec, const char *key, const char *ini)
 {
-    WCHAR buf[NAMES_LEN+1] = {0};
-    if (!read_appkeyW(cat, name, buf, NAMES_LEN, NULL))
+    char *m_str = NULL;
+    uint64_t result = 0;
+    if (ini_read_string(sec, key, &m_str, ini))
     {
-        return 0;
+        result = crt_strtoui64(m_str, NULL, 10);
+        free(m_str);
     }
-    return _wcstoui64(buf, NULL, 10);   
+    return result;
 }
 
 static bool
 diff_days(void)
 {
-    uint64_t diff = 3600*24;
-    uint64_t time1 = read_long(L"update",L"last_check");
-    uint64_t time2 = (uint64_t)time(NULL);
-    if (time2 - time1 > diff)
+    bool res = false;
+    const uint64_t diff = 3600*24;
+    uint64_t cur_time = (uint64_t)time(NULL);
+    uint64_t last_time = ini_read_uint64("update", "last_check", ini_portable_path);
+    if (cur_time - last_time > diff)
     {
-        return true;
+        res = true;
     }
-    return false;
+    return res;
 }
 
 unsigned WINAPI
@@ -387,6 +387,7 @@ update_thread(void *lparam)
     #endif          
         return (0);
     }
+    
     if (!GetModuleFileNameW(NULL, path, MAX_PATH))
     {
         return (0);
@@ -399,113 +400,126 @@ update_thread(void *lparam)
     {
         wcsncpy(wcmd, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
-    }
-    if (!test_path(wcmd))
+    }    
+    if (!wcreate_dir(temp))
     {
         return (0);
     }
-    if (read_appint(L"update", L"be_ready") > 0)
+    else
+    {
+        SetEnvironmentVariableW(L"LIBPORTABLE_UPCHECK_DEFINED", L"1");
+    }
+    if (ini_read_int("update", "be_ready", ini_portable_path) > 0)
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
-        CloseHandle(create_new(wcmd, NULL, 2, NULL));
+        CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
     }
     else if (diff_days())
     {
         Sleep(8000);
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, GetCurrentProcessId(), temp);
-        CloseHandle(create_new(wcmd, NULL, 2, NULL));
+        CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
     }
     return (1);
 }
 
 static bool 
 init_hook_data(void)
-{
+{  
     WCHAR appdt[MAX_PATH] = {0};
     if (!get_appdt_path(appdt, MAX_PATH))
     {
     #ifdef _LOGDEBUG
-        logmsg("get_appdt_path(appdt) return false!\n");
+        logmsg("get_appdt_path(%ls) return false!\n", appdt);
     #endif
         return false;  
     }
-    if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
-    {  
-    #ifdef _LOGDEBUG
-        logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
-    #endif  
-        write_file(appdt);
-    }   
-    if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("set LIBPORTABLE_SETENV_DEFINED!\n");
-    #endif         
-        set_envp(NULL);
-    }    
-    return true;
-}
-
-static void 
-local_hook(void)
-{
     if (MH_Initialize() != MH_OK)
     {
     #ifdef _LOGDEBUG
         logmsg("MH_Initialize false!!!!\n");
     #endif 
-        return;
-    }
-    if (read_appint(L"General", L"Portable") > 0)
+        return false;
+    } 
+    if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
     {
-        WCHAR appdt[MAX_PATH] = {0};
-        if (get_appdt_path(appdt, MAX_PATH) && test_path(appdt))
-        {
-            init_portable();
-        }
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
+    #endif         
+        write_file(appdt);         
     }
+    if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("set LIBPORTABLE_SETENV_DEFINED!\n");
+    #endif
+        setenv_tt();
+    }
+    if (ini_read_int("General", "Portable", ini_portable_path) > 0 && wcreate_dir(appdt))
+    {
+        init_portable();
+    }  
 #ifndef DISABLE_SAFE    
-    if (read_appint(L"General",L"SafeEx") > 0)
+    if (ini_read_int("General", "SafeEx", ini_portable_path) > 0)
     {
         init_safed();
     } 
-#endif       
+#endif      
+    return true;
 }
 
 static void 
 window_hooks(void)
 {
+    int up = 0;
+    ini_cache plist = NULL;
     DWORD ver = get_os_version();
-    if (ver > 503 && 
-        read_appint(L"General", L"Update") > 0 &&
-        read_appint(L"General", L"Portable") > 0)
+    plist = iniparser_create_cache(ini_portable_path, false);
+    if (!plist)
+    {
+        return;
+    }
+    up = inicache_read_int("General", "Update", &plist);
+    if (_wgetenv(L"LIBPORTABLE_UPCHECK_DEFINED"))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("LIBPORTABLE_UPCHECK_DEFINED defined!\n");
+    #endif
+    }
+    else if (is_ff_official())
+    {       
+        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
+        SetEnvironmentVariableW(L"LIBPORTABLE_UPCHECK_DEFINED", L"1");
+    }
+    else if (ver > 503 && up && inicache_read_int("General", "Portable", &plist) > 0)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
     }
-    if (read_appint(L"General",L"CreateCrashDump") != 0)
+    if (inicache_read_int("General", "CreateCrashDump", &plist) != 0)
     {
         init_exeception(NULL);
     }
-    if (read_appint(L"General",L"OnTabs") > 0)
+    if (inicache_read_int("General", "OnTabs", &plist) > 0)
     {
         threads_on_tabs();
     }
-    if (read_appint(L"General", L"DisableScan") > 0)
+    if (inicache_read_int("General", "DisableScan", &plist) > 0)
     {
         init_winreg(NULL);
     }
-    if (read_appint(L"General",L"ProcessAffinityMask") > 0)
+    if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL)); 
     }
-    if (read_appint(L"General", L"Bosskey") > 0)
+    if (inicache_read_int("General", "Bosskey", &plist) > 0)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
     }
-    if (read_appint(L"General", L"ProxyExe") > 0)
+    if (inicache_read_int("General", "ProxyExe", &plist) > 0)
     {       
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
     }
+    iniparser_destroy_cache(&plist);
 }
 
 static bool 
@@ -514,10 +528,6 @@ child_proces_if(void)
     LPWSTR  *args = NULL;
     int     count = 0;
     bool    ret = false;
-    if (is_specialapp(L"plugin-container.exe"))
-    {
-        return false;
-    }
     if (is_browser(NULL))
     {
         args = CommandLineToArgvW(GetCommandLineW(), &count);
@@ -560,24 +570,16 @@ do_it(void)
 {
     if (!child_proces_if())
     {
-        if (is_browser(NULL) && init_hook_data())
+        if (!init_hook_data())
         {
-            local_hook(); 
-            if (!no_gui_boot())
-            {
-                window_hooks();
-            }
+            return;
         }
-        else
-        {        
-            local_hook(); 
-        }   
+        if (is_browser(NULL) && !no_gui_boot())
+        {
+            window_hooks();
+        }
     }
 }
-
-#if defined(__GNUC__) && defined(__LTO__)
-#pragma GCC pop_options
-#endif
 
 /* This is standard DllMain function. */
 #ifdef __cplusplus
@@ -606,6 +608,12 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
         DisableThreadLibraryCalls(hModule);
     #ifdef _LOGDEBUG
         init_logs();
+    #endif
+    #if defined(_MSC_VER) && !defined(VC12_CRT)
+        if (!init_crt_funcs())
+        {
+            break;
+        }
     #endif
         do_it();
         break;

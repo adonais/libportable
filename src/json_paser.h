@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-extern bool __stdcall json_parser(wchar_t *moz_profile);
+extern bool __stdcall json_parser(const char *path);
+extern unsigned __stdcall fn_update(void *lparam);
 
 #ifdef __cplusplus
 }

@@ -2,7 +2,7 @@ CC       := $(CROSS_COMPILING)gcc
 CFLAGS   = -O2
 DFLAGS   ?=
 LD       = $(CC) -o
-AR       = $(CROSS_COMPILING)ar
+AR       = ar
 LDFLAGS  = -Wl,-s
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG \
             -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
@@ -69,7 +69,7 @@ endif
 ifeq ($(USE_GCC),1)
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
-CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fno-use-linker-plugin -flto
+CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -flto
 endif
 endif
 

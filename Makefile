@@ -5,8 +5,8 @@ MSCRT    := -lmsvcrt
 MSVC     = 0
 DFLAGS   ?=
 LTO      ?=
-AR       ?= $(CROSS_COMPILING)ar
-RC       ?= $(CROSS_COMPILING)windres -i
+AR       ?= ar
+RC       ?= windres -i
 
 RC_TAR32 = -F pe-i386
 RC_TAR64 = -F pe-x86-64
@@ -34,7 +34,7 @@ endif
 
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
             -Wno-unknown-pragmas -finline-functions -DINITGUID \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -DVC12_CRT -mavx
+            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
 
 ifeq ($(findstring clang,$(CC)),clang)
 CXX      = $(CC)++
@@ -73,10 +73,10 @@ SUBMK    = $(MAKE) -C $(SUB_DIR)
 DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
-OBJECTS  = $(DEP)/portable.o $(DEP)/inipara.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
+OBJECTS  = $(DEP)/portable.o $(DEP)/general.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
            $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/on_tabs.o \
-           $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/file_paser.o
+           $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/json_paser.o $(DEP)/ini_parser.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -fvisibility=hidden -DCJSON_HIDE_SYMBOLS -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -133,9 +133,9 @@ LDLIBS  += $(MSCRT)
 LDFLAGS += -static-libgcc -Wl,--out-implib,$(DISTDIR)/libportable$(BITS).dll.a
 ifeq ($(LTO), 1)
 AR       := $(filter-out ar,$(AR )) gcc-ar
-CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -fno-use-linker-plugin -flto
+CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -flto
 #warning is only during the LTO link, debug(--verbose --save-temps )
-DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -fno-use-linker-plugin -flto
+DLLFLAGS := $(filter-out -fPIC,$(DLLFLAGS)) -flto
 endif
 else
 $(error "unknown compiler")
@@ -152,10 +152,12 @@ else
 	$(LD) $@ $(OBJS) $(DFLAGS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)
 endif	
 	-$(CP) $(OUT) $(TETE) 2>/dev/null
-$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/inipara.h
+$(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/general.h
 	$(call EXEC)
 	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h
+$(DEP)/ini_parser.o   : $(SRC)/ini_parser.c $(SRC)/ini_parser.h
+	$(CC) -c $< $(CFLAGS) -o $@	
+$(DEP)/general.o      : $(SRC)/general.c $(SRC)/general.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/inject.o       : $(SRC)/inject.c $(SRC)/inject.h $(SRC)/winapis.h
 	$(CC) -c $< $(CFLAGS) -o $@
@@ -177,7 +179,7 @@ $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h $(SRC)/win_automation.h
 	$(CC) -c $< $(CFLAGS) -o $@	
-$(DEP)/file_paser.o   : $(SRC)/file_paser.c $(SRC)/file_paser.h
+$(DEP)/json_paser.o   : $(SRC)/json_paser.c $(SRC)/json_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h
 	$(CC) -c $< $(CFLAGS) -o $@

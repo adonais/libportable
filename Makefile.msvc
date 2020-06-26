@@ -35,7 +35,7 @@ CFLAGS   = $(CFLAGS) /O2 /D "NDEBUG" -flto=thin
 !endif
 
 !if "$(MSVC_CRT)"=="1"
-CFLAGS   = $(CFLAGS) /MD /GS- /GR- /source-charset:utf-8
+CFLAGS   = $(CFLAGS) /MD /GS- /GR- /utf-8 /D "USE_UTF8"
 !else
 CFLAGS   = $(CFLAGS) /MD /GS- /GR- /utf-8 /D "USE_UTF8" /D "VC12_CRT"
 !endif
@@ -68,10 +68,10 @@ DEP      = .dep
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\portable.obj $(DEP)\inipara.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
+OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
            $(DEP)\new_process.obj $(DEP)\cpu_info.obj $(DEP)\balance.obj \
            $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\file_paser.obj
+           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj
 
 !if "$(DISABLE_SAFE)"!="1"
 OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
@@ -117,8 +117,8 @@ $(OUT)			        : $(OBJDLL)
 
 $(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
 	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
-$(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
-	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
+$(DEP)\general.obj      : $(SRC)\general.c $(SRC)\general.h
+	$(CC) $(CFLAGS) /c $(SRC)\general.c /Fo$@
 !if "$(DISABLE_SAFE)"!="1"
 $(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\winapis.h
 	$(CC) $(CFLAGS) /c $(SRC)\inject.c /Fo$@
@@ -145,8 +145,10 @@ $(DEP)\lz4.obj          : $(SRC)\lz4.c $(SRC)\lz4.h
 	$(CC) $(CFLAGS) /c $(SRC)\lz4.c /Fo$@
 $(DEP)\cjson.obj        : $(SRC)\cjson.c $(SRC)\cjson.h
 	$(CC) $(CFLAGS) /c $(SRC)\cjson.c /Fo$@
-$(DEP)\file_paser.obj   : $(SRC)\file_paser.c $(SRC)\file_paser.h
-	$(CC) $(CFLAGS) /c $(SRC)\file_paser.c /Fo$@	
+$(DEP)\json_paser.obj   : $(SRC)\json_paser.c $(SRC)\json_paser.h
+	$(CC) $(CFLAGS) /c $(SRC)\json_paser.c /Fo$@
+$(DEP)\ini_parser.obj   : $(SRC)\ini_parser.c $(SRC)\ini_parser.h
+	$(CC) $(CFLAGS) /c $(SRC)\ini_parser.c /Fo$@
 
 !if "$(VC12_CRT)"=="" && "$(MSVC_CRT)"=="1"
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def

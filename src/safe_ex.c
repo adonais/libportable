@@ -2,9 +2,10 @@
 #error This file should not be compiled!
 #endif
 
-#include "inipara.h"
+#include "general.h"
 #include "winapis.h"
 #include "inject.h"
+#include "ini_parser.h"
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -71,23 +72,19 @@ static bool in_whitelist(LPCWSTR lpfile)
         WCHAR temp[VALUE_LEN+1];
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
         wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
-		wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
+        wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
         PathRemoveFileSpecW(temp);
         for(num=2; num<i; ++num)
         {
             wnsprintfW(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
         }
-        ret = foreach_section(L"whitelist", &white_list[num], EXCLUDE_NUM-num);
+        ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path);
     }
     if ( (ret = !ret) == false )
     {
         /* 核对白名单 */
-        for ( i=0; i<EXCLUDE_NUM ; i++ )
-        {
-            if (wcslen(white_list[i]) == 0)
-            {
-                continue;
-            }
+        for ( i=0; i<EXCLUDE_NUM && white_list[i][0] != L'\0' ; i++ )
+        {        
             if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':' )
             {
                 path_to_absolute(white_list[i],VALUE_LEN);
@@ -194,7 +191,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     {
         tohook = true;
     }
-    else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
+    else if ( ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0 )
     {
         if ( ProcessParameters->ImagePathName.Length > 0 &&
              in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
@@ -274,7 +271,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     #endif
     }
     /* 如果启用白名单制度(严格检查) */
-    else if ( read_appint(L"General",L"EnableWhiteList") > 0 )
+    else if ( ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0 )
     {
         if ( !in_whitelist((LPCWSTR)lpfile) )
         {

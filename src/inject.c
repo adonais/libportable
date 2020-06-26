@@ -2,7 +2,7 @@
 #error This file should not be compiled!
 #endif
 
-#include "inipara.h"
+#include "general.h"
 #include "winapis.h"
 
 #ifdef _MSC_VER

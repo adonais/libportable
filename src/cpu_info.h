@@ -1,7 +1,7 @@
 #ifndef _CPU_INFO_H_
 #  define _CPU_INFO_H_
 
-#include "inipara.h"
+#include "general.h"
 
 #ifdef __cplusplus
 extern "C" {

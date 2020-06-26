@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <io.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <windows.h>
 #include <shlwapi.h>
 #include "lz4.h"
 #include "cjson.h"
+#include "json_paser.h"
 
 #ifdef __GNUC__
 #define GCC_VERSION ((__GNUC__ * 10000) + (__GNUC_MINOR__ * 1000) + (__GNUC_PATCHLEVEL__ * 100))
@@ -22,6 +24,11 @@
 #ifdef _LOGDEBUG
 extern void __cdecl logmsg(const char *format, ...);
 #endif
+extern char * __stdcall utf8_to_mbcs(const char *utf8);
+extern wchar_t *__stdcall utf8_to_utf16(const char *utf8);
+extern bool __stdcall get_process_directory(char *name, uint32_t len);
+extern bool __stdcall wget_process_directory(LPWSTR lpstrName, DWORD len);
+extern bool __stdcall wcreate_dir(LPCWSTR dir);
 
 static unsigned char *
 int2bytes(uint32_t value)
@@ -129,37 +136,11 @@ mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
         strncpy(res + resoffset, in_ptr, needle - in_ptr);
         resoffset += needle - in_ptr;
         in_ptr = needle + (int) strlen(sub);
-        strncpy(res + resoffset, by, strlen(by));
+        strncpy(res + resoffset, by, in_size - resoffset - 1);
         resoffset += (int) strlen(by);
     }
     strncpy(res + resoffset, in_ptr, in_size - resoffset - 1);
     return res;
-}
-
-static char *
-utf8_ansi(const char *utf8)
-{
-    char *a_8 = NULL;
-    int len = 0;
-    wchar_t u_16[MAX_PATH] = { 0 };
-    do
-    {
-        if (!MultiByteToWideChar(CP_UTF8, 0, utf8, -1, u_16, MAX_PATH))
-        {
-            break;
-        }
-        if ((len = WideCharToMultiByte(CP_ACP, 0, u_16, -1, NULL, 0, NULL, NULL)) > 0)
-        {
-            a_8 = (char *) calloc(1, len + 1);
-        }
-        if (a_8 && !WideCharToMultiByte(CP_ACP, 0, u_16, -1, a_8, len, NULL, NULL))
-        {
-            free(a_8);
-            a_8 = NULL;
-            break;
-        }
-    } while (0);
-    return a_8;
 }
 
 static bool
@@ -207,8 +188,15 @@ node_path_fix(cJSON *addons, const char *item, const char *sub1, const char *sub
     return false;
 }
 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+ * 获取addonStartup.json信息,此文件保存了扩展和插件的绝对路径
+ * file, addonStartup.json文件所在unicode路径
+ * save_name, addonStartup.json.new文件的unicode路径 
+ * win_app,  浏览器进程所在目录.路径为utf8编码
+ * win_profiles, 浏览器配置目录.路径为utf8编码
+ */
 static int
-lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, const char *win_profiles)
+lookup_json(LPCWSTR file, LPCWSTR save_name, const char *win_app, const char *win_profiles)
 {
     FILE *fp = NULL;
     FILE *out = NULL;
@@ -310,7 +298,7 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
                     *strrchr(win_node_path, '\\') = '\0';
                 }
             }
-            if ((win_ansi_path = utf8_ansi(win_node_path)) == NULL)
+            if ((win_ansi_path = utf8_to_mbcs(win_node_path)) == NULL)
             {
                 break;
             }
@@ -353,7 +341,7 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
             {
                 *strrchr(profiles_node_path, '\\') = '\0';
             }
-            if ((profiles_ansi_path = utf8_ansi(profiles_node_path)) == NULL)
+            if ((profiles_ansi_path = utf8_to_mbcs(profiles_node_path)) == NULL)
             {
                 break;
             }
@@ -462,33 +450,27 @@ lookup_json(const wchar_t *file, const wchar_t *save_name, const char *win_app, 
 }
 
 bool WINAPI
-json_parser(wchar_t *moz_profile)
+json_parser(const char *profile_dir)
 {
-    char win_profile[MAX_PATH + 1] = { 0 };
-    wchar_t u_file[MAX_PATH + 1] = { 0 };
-    wchar_t u_save[MAX_PATH + 1] = { 0 };
-    wchar_t u_app[MAX_PATH + 1] = { 0 };
-    char win_app[MAX_PATH + 1] = { 0 };
-    if (!GetModuleFileNameW(NULL, u_app, MAX_PATH))
+    wchar_t *m_dir = NULL;
+    wchar_t u_file[MAX_PATH + 1] = {0};
+    wchar_t u_save[MAX_PATH + 1] = {0};
+    char app_dir[MAX_PATH + 1] = {0};
+    if (!get_process_directory(app_dir, MAX_PATH))
     {
         return false;
     }
-    if (wcsrchr(u_app, '\\') != NULL)
-    {
-        *wcsrchr(u_app, '\\') = '\0';
-    }
-    if (!WideCharToMultiByte(CP_UTF8, 0, u_app, -1, win_app, MAX_PATH, NULL, NULL))
+    if ((m_dir = utf8_to_utf16(profile_dir)) == NULL)
     {
         return false;
     }
-    wnsprintfW(u_file, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4");
-    wnsprintfW(u_save, MAX_PATH, L"%ls\\%ls", moz_profile, L"addonStartup.json.lz4.new");
-
-    if (!WideCharToMultiByte(CP_UTF8, 0, moz_profile, -1, win_profile, MAX_PATH, NULL, NULL))
+    if (true)
     {
-        return false;
+        wnsprintfW(u_file, MAX_PATH, L"%ls\\%ls", m_dir, L"addonStartup.json.lz4");
+        wnsprintfW(u_save, MAX_PATH, L"%ls\\%ls", m_dir, L"addonStartup.json.lz4.new");
+        free(m_dir);
     }
-    if (lookup_json(u_file, u_save, win_app, win_profile) != 0)
+    if (lookup_json(u_file, u_save, app_dir, profile_dir) != 0)
     {
     #ifdef _LOGDEBUG
         logmsg("lookup_json return false.\n");
@@ -497,6 +479,164 @@ json_parser(wchar_t *moz_profile)
     }
     return MoveFileExW(u_save, u_file, MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING);
 }
+
+cJSON *
+cjson_read_file(LPCWSTR filename)
+{
+    FILE *f;
+    long len;
+    char *data;
+    cJSON *json = NULL;
+
+    f = _wfopen(filename, L"rb");
+    if (!f)
+    {
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    do
+    {
+        data = (char *) malloc(len + 1);
+        if (!data)
+        {
+            break;
+        }
+        fread(data, 1, len, f);
+        data[len] = '\0';
+        json = cJSON_Parse(data);
+        if (!json)
+        {
+        #ifdef _LOGDEBUG    
+            logmsg("cJSON_Parse Error: [%s]\n", cJSON_GetErrorPtr());
+        #endif    
+            break;
+        }
+    } while (0);
+    fclose(f);
+    if (data)
+    {
+        free(data);
+    }
+    return json;
+}
+
+static bool
+cjson_write_file(LPCWSTR path, const char *str)
+{
+    FILE *f = NULL;
+    WCHAR dist[MAX_PATH + 1] = {0};
+    wcsncpy(dist, path, MAX_PATH);
+    PathRemoveFileSpecW(dist);
+    if (!PathFileExistsW(dist))
+    {
+        if (!wcreate_dir(dist))
+        {
+            return false;
+        }
+    }
+    f =  _wfopen(path, L"wb+");
+    if (!f)
+    {
+        return false;
+    }
+    fwrite(str, 1, strlen(str), f);
+    fclose(f);
+    return true;
+}
+
+unsigned WINAPI
+fn_update(void *lparam)
+{
+    cJSON *base, *found, *root = NULL;
+    char *out = NULL;
+    bool policie_exist = false;
+    WCHAR json_file[MAX_PATH + 1] = { 0 };
+    int update = (int)(uintptr_t)lparam;
+    if (!wget_process_directory(json_file, MAX_PATH))
+    {
+        return (0);
+    }
+    wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
+    policie_exist = _waccess(json_file, 0) == 0;
+    if (!(update || policie_exist))
+    {
+        const char *str = "{\n    \"policies\": {\n        \"DisableAppUpdate\": true\n    }\n}";
+        return cjson_write_file(json_file, str);
+    }
+    else if (update && !policie_exist)
+    {
+        return (0);
+    }
+    while (policie_exist)
+    {
+        root = cjson_read_file(json_file);
+        if (!root)
+        {
+            break;
+        }
+        base = cJSON_GetObjectItem(root, "policies");
+        if (base)
+        {
+            found = cJSON_GetObjectItem(base, "DisableAppUpdate");
+            if (found)
+            {
+                if (!cJSON_IsBool(found))
+                {
+                #ifdef _LOGDEBUG    
+                    logmsg("json syntax error!\n");
+                #endif
+                    DeleteFileW(json_file); 
+                    break;
+                }
+                if (!update && cJSON_IsTrue(found))
+                {
+                    break;
+                }
+                else if (update && cJSON_IsFalse(found))
+                {
+                    break;
+                }
+                if (update)
+                {
+                    cJSON_ReplaceItemInObject(base, "DisableAppUpdate", cJSON_CreateFalse());
+                }
+                else
+                {
+                    cJSON_ReplaceItemInObject(base, "DisableAppUpdate", cJSON_CreateTrue());
+                }
+                out = cJSON_Print(root);
+                cjson_write_file(json_file, out);
+            }
+            else if (!update)
+            {
+                cJSON_AddBoolToObject(base, "DisableAppUpdate", true);
+                out = cJSON_Print(root);
+                cjson_write_file(json_file, out);
+            }
+        }
+        else if (!update)
+        {
+            cJSON *polics = cJSON_CreateObject();
+            cJSON_AddBoolToObject(polics, "DisableAppUpdate", true);
+            cJSON_AddItemToObject(root, "policies", polics);
+            out = cJSON_Print(root);
+            cjson_write_file(json_file, out);
+        }
+        break;
+    }
+    if (root)
+    {
+        cJSON_Delete(root);
+    }
+    if (out)
+    {
+        free(out);
+    }
+    return (1);
+}
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop /* -Wstringop-truncation -Wstringop-overflow */
 #endif

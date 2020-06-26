@@ -1,4 +1,5 @@
-#include "inipara.h"
+#include "general.h"
+#include "ini_parser.h"
 #include <string.h>
 #include <shlwapi.h>
 
@@ -61,32 +62,32 @@ bool is_modkey(int n)
 
 void set_hotkey(LPWNDINFO pInfo)
 {
-    WCHAR	lpstr[VALUE_LEN+1];
-    const	WCHAR delim[] = L"+";
-    WCHAR   tmp_stor[3][16] = { {0,0} };
+    char *lpstr = NULL;
+    const char *delim = "+";
+    char  tmp_stor[3][16] = { {0,0} };
     pInfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
     pInfo->key_vk = 0xc0;           /* ~键  */
-    if ( read_appkeyW(L"attach",L"Hotkey",lpstr,VALUE_LEN,NULL) )
+    if ( ini_read_string("attach","Hotkey",&lpstr,ini_portable_path) )  
     {
-        int		i = 0;
-        LPWSTR	p = lpstr;
-        int		tmp[3] = {0};
-        int		num;
-        LPWSTR strtmp = StrStrW(lpstr, delim);
+        int	i = 0;
+        char *p = lpstr;
+        int	tmp[3] = {0};
+        int	num;
+        char *strtmp = strstr(lpstr, delim);
         while( strtmp != NULL && i < 3 )
         {
-            strtmp[0]=L'\0';
-            wcsncpy(tmp_stor[i++],p,15);
-            p = strtmp + wcslen(delim);
-            strtmp = StrStrW( p, delim);
+            strtmp[0]='\0';
+            strncpy(tmp_stor[i++],p,15);
+            p = strtmp + strlen(delim);
+            strtmp = strstr( p, delim);
             if (!strtmp)
             {
-                wcsncpy(tmp_stor[i],p,15);
+                strncpy(tmp_stor[i],p,15);
             }
         }
         for ( num = 0 ; num <= i ; num++ )
         {
-            tmp[num] = StrToIntW(tmp_stor[num]);
+            tmp[num] = atoi(tmp_stor[num]);
         }
         if ( is_modkey(tmp[0]) )
         {

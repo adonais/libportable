@@ -1,4 +1,4 @@
-#include "inipara.h"
+#include "general.h"
 #include "win_registry.h"
 #include <windows.h>
 #include <shlwapi.h>

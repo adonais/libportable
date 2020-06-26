@@ -2,7 +2,8 @@
 #define COBJMACROS
 #endif
 
-#include "inipara.h"
+#include "general.h"
+#include "ini_parser.h"
 #include <stdio.h>
 #include <process.h>
 #include <windows.h>
@@ -579,7 +580,12 @@ static bool
 init_uia(void)
 {
     HRESULT hr;
-    mouse_time = read_appint(L"tabs", L"mouse_time");
+    ini_cache plist  = iniparser_create_cache(ini_portable_path, false);
+    if (!plist)
+    {
+        return false;
+    }
+    mouse_time = inicache_read_int("tabs", "mouse_time", &plist);
     if (mouse_time < 0)
     {
         mouse_time = 300;
@@ -595,34 +601,35 @@ init_uia(void)
     {
         tab_event = true;
     }
-    if (read_appint(L"tabs", L"double_click_close") > 0)
+    if (inicache_read_int("tabs", "double_click_close", &plist) > 0)
     {
         double_click = true;
     } 
-    if (tab_event && double_click && read_appint(L"tabs", L"left_click_close") > 0)
+    if (tab_event && double_click && inicache_read_int("tabs", "left_click_close", &plist) > 0)
     {
         left_click = true;
     }
-    if (read_appint(L"tabs", L"right_click_close") > 0)
+    if (inicache_read_int("tabs", "right_click_close", &plist) > 0)
     {
         right_click = true;
     }
-    if (read_appint(L"tabs", L"double_click_new") > 0)
+    if (inicache_read_int("tabs", "double_click_new", &plist) > 0)
     {
         left_new = true;
     } 
-    if (read_appint(L"tabs", L"mouse_hover_close") > 0)
+    if (inicache_read_int("tabs", "mouse_hover_close", &plist) > 0)
     {
         mouse_close = true;
     }       
-    if (read_appint(L"tabs", L"mouse_hover_new") > 0)
+    if (inicache_read_int("tabs", "mouse_hover_new", &plist) > 0)
     {
         button_new = true;
     } 
-    if (read_appint(L"tabs", L"right_click_recover") > 0)
+    if (inicache_read_int("tabs", "right_click_recover", &plist) > 0)
     {
         right_double = true;
-    }            
+    }
+    iniparser_destroy_cache(&plist);
     if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new || right_double))
     {
         return false;

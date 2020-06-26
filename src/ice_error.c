@@ -1,5 +1,5 @@
 #include "ice_error.h"
-#include "inipara.h"
+#include "general.h"
 #include <shlwapi.h>
 #include <dbghelp.h>
 

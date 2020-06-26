@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern unsigned __stdcall set_envp(void *);
+extern void __stdcall setenv_tt(void);
 
 #ifdef __cplusplus
 }

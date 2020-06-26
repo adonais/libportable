@@ -44,6 +44,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include "general.h"
 
 #ifdef ENABLE_LOCALES
 #include <locale.h>
@@ -57,28 +58,6 @@
 #endif
 
 #include "cjson.h"
-/* we need link to the old msvcrt sometimes, so ... */
-#if defined(_MSC_VER) && !defined(VC12_CRT)
-#include <windows.h>
-typedef int (__cdecl *sprintf_p)(char *buffer,const char *fmt, ...);
-typedef int (__cdecl *sscanf_p)(const char *string,const char *fmt, ...);
-static sprintf_p crt_sprintf;
-static sscanf_p crt_sscanf;
-
-bool init_crt_funcs(void)
-{
-    HMODULE h_crt = GetModuleHandleW(L"msvcrt.dll"); 
-    if (h_crt)
-    {
-        crt_sprintf = (sprintf_p)GetProcAddress(h_crt, "sprintf");
-        crt_sscanf = (sscanf_p)GetProcAddress(h_crt, "sscanf");
-    }
-    return (crt_sprintf&&crt_sscanf);
-}
-#else
-#define crt_sprintf sprintf
-#define crt_sscanf sscanf
-#endif
 
 typedef struct {
     const unsigned char *json;
@@ -1100,11 +1079,7 @@ fail:
 
 /* Default options for cJSON_Parse */
 CJSON_PUBLIC(cJSON *) cJSON_Parse(const char *value)
-{
-#if defined(_MSC_VER) && !defined(VC12_CRT)    
-    if (!init_crt_funcs())
-        return NULL;
-#endif        
+{    
     return cJSON_ParseWithOpts(value, 0, 0);
 }
 

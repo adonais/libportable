@@ -6,9 +6,9 @@ extern "C" {
 #endif
 
 extern unsigned __stdcall run_process(void * lparam);
-extern HANDLE   __stdcall create_new(WCHAR*, const WCHAR*, int, DWORD*);
 extern void     __stdcall kill_trees(void);
 extern bool     __stdcall no_gui_boot(void);
+extern HANDLE   __stdcall create_new(LPCWSTR, LPCWSTR, LPCWSTR, int, DWORD*);
 
 #ifdef __cplusplus
 }
