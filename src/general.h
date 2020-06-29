@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include "intrin_c.h"
 
-#define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
-#define   SYS_FREE(x)		 (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
+#define   SYS_MALLOC(x) (HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)))
+#define   SYS_FREE(x)   (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
 
 #define   EXCLUDE_NUM 32                    /* 白名单个数(数组最大行数) */
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
@@ -41,6 +41,16 @@ typedef struct tagWNDINFO
     DWORD hPid;
     HWND  hFF;
 } WNDINFO, *LPWNDINFO;
+
+typedef enum
+{
+    MOZ_UNKOWN = 0,
+    MOZ_ICEWEASEL,
+    MOZ_FIREFOX,
+    MOZ_BETA,
+    MOZ_DEV,
+    MOZ_NIGHTLY
+} m_family;
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,11 +95,9 @@ extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
 extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
 extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI get_process_directory(char *name, uint32_t len);
-extern bool     WINAPI is_specialapp(LPCWSTR appname);
-extern bool     WINAPI is_browser(LPCWSTR path);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
-extern bool     WINAPI is_ff_official(void);
+extern m_family WINAPI is_ff_official(void);
 extern bool     WINAPI write_file(LPCWSTR appdata_path);
 extern bool     WINAPI print_process_module(DWORD pid);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);

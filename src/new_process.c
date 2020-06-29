@@ -280,7 +280,7 @@ run_process(void * lparam)
     logmsg("wcmd[%ls], param[%ls], pcd[%ls]\n", wcmd, param, pcd);
 #endif 
     /* 重启外部进程需要延迟一下 */
-    Sleep(4000);    
+    Sleep(500);
     if (wcslen(wcmd)>0 && !search_process(wcmd,0))
     {
         DWORD pid = 0;      

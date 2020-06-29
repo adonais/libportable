@@ -1,7 +1,7 @@
 # nmake -f Makefile.msvc
 CC       = $(CC).exe
 CXX      = $(CXX).exe
-CFLAGS   = /nologo /W3 /WX- /TC /fp:precise /D "_LIB" /D "NDEBUG" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
+CFLAGS   = /nologo /W3 /WX- /TC /fp:precise /D "_LIB" /D "_UNICODE" /D "UNICODE" /D "_CRT_SECURE_NO_WARNINGS"
 LIBFLAGS = /NOLOGO
 
 !if "$(CC)"=="clang-cl.exe"

@@ -4,9 +4,7 @@
 
 #include "portable.h"
 #include "general.h"
-#ifndef DISABLE_SAFE
 #include "safe_ex.h"
-#endif
 #include "ice_error.h"
 #include "bosskey.h"
 #include "new_process.h"
@@ -373,6 +371,30 @@ diff_days(void)
     return res;
 }
 
+/* uninstall hook and clean up */
+void WINAPI 
+undo_it(void)
+{
+    if (g_mutex)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("clean LIBPORTABLE_LAUNCHER_PROCESS\n");
+    #endif          
+        CloseHandle(g_mutex);
+    }
+    /* 反注册uia */
+    un_uia();
+    /* 解除快捷键 */
+    uninstall_bosskey();    
+    /* 清理启动过的进程树 */
+    kill_trees();
+    jmp_end();
+    MH_Uninitialize();
+#ifdef _LOGDEBUG
+    logmsg("all clean!\n");
+#endif
+}
+
 unsigned WINAPI
 update_thread(void *lparam)
 {
@@ -400,32 +422,32 @@ update_thread(void *lparam)
     {
         wcsncpy(wcmd, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
-    }    
-    if (!wcreate_dir(temp))
-    {
-        return (0);
-    }
-    else
-    {
-        SetEnvironmentVariableW(L"LIBPORTABLE_UPCHECK_DEFINED", L"1");
+        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
     }
     if (ini_read_int("update", "be_ready", ini_portable_path) > 0)
     {
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
+    #ifdef _LOGDEBUG
+        logmsg("update_thread will install!\n");
+    #endif
     }
     else if (diff_days())
     {
         Sleep(8000);
         wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
-    }
+    #ifdef _LOGDEBUG
+        logmsg("update_thread will update!\n");
+    #endif        
+    }   
     return (1);
 }
 
 static bool 
 init_hook_data(void)
 {  
+    HANDLE mutex = NULL;
     WCHAR appdt[MAX_PATH] = {0};
     if (!get_appdt_path(appdt, MAX_PATH))
     {
@@ -442,29 +464,41 @@ init_hook_data(void)
         return false;
     } 
     if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+    {        
+        write_file(appdt);
+    }
+    else
     {
     #ifdef _LOGDEBUG
-        logmsg("set LIBPORTABLE_FILEIO_DEFINED!\n");
-    #endif         
-        write_file(appdt);         
+        logmsg("LIBPORTABLE_FILEIO_DEFINED!\n");
+    #endif 
     }
     if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
     {
-    #ifdef _LOGDEBUG
-        logmsg("set LIBPORTABLE_SETENV_DEFINED!\n");
-    #endif
         setenv_tt();
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
+    #endif        
     }
     if (ini_read_int("General", "Portable", ini_portable_path) > 0 && wcreate_dir(appdt))
     {
         init_portable();
-    }  
-#ifndef DISABLE_SAFE    
-    if (ini_read_int("General", "SafeEx", ini_portable_path) > 0)
-    {
         init_safed();
-    } 
-#endif      
+    }
+    if ((mutex = OpenFileMappingW(PAGE_READONLY, false, L"LIBPORTABLE_LAUNCHER_PROCESS=1")) != NULL)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
+    #endif
+        CloseHandle(mutex);
+        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
+        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
+        _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
+        
+    }
     return true;
 }
 
@@ -483,24 +517,32 @@ window_hooks(void)
     if (_wgetenv(L"LIBPORTABLE_UPCHECK_DEFINED"))
     {
     #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_UPCHECK_DEFINED defined!\n");
+        logmsg("LIBPORTABLE_UPCHECK_DEFINED!\n");
     #endif
     }
-    else if (is_ff_official())
-    {       
+    else if (is_ff_official() > MOZ_ICEWEASEL)
+    {   // 支持官方版本更新开关的禁止与启用.
         CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
-        SetEnvironmentVariableW(L"LIBPORTABLE_UPCHECK_DEFINED", L"1");
+        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
     }
     else if (ver > 503 && up && inicache_read_int("General", "Portable", &plist) > 0)
     {
+        // 调用Iceweasel的自动更新进程.
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
     }
     if (inicache_read_int("General", "CreateCrashDump", &plist) != 0)
     {
         init_exeception(NULL);
     }
-    if (inicache_read_int("General", "OnTabs", &plist) > 0)
+    if (_wgetenv(L"LIBPORTABLE_ONTABS_DEFINED"))
     {
+    #ifdef _LOGDEBUG
+        logmsg("LIBPORTABLE_ONTABS_DEFINED!\n");
+    #endif
+    }    
+    else if (inicache_read_int("General", "OnTabs", &plist) > 0)
+    {
+        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");       
         threads_on_tabs();
     }
     if (inicache_read_int("General", "DisableScan", &plist) > 0)
@@ -515,8 +557,15 @@ window_hooks(void)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
     }
-    if (inicache_read_int("General", "ProxyExe", &plist) > 0)
-    {       
+    if (_wgetenv(L"LIBPORTABLE_NEWPROCESS_DEFINED"))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("LIBPORTABLE_NEWPROCESS_DEFINED!\n");
+    #endif
+    }      
+    else if (inicache_read_int("General", "ProxyExe", &plist) > 0)
+    { 
+        _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=1");
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
     }
     iniparser_destroy_cache(&plist);
@@ -528,14 +577,14 @@ child_proces_if(void)
     LPWSTR  *args = NULL;
     int     count = 0;
     bool    ret = false;
-    if (is_browser(NULL))
+    if (is_ff_official() > 0)
     {
         args = CommandLineToArgvW(GetCommandLineW(), &count);
         if ( NULL != args )
         {
-            int i;
+            int i;    
             for (i = 0; i < count; ++i)
-            {
+            {            
                 if ( (_wcsicmp(args[i], L"-greomni") == 0) )
                 {
                     ret = true;
@@ -548,23 +597,6 @@ child_proces_if(void)
     return ret;
 }
 
-/* uninstall hook and clean up */
-void WINAPI 
-undo_it(void)
-{
-    /* 反注册uia */
-    un_uia();
-    /* 解除快捷键 */
-    uninstall_bosskey();    
-    /* 清理启动过的进程树 */
-    kill_trees();
-    jmp_end();
-    MH_Uninitialize();
-#ifdef _LOGDEBUG
-    logmsg("all clean!\n");
-#endif
-}
-
 void WINAPI 
 do_it(void)
 {
@@ -574,7 +606,7 @@ do_it(void)
         {
             return;
         }
-        if (is_browser(NULL) && !no_gui_boot())
+        if (is_ff_official() > 0 && !no_gui_boot())
         {
             window_hooks();
         }
@@ -609,6 +641,7 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
     #ifdef _LOGDEBUG
         init_logs();
     #endif
+    // 链接msvcrt时,先初始化几个函数,因为新版编译器不支持旧的io调用
     #if defined(_MSC_VER) && !defined(VC12_CRT)
         if (!init_crt_funcs())
         {

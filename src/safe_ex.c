@@ -6,10 +6,13 @@
 #include "winapis.h"
 #include "inject.h"
 #include "ini_parser.h"
+#include "safe_ex.h"
 #include <process.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
 #include <stdio.h>
+
+#define LEN_PARAM 1024
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +34,7 @@ static _NtWriteVirtualMemory   pNtWriteVirtualMemory;
 static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
 static _CreateProcessInternalW pCreateProcessInternalW;
 static _CreateProcessInternalW sCreateProcessInternalW;
-
+HANDLE g_mutex = NULL;
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -169,6 +172,37 @@ HookNtWriteVirtualMemory(HANDLE ProcessHandle,
                                  NumberOfBytesWritten);
 }
 
+static bool
+skip_double_quote(wchar_t *p, int len)
+{
+    int i = (int)wcslen(p);
+    wchar_t *tmp = NULL;
+    if (p[0] == L'\"')
+    {
+        int k = 0;
+        tmp = (wchar_t *)calloc(sizeof(wchar_t), len + 1);
+        if (!tmp)
+        {
+            return false;
+        }        
+        for(int j = 1; j < i; ++j)
+        {
+            
+            if (p[j]  != L'\"')
+            {
+                tmp[k++] = p[j];
+            }
+        }
+        if (tmp[wcslen(tmp) - 1] == L' ')
+        {
+            tmp[wcslen(tmp) - 1] = L'\0';
+        }    
+        wcsncpy(p, tmp, len);
+        free(tmp);         
+    }
+    return true;
+}
+
 static NTSTATUS WINAPI 
 HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         ACCESS_MASK ProcessDesiredAccess,
@@ -183,18 +217,46 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
 {
     NTSTATUS  status;
     bool      tohook = false;
+    LPCWSTR   lpfile = NULL;
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
-    
+    WCHAR     m_line[LEN_PARAM + 1] = {0};
+    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
+    lpfile = ProcessParameters->CommandLine.Buffer?ProcessParameters->CommandLine.Buffer:\
+             ProcessParameters->ImagePathName.Buffer;
+    if (!skip_double_quote(m_line, LEN_PARAM))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("skip_double_quote failed\n");
+    #endif            
+    }
+    if (*m_line != L'\0' &&  wcscmp(m_line, lpfile) == 0)
+    {
+        // 为启动器进程做标记, dll退出时销毁句柄
+        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
+        if (g_mutex)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
+        #endif
+        }
+    }
+    if (!ini_read_int("General", "SafeEx", ini_portable_path))
+    {
+        return sNtCreateUserProcess(ProcessHandle, ThreadHandle,
+                                    ProcessDesiredAccess, ThreadDesiredAccess,
+                                    ProcessObjectAttributes, ThreadObjectAttributes,
+                                    CreateProcessFlags, CreateThreadFlags, ProcessParameters,
+                                    CreateInfo, AttributeList);        
+    }
     fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
-
-    if ( process_plugin(ProcessParameters->ImagePathName.Buffer) )
+    if (process_plugin(ProcessParameters->ImagePathName.Buffer))
     {
         tohook = true;
     }
-    else if ( ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0 )
+    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0)
     {
-        if ( ProcessParameters->ImagePathName.Length > 0 &&
-             in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+        if (ProcessParameters->ImagePathName.Length > 0 &&
+             in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
         {
         #ifdef _LOGDEBUG
             logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
@@ -208,7 +270,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             ProcessParameters = &myProcessParameters;
         }
     }
-    else if ( !is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer) )
+    else if (!is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
     {
         ProcessParameters = &myProcessParameters;
     }
@@ -248,10 +310,35 @@ HookCreateProcessInternalW(HANDLE hToken,
                            LPPROCESS_INFORMATION lpProcessInformation,
                            PHANDLE hNewToken)
 {
-    bool	ret= false;
-    LPWSTR	lpfile = lpCommandLine;
+    bool    ret= false;
     bool    tohook = false;
+    WCHAR   m_line[LEN_PARAM + 1] = {0};
+    LPCWSTR lpfile = lpCommandLine?lpCommandLine:lpApplicationName;
+    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
+    if (!skip_double_quote(m_line, LEN_PARAM))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("skip_double_quote failed\n");
+    #endif            
+    }
+    if (*m_line != L'\0' &&  wcscmp(m_line, lpfile) == 0)
+    {
+        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
+        if (g_mutex)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
+        #endif
+        }
+    }
     
+    if (!ini_read_int("General", "SafeEx", ini_portable_path))
+    {
+        return sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
+               lpThreadAttributes,bInheritHandles,dwCreationFlags,
+               lpEnvironment,lpCurrentDirectory,
+               lpStartupInfo,lpProcessInformation,hNewToken);
+    }    
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
@@ -271,26 +358,26 @@ HookCreateProcessInternalW(HANDLE hToken,
     #endif
     }
     /* 如果启用白名单制度(严格检查) */
-    else if ( ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0 )
+    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0)
     {
-        if ( !in_whitelist((LPCWSTR)lpfile) )
+        if (!in_whitelist((LPCWSTR)lpfile))
         {
         #ifdef _LOGDEBUG
             logmsg("the process %ls disabled-runes by libportable\n",lpfile);
         #endif
-            SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
+            SetLastError(pRtlNtStatusToDosError(STATUS_ERROR));
             return ret;
         }
     }
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
-    else if ( process_cui(lpfile) )
+    else if (process_cui(lpfile))
     {
         
         {
         #ifdef _LOGDEBUG
             logmsg("%ls process, disabled-runes\n",lpfile);
         #endif
-            SetLastError( pRtlNtStatusToDosError(STATUS_ERROR) );
+            SetLastError(pRtlNtStatusToDosError(STATUS_ERROR));
             return ret;
         }
     }
@@ -298,7 +385,7 @@ HookCreateProcessInternalW(HANDLE hToken,
                                   lpThreadAttributes,bInheritHandles,dwCreationFlags,
                                   lpEnvironment,lpCurrentDirectory,
                                   lpStartupInfo,lpProcessInformation,hNewToken);
-    if ( tohook && ret )
+    if (tohook && ret)
     {
         InjectDll(lpProcessInformation);
     }
@@ -429,7 +516,8 @@ unsigned WINAPI init_safed(void)
         #endif
         }
     }
-    if (ver < 600)
+#ifndef DISABLE_SAFE     
+    if (ver < 600 && ini_read_int("General", "SafeEx", ini_portable_path) > 0)
     {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
         if (!creator_hook(pLoadLibraryEx, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExStub))
@@ -446,5 +534,6 @@ unsigned WINAPI init_safed(void)
         #endif
         }        
     }
+#endif    
     return (1);
 }

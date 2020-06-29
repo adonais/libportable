@@ -647,28 +647,6 @@ is_gui(LPCWSTR lpFileName)
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- * 获取当前进程的名字,不包含路径
- */
-static bool
-get_process_name(LPWSTR lpstrName, DWORD wlen)
-{
-    int i = 0;
-    WCHAR lpFullPath[MAX_PATH + 1] = { 0 };
-    if (GetModuleFileNameW(NULL, lpFullPath, MAX_PATH) > 0)
-    {
-        for (i = (int) wcslen(lpFullPath); i > 0; i--)
-        {
-            if (lpFullPath[i] == L'\\') break;
-        }
-        if (i > 0)
-        {
-            i = wnsprintfW(lpstrName, wlen, L"%ls", lpFullPath + i + 1);
-        }
-    }
-    return (i > 0 && i < (int) wlen);
-}
-
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
  * 获取当前进程所在目录，宽字符版本
  */
 bool WINAPI
@@ -705,21 +683,55 @@ get_process_directory(char *name, uint32_t len)
 
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- * 对比文件产品信息，是否为fx开发者版本
+ * 对比文件产品信息，是否为mozilla家族产品
  */
-LIB_INLINE
-static bool
-is_ff_dev(void)
+m_family WINAPI
+is_ff_official(void)
 {
-    bool ret = false;
+    int i = 0;
+    m_family var = MOZ_UNKOWN;
+    WCHAR *moz_array[] = {L"Iceweasel",
+                          L"Firefox",
+                          L"Firefox Beta",
+                          L"Firefox Developer Edition",
+                          L"Firefox Nightly",
+                          NULL
+                         };
     WCHAR process_name[MAX_PATH + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
     if (GetModuleFileNameW(NULL, process_name, MAX_PATH) > 0 && 
         get_product_name(process_name, product_name, NAMES_LEN, false))
     {
-        ret = _wcsicmp(product_name, L"Firefox Developer Edition") == 0;
+        for (; moz_array[i]; ++i)
+        {
+            if (_wcsicmp(product_name, moz_array[i]) == 0)
+            {
+                break;
+            }
+        }
+        switch (i)
+        {
+        case 0:
+            var = MOZ_ICEWEASEL;
+            break; 
+        case 1:
+            var = MOZ_FIREFOX;
+            break; 
+        case 2:
+            var = MOZ_BETA;
+            break; 
+        case 3:
+            var = MOZ_DEV;
+            break; 
+        case 4:
+            var = MOZ_NIGHTLY;
+            break; 
+        default:
+            var = MOZ_UNKOWN;
+            break;                                        
+        }        
     }
-    return ret;
+    return var;
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
@@ -746,30 +758,10 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
 }
 
 bool WINAPI
-is_specialapp(LPCWSTR appname)
-{
-    WCHAR process_name[VALUE_LEN + 1];
-    get_process_name(process_name, VALUE_LEN);
-    return (_wcsicmp(process_name, appname) == 0);
-}
-
-bool WINAPI
-is_browser(LPCWSTR path)
-{
-    if (path)
-    {
-        WCHAR current[MAX_PATH + 1] = {0};
-        GetModuleFileNameW(NULL, current, MAX_PATH);
-        return (_wcsicmp(current, path) == 0); 
-    }
-    return is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe");
-}
-
-bool WINAPI
 is_specialdll(uintptr_t caller, LPCWSTR files)
 {
     bool res = false;
-    WCHAR module[VALUE_LEN + 1] = { 0 };
+    WCHAR module[VALUE_LEN + 1] = {0};
     if (get_module_name(caller, module, VALUE_LEN))
     {
         if (wcschr(files, L'*') || wcschr(files, L'?'))
@@ -798,26 +790,6 @@ is_flash_plugins(uintptr_t caller)
     {
         res = _wcsicmp(L"Shockwave Flash", product_name) == 0;
     }
-    return res;
-}
-
-bool WINAPI
-is_ff_official(void)
-{
-    bool res = false;
-    char *codename = NULL;
-    char path[MAX_PATH + 1];
-    if (!get_process_directory(path, MAX_PATH))
-    {
-        return false;
-    }
-    strncat(path, "\\application.ini", MAX_PATH);
-    if (!ini_read_string("App", "RemotingName", &codename, path))
-    {
-        return false;
-    }
-    res = _strnicmp(codename, "firefox", strlen("firefox")) == 0;
-    free(codename);
     return res;
 }
 
@@ -956,7 +928,7 @@ write_ini_file(ini_cache *ini)
     {
         return res;
     }
-    if (is_ff_dev())
+    if (is_ff_official() == MOZ_DEV)
     {
         res = inicache_new_section(\
         "[Profile0]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", ini);
@@ -964,7 +936,7 @@ write_ini_file(ini_cache *ini)
     else
     {
         res = inicache_new_section(\
-        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", ini);
+        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=\r\n\r\n", ini);      
     }
     return res;
 }
@@ -1010,7 +982,7 @@ write_file(LPCWSTR appdata_path)
     ini_cache handle = NULL;
     char appdt[MAX_PATH + 1] = {0};
     char moz_profile[MAX_PATH + 1] =  {0};
-    SetEnvironmentVariableW(L"LIBPORTABLE_FILEIO_DEFINED", L"1");
+    _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
     if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
     {       
         return ret;
@@ -1031,7 +1003,7 @@ write_file(LPCWSTR appdata_path)
     if (exists)
     {
         char *m_name = NULL;
-        if (is_ff_dev())
+        if (is_ff_official() == MOZ_DEV)
         {
             char *dev_name = NULL;
             if (inicache_search_string("Name=dev-edition-default", &dev_name, &handle))
@@ -1045,8 +1017,8 @@ write_file(LPCWSTR appdata_path)
         {
             ret = inicache_write_string(m_name, "Path", "../../../", &handle);
             ret = inicache_write_string(m_name, "IsRelative", "1", &handle);
-            free(m_name);
-        }        
+            free(m_name); 
+        }
     }
     else
     {    
