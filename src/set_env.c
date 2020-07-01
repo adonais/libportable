@@ -26,7 +26,8 @@ char *strlowr(char *str)
 }
 
 /* * * ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
- * 在PE 输入表查找crt文件
+ * 在 PE 输入表查找 crt 文件, 把 crt 文件名写入crt_buf缓冲区
+ * 如果第二个参数为NULL,则检查 portable dll 是否注入在hmod中
  */ 
 static bool
 find_mscrt(void *hmod, WCHAR *crt_buf, int len)
@@ -35,8 +36,13 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
     IMAGE_DOS_HEADER *pdos;
     IMAGE_OPTIONAL_HEADER *pheader;
     IMAGE_IMPORT_DESCRIPTOR *pimport;
+    char m_dll[MAX_PATH + 1] = {0};
     pdos = (IMAGE_DOS_HEADER *) hmod;
     if (!pdos)
+    {
+        return false;
+    }
+    if (!(crt_buf || GetModuleFileNameA(dll_module, m_dll, MAX_PATH)))
     {
         return false;
     }
@@ -51,7 +57,15 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
         if (pThunk == 0 && pThunkIAT == 0)
             break;
         dll_name = (char *) ((BYTE *) hmod + pimport->Name);
-        if (PathMatchSpecA(dll_name, "vcruntime*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
+        if (!crt_buf)
+        {   
+            if (_stricmp(&strrchr(m_dll, '\\')[1], dll_name) == 0)
+            {
+                ret = true;
+                break;                
+            }
+        }
+        else if (PathMatchSpecA(dll_name, "vcruntime*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
         {
             *crt_buf = L'\0';
             strncpy(name, dll_name, CRT_LEN);
@@ -68,8 +82,9 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
 
 /* * * ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
  * 仅兼容链接msvcrt.dll的版本, 因为存在跨越crt边界问题
- * 在这里调用nss3.dll的环境变量函数.
+ * 以及系统平台的不同,我们需要进行各种可能性检查.
  */
+ 
 static bool
 init_process_envp(HMODULE *pmod)                
 {
@@ -77,18 +92,35 @@ init_process_envp(HMODULE *pmod)
     if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == L'v')
     {
     #ifdef _LOGDEBUG
-        logmsg("crt_setenv = _putenv\n");
+        logmsg("ok, The /MD build was also used\n");
     #endif          
         crt_setenv = _putenv;
     }
     else if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN))
     {
+        HMODULE m_mod = NULL;
         WCHAR crt_path[MAX_PATH+1] = {0};
+        WCHAR m_mozglue[MAX_PATH+1] = {0};
         const char *funcptr = "_putenv";
         if (!wget_process_directory(crt_path, MAX_PATH))
         {
             return false;
         }
+        /* portable dll默认注入在官方的mozglue.dll中,检查
+         * 如果直接加载 nss3.dll 将导致主进程 carsh
+         */
+        wnsprintfW(m_mozglue, MAX_PATH, L"%ls\\%ls", crt_path, L"mozglue.dll");     
+        if ((m_mod = GetModuleHandleW(m_mozglue)) != NULL && find_mscrt(m_mod , NULL, 0))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("mozglue_start = 0x%p\n", m_mod);
+        #endif
+            crt_setenv = _putenv;
+            return true;
+        }
+        /* 在windows10上加载ucartbase并不能更新环境变量, windows7 可以 
+         * 所以,我们使用nss3中的PR_SetEnv重写环境变量
+         */ 
         if (*crt_names == L'v')
         {
             PathAppendW(crt_path, L"nss3.dll");
@@ -100,6 +132,7 @@ init_process_envp(HMODULE *pmod)
         }
         else
         {
+            /* 以前旧版使用的crt为msvcr90,msvcr100... */
             PathAppendW(crt_path, crt_names);
             if ((*pmod = LoadLibraryW(crt_names)) == NULL)
             {

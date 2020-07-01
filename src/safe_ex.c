@@ -203,6 +203,44 @@ skip_double_quote(wchar_t *p, int len)
     return true;
 }
 
+static void
+trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
+{
+    bool    var = false;
+    WCHAR   m_line[LEN_PARAM + 1] = {0};
+    LPCWSTR lpfile = cmd_path?cmd_path:image_path; 
+    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
+    if (!skip_double_quote(m_line, LEN_PARAM))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("skip_double_quote failed\n");
+    #endif            
+    }   
+    var = wcscmp(m_line, lpfile) == 0;
+    if (!var)
+    {
+        if (NULL != cmd_path)
+        {
+            var = wcscmp(cmd_path, image_path) == 0;
+        }
+        else
+        {
+            var = true;
+        }
+    }
+    if (var)
+    {
+        // 为启动器进程做标记, dll退出时销毁句柄
+        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
+        if (g_mutex)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
+        #endif
+        }
+    }
+}
+
 static NTSTATUS WINAPI 
 HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         ACCESS_MASK ProcessDesiredAccess,
@@ -217,29 +255,8 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
 {
     NTSTATUS  status;
     bool      tohook = false;
-    LPCWSTR   lpfile = NULL;
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
-    WCHAR     m_line[LEN_PARAM + 1] = {0};
-    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
-    lpfile = ProcessParameters->CommandLine.Buffer?ProcessParameters->CommandLine.Buffer:\
-             ProcessParameters->ImagePathName.Buffer;
-    if (!skip_double_quote(m_line, LEN_PARAM))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("skip_double_quote failed\n");
-    #endif            
-    }
-    if (*m_line != L'\0' &&  wcscmp(m_line, lpfile) == 0)
-    {
-        // 为启动器进程做标记, dll退出时销毁句柄
-        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
-        if (g_mutex)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
-        #endif
-        }
-    }
+    trace_command(ProcessParameters->ImagePathName.Buffer, ProcessParameters->CommandLine.Buffer);
     if (!ini_read_int("General", "SafeEx", ini_portable_path))
     {
         return sNtCreateUserProcess(ProcessHandle, ThreadHandle,
@@ -312,26 +329,8 @@ HookCreateProcessInternalW(HANDLE hToken,
 {
     bool    ret= false;
     bool    tohook = false;
-    WCHAR   m_line[LEN_PARAM + 1] = {0};
     LPCWSTR lpfile = lpCommandLine?lpCommandLine:lpApplicationName;
-    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
-    if (!skip_double_quote(m_line, LEN_PARAM))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("skip_double_quote failed\n");
-    #endif            
-    }
-    if (*m_line != L'\0' &&  wcscmp(m_line, lpfile) == 0)
-    {
-        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
-        if (g_mutex)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
-        #endif
-        }
-    }
-    
+    trace_command(lpApplicationName, lpCommandLine);
     if (!ini_read_int("General", "SafeEx", ini_portable_path))
     {
         return sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,

@@ -936,7 +936,7 @@ write_ini_file(ini_cache *ini)
     else
     {
         res = inicache_new_section(\
-        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=\r\n\r\n", ini);      
+        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", ini);      
     }
     return res;
 }

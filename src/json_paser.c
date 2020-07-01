@@ -121,12 +121,13 @@ mychr_replace(const char *path)
 }
 
 static char *
-mystr_replace(const char *in, size_t in_size, const char *sub, const char *by)
+mystr_replace(const char *in, const char *sub, const char *by)
 {
     char *res = NULL;
     size_t resoffset = 0;
     char *needle;
     const char *in_ptr = in;
+    size_t in_size = strlen(in) + strlen(sub) + MAX_PATH;
     if ((res = (char *) calloc(1, in_size)) == NULL)
     {
         return NULL;
@@ -160,8 +161,7 @@ value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub
     }
     if (sub)
     {
-        size_t len = strlen(path->valuestring) + strlen(sub) + MAX_PATH;
-        char *new_str = mystr_replace(path->valuestring, len, sub, by);
+        char *new_str = mystr_replace(path->valuestring, sub, by);
         if (new_str != NULL)
         {
             cJSON_ReplaceItemInObject(parent, item, cJSON_CreateString(new_str));

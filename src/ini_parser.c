@@ -186,14 +186,14 @@ list_rfind(node **pphead, position end, position *find)
 }
 
 /* 插入节点, pos 为空时，在尾部插入 */
-static int
+static bool
 list_insert(node **pphead, position pos, const char *v)
 {
     position p = NULL;
     size_t len = strlen(v);
     if (len > LEN_CONTENT - 1)
     {
-        return 0;
+        return false;
     }
     if (!pos)
     {
@@ -206,12 +206,12 @@ list_insert(node **pphead, position pos, const char *v)
     node *tmp = (node *) calloc(1, sizeof(node) + LEN_CONTENT);
     if (NULL == tmp)
     {
-        return 0;
+        return false;
     }
     memcpy(tmp->content, v, len + 1);
     tmp->next = p->next;
     p->next = tmp;
-    return 1;
+    return true;
 }
 
 #ifdef _LOGDEBUG
@@ -1116,28 +1116,35 @@ static void
 replace_insert(node **pnode, const char *in, const char *sub, const char *by)
 {
     char *res = NULL;
-    size_t resoffset = 0;
     char *needle;
+    const char *split = sub;
     const char *in_ptr = in;
-    size_t in_size = strlen(in) + strlen(sub) + strlen(by) + 16;
-    if ((res = (char *) calloc(1, in_size)) == NULL)
+    size_t in_size = strlen(in) + 16;
+    if ((res = (char *)malloc(in_size)) == NULL)
     {
         return;
     }
-    while ((needle = strstr(in_ptr, sub)) && resoffset < in_size)
+    needle = strstr(in_ptr, sub);
+    if (!needle)
     {
-        strncpy(res + resoffset, in_ptr, needle - in_ptr);
-        if (*(res + resoffset) != '\0')
+        needle = strstr(in_ptr, by);
+        split = by;
+    }
+    while (needle)
+    {
+        memset(res, 0, in_size);
+        if (needle - in_ptr == 0)
         {
-            list_insert(pnode, NULL, res + resoffset);
+            strncpy(res, in_ptr, strlen(by));
         }
-        resoffset += needle - in_ptr;
-        in_ptr = needle + (int) strlen(sub);
-        if (*by != '\0')
+        else
         {
-            list_insert(pnode, NULL, by);
+            strncpy(res, in_ptr, needle - in_ptr);
+            strncat(res, by, in_size - 1);
         }
-        resoffset += (int) strlen(by);
+        list_insert(pnode, NULL, res);
+        in_ptr = needle + (int) strlen(split);
+        needle = strstr(in_ptr, split);
     }
     if (*in_ptr != '\0')
     {
@@ -1149,27 +1156,36 @@ replace_insert(node **pnode, const char *in, const char *sub, const char *by)
 bool WINAPI
 inicache_new_section(const char *value, ini_cache *ini)
 {
-    char *ptr = NULL;
+    int  len = 0;
+    char *end, *ptr = NULL;
     char sec[LEN_SECTION+1] = {0};
     
     if (!(ini && *ini))
     {
         return false;
     }
-    ptr = strchr(value, '[');
-    if (ptr)
+    ;
+    if ((ptr = strchr(value, '[')) == NULL)
     {
-        char *end = strchr(value, ']');
-        if (end)
-        {
-            crt_snprintf(sec, end-ptr+2, "%s", ptr);
-        }
+        return false;
+    }      
+    if ((end = strchr(ptr, ']')) == NULL)
+    {
+        return false;
+    }  
+    if ((len = end-ptr+2) > LEN_SECTION)
+    {
+        return false;
+    }          
+    else
+    {
+        crt_snprintf(sec, len, "%s", ptr);
     }
     if (*sec != '\0' && list_find(&(*ini)->pd, sec))
-    {
+    {  
     #ifdef _LOGDEBUG    
         logmsg("%s exists, no need to add.\n", sec);
-    #endif    
+    #endif
         return false;
     }
     if ((*ini)->breaks == CHR_WIN)
