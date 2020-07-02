@@ -488,7 +488,8 @@ init_hook_data(void)
         init_portable();
         init_safed();
     }
-    if ((mutex = OpenFileMappingW(PAGE_READONLY, false, L"LIBPORTABLE_LAUNCHER_PROCESS=1")) != NULL)
+    if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||
+       (mutex = OpenFileMappingW(PAGE_READONLY, false, L"LIBPORTABLE_LAUNCHER_PROCESS=1")) != NULL)
     {
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
@@ -497,7 +498,6 @@ init_hook_data(void)
         _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
         _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
         _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
-        
     }
     return true;
 }
