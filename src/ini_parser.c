@@ -381,7 +381,7 @@ utf8_to_mbcs(const char *utf8)
     }
     return a8;
 #else
-  return strdup(ansi);
+  return strdup(utf8);
 #endif      
 }
 
@@ -1173,7 +1173,7 @@ inicache_new_section(const char *value, ini_cache *ini)
     {
         return false;
     }  
-    if ((len = end-ptr+2) > LEN_SECTION)
+    if ((len = (int)(end-ptr+2)) > LEN_SECTION)
     {
         return false;
     }          
