@@ -1365,7 +1365,7 @@ inicache_foreach_wkey(const char *sec,
     {
         return false;
     }
-    data = (char (*)[129])calloc(1, line * sizeof(lpdata[0]));
+    data = (char (*)[129])calloc(1, line * sizeof(data[0]));
     if (!data)
     {
         return false;
@@ -1455,7 +1455,7 @@ inicache_foreach_wstring(const char *sec,
     {
         return false;
     }
-    data = (char (*)[129])calloc(1, line * sizeof(lpdata[0]));
+    data = (char (*)[129])calloc(1, line * sizeof(data[0]));
     if (!data)
     {
         return false;
