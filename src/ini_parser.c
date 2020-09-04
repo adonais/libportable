@@ -965,8 +965,8 @@ mbcs_create_file(const char *dir)
     char *p = NULL;
     char tmp_name[MAX_PATH];
     strcpy(tmp_name, dir);
-    p = strchr(tmp_name, L'\\');
-    for (; p != NULL; *p = L'\\', p = strchr(p + 1, L'\\'))
+    p = strchr(tmp_name, '\\');
+    for (; p != NULL; *p = '\\', p = strchr(p + 1, '\\'))
     {
         *p = '\0';
         if (mbcs_exist_dir(tmp_name))
@@ -1380,6 +1380,10 @@ inicache_foreach_wkey(const char *sec,
     {
         res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;    
     }
+    if (i < line)
+    {
+        lpdata[i][0] = 0;
+    }
     free(data);
     return res;
 }
@@ -1465,6 +1469,10 @@ inicache_foreach_wstring(const char *sec,
     for (; i < line && *data[i] != '\0'; ++i)
     {
         res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;
+    }
+    if (i < line)
+    {
+        lpdata[i][0] = 0;
     }    
     free(data);
     return res;
@@ -1558,6 +1566,91 @@ ini_search_string(const char *key, char **buf, const char *path)
     res = inicache_search_string(key, buf, &plist);
     iniparser_destroy_cache(&plist);
     return res;
+}
+
+/* 交换节点 */
+static node* node_swap(node* ptr1, node* ptr2) 
+{ 
+    node* tmp = ptr2->next; 
+    ptr2->next = ptr1; 
+    ptr1->next = tmp; 
+    return ptr2; 
+} 
+  
+/* 冒泡排序算法实现链表局部排序 */
+static void bubble_sort(node** head, int count) 
+{ 
+    node** h; 
+    int i, j, swapped; 
+  
+    for (i = 0; i <= count; i++) { 
+  
+        h = head; 
+        swapped = 0; 
+  
+        for (j = 0; j < count - i - 1; j++) { 
+  
+            node* p1 = *h; 
+            node* p2 = p1->next; 
+  
+            if (strcmp(p1->content, p2->content) > 0) {
+  
+                /* update the link after swapping */
+                *h = node_swap(p1, p2); 
+                swapped = 1; 
+            } 
+  
+            h = &(*h)->next; 
+        } 
+  
+        /* break if the loop ended without any swap */
+        if (swapped == 0) 
+            break; 
+    } 
+} 
+
+/* ini区段排序 */
+bool WINAPI
+inicache_sort_section(const char *sec, ini_cache *ini)
+{
+    int n = 0;
+    position pos = NULL;
+    if (!(pos = list_parser(&(*ini)->pd, sec, NULL, NULL)))
+    {
+        return false;
+    }
+    for (node *cur = pos->next; cur; cur = cur->next, n++)
+    {
+        if (*cur->content == '[')
+        {
+            break;
+        }
+        else if (*cur->content == '\r' || *cur->content == '\n')
+        {
+            if (cur->next != NULL && *cur->next->content != '[')
+            {
+                list_delete_node(&(*ini)->pd, cur);
+            }
+            --n;
+            continue;
+        }
+    }
+    bubble_sort(&pos->next, n);
+    return true;
+}
+
+bool WINAPI
+ini_sort_section(const char *sec, const wchar_t *path)
+{
+    bool res = false;
+    ini_cache plist = iniparser_create_cache(path, true);
+    if (!plist)
+    {
+        return false;
+    }
+    res = inicache_sort_section(sec, &plist);
+    iniparser_destroy_cache(&plist);
+    return res;    
 }
 
 #if defined(__clang__)

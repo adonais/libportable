@@ -62,6 +62,8 @@ extern ini_cache __stdcall iniparser_create_cache(const char *ini, bool write_ac
 extern void __stdcall iniparser_destroy_cache(ini_cache *li);
 extern int  __stdcall inicache_read_int(const char *sec, const char *key, ini_cache *ini);
 extern int  __stdcall ini_read_int(const char *sec, const char *key, const char *path);
+extern bool __stdcall inicache_sort_section(const char *sec, ini_cache *ini);
+extern bool __stdcall ini_sort_section(const char *sec, const wchar_t *path);
 extern char*__stdcall utf16_to_utf8(const wchar_t *utf16);
 extern char* __stdcall utf16_to_mbcs(const wchar_t *utf16);
 extern wchar_t* __stdcall mbcs_to_utf16(const char *ansi);
