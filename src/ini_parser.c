@@ -1640,7 +1640,7 @@ inicache_sort_section(const char *sec, ini_cache *ini)
 }
 
 bool WINAPI
-ini_sort_section(const char *sec, const wchar_t *path)
+ini_sort_section(const char *sec, const char *path)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, true);

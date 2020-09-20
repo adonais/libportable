@@ -494,10 +494,13 @@ init_hook_data(void)
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
     #endif
-        CloseHandle(mutex);
         _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
         _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
         _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
+    }
+    if (mutex)
+    {
+        CloseHandle(mutex);
     }
     return true;
 }
