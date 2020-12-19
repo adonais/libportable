@@ -203,8 +203,9 @@ setenv_tt(void)
             free(val_str);        
         }        
         if (inicache_read_int("General", "Portable", &plist) > 0)
-        {          
-            crt_setenv("SNAP_NAME=1");
+        {       
+            crt_setenv("MOZ_LEGACY_PROFILES=0");
+            crt_setenv("SNAP_NAME=firefox");
         }    
     #if defined(_WIN64)
         if (inicache_read_int("Env", "MOZ_DISABLE_NPAPI_SANDBOX", &plist) <= 0)
