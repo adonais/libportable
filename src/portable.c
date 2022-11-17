@@ -426,7 +426,7 @@ update_thread(void *lparam)
     }
     if (ini_read_int("update", "be_ready", ini_portable_path) > 0)
     {
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e %ls -s %ls -u 1", wcmd, GetCurrentProcessId(), temp, path);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e \"%ls\" -s \"%ls\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will install!\n");
@@ -435,7 +435,7 @@ update_thread(void *lparam)
     else if (diff_days())
     {
         Sleep(8000);
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e %ls", wcmd, GetCurrentProcessId(), temp);
+        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");
