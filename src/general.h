@@ -104,9 +104,6 @@ extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
 
-/* file_paser.h */
-extern bool WINAPI json_parser(const char *moz_profile);
-
 #ifdef __cplusplus
 }
 #endif 

@@ -13,8 +13,8 @@ static setenv_ptr crt_setenv;
 
 /* * * ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
  * 字符串大写字母转为小写
- */ 
-static 
+ */
+static
 char *strlowr(char *str)
 {
     char *orign=str;
@@ -28,7 +28,7 @@ char *strlowr(char *str)
 /* * * ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
  * 在 PE 输入表查找 crt 文件, 把 crt 文件名写入crt_buf缓冲区
  * 如果第二个参数为NULL,则检查 portable dll 是否注入在hmod中
- */ 
+ */
 static bool
 find_mscrt(void *hmod, WCHAR *crt_buf, int len)
 {
@@ -58,11 +58,11 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
             break;
         dll_name = (char *) ((BYTE *) hmod + pimport->Name);
         if (!crt_buf)
-        {   
+        {
             if (_stricmp(&strrchr(m_dll, '\\')[1], dll_name) == 0)
             {
                 ret = true;
-                break;                
+                break;
             }
         }
         else if (PathMatchSpecA(dll_name, "vcruntime*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
@@ -84,16 +84,16 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
  * 仅兼容链接msvcrt.dll的版本, 因为存在跨越crt边界问题
  * 以及系统平台的不同,我们需要进行各种可能性检查.
  */
- 
+
 static bool
-init_process_envp(HMODULE *pmod)                
+init_process_envp(HMODULE *pmod)
 {
-    WCHAR crt_names[CRT_LEN + 1] = {0}; 
+    WCHAR crt_names[CRT_LEN + 1] = {0};
     if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == L'v')
     {
     #ifdef _LOGDEBUG
         logmsg("ok, The /MD build was also used\n");
-    #endif          
+    #endif
         crt_setenv = _putenv;
     }
     else if (find_mscrt(GetModuleHandleW(NULL), crt_names, CRT_LEN))
@@ -109,7 +109,7 @@ init_process_envp(HMODULE *pmod)
         /* portable dll默认注入在官方的mozglue.dll中,检查
          * 如果直接加载 nss3.dll 将导致主进程 carsh
          */
-        wnsprintfW(m_mozglue, MAX_PATH, L"%ls\\%ls", crt_path, L"mozglue.dll");     
+        wnsprintfW(m_mozglue, MAX_PATH, L"%ls\\%ls", crt_path, L"mozglue.dll");
         if ((m_mod = GetModuleHandleW(m_mozglue)) != NULL && find_mscrt(m_mod , NULL, 0))
         {
         #ifdef _LOGDEBUG
@@ -118,9 +118,9 @@ init_process_envp(HMODULE *pmod)
             crt_setenv = _putenv;
             return true;
         }
-        /* 在windows10上加载ucartbase并不能更新环境变量, windows7 可以 
+        /* 在windows10上加载ucartbase并不能更新环境变量, windows7 可以
          * 所以,我们使用nss3中的PR_SetEnv重写环境变量
-         */ 
+         */
         if (*crt_names == L'v')
         {
             PathAppendW(crt_path, L"nss3.dll");
@@ -138,7 +138,7 @@ init_process_envp(HMODULE *pmod)
             {
             #ifdef _LOGDEBUG
                 logmsg("LoadLibraryW(%ls) return false!\n", crt_names);
-            #endif                
+            #endif
             }
             return false;
         }
@@ -146,7 +146,7 @@ init_process_envp(HMODULE *pmod)
         {
         #ifdef _LOGDEBUG
             logmsg("crt not initialized!!!\n");
-        #endif   
+        #endif
             FreeLibrary(*pmod);
             *pmod = NULL;
             return false;
@@ -155,20 +155,20 @@ init_process_envp(HMODULE *pmod)
         {
         #ifdef _LOGDEBUG
             logmsg("GetProcAddress(%s) ok\n", funcptr);
-        #endif               
+        #endif
         }
     }
     else
     {
         return false;
-    }    
+    }
     return true;
 }
 
 /* * * ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
  * 导入Env区段下的环境变量,忽略NpluginPath与TmpDataPath,因为前面已经读入变量了.
  * 因为crt版本的差异,以及链接方式的不同,先查询dll与目标加载crt的方式.
- */ 
+ */
 void WINAPI
 setenv_tt(void)
 {
@@ -199,14 +199,14 @@ setenv_tt(void)
             {
                 crt_setenv(plugin_env);
                 free(plugin_env);
-            }     
-            free(val_str);        
-        }        
+            }
+            free(val_str);
+        }
         if (inicache_read_int("General", "Portable", &plist) > 0)
-        {       
+        {
             crt_setenv("MOZ_LEGACY_PROFILES=0");
             crt_setenv("SNAP_NAME=firefox");
-        }    
+        }
     #if defined(_WIN64)
         if (inicache_read_int("Env", "MOZ_DISABLE_NPAPI_SANDBOX", &plist) <= 0)
         {
@@ -219,15 +219,15 @@ setenv_tt(void)
             {
                 if (_strnicmp(env_buf[i], "NpluginPath", strlen("NpluginPath")) &&
                     _strnicmp(env_buf[i], "TmpDataPath", strlen("TmpDataPath")))
-                {             
+                {
                     crt_setenv(env_buf[i]);
-                }                 
+                }
             }
-        }    
+        }
         iniparser_destroy_cache(&plist);
     }
     if (hmod)
     {
         FreeLibrary(hmod);
-    }     
+    }
 }

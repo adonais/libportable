@@ -4,7 +4,7 @@
 #include <dbghelp.h>
 
 typedef LPTOP_LEVEL_EXCEPTION_FILTER (WINAPI *SetUnhandledExceptionFilterPtr)(
-                                      LPTOP_LEVEL_EXCEPTION_FILTER 
+                                      LPTOP_LEVEL_EXCEPTION_FILTER
                                       lpTopLevelExceptionFilter);
 typedef BOOL (WINAPI *MiniDumpWriteDumpPtr)(HANDLE,DWORD,HANDLE,MINIDUMP_TYPE,
               PMINIDUMP_EXCEPTION_INFORMATION,
@@ -16,7 +16,7 @@ static  SetUnhandledExceptionFilterPtr pSetUnhandledExceptionFilter;
 static  MiniDumpWriteDumpPtr sMiniDumpWriteDumpStub;
 static  HMODULE m_dbg;
 
-static LONG WINAPI 
+static LONG WINAPI
 ProcessException_ice(PEXCEPTION_POINTERS pExceptionInfo)
 {
     /* 异常信息结构体 */
@@ -79,7 +79,7 @@ unsigned WINAPI init_exeception(void * pParam)
     HMODULE  m_kernel;
     m_dbg = sLoadLibraryExStub?sLoadLibraryExStub(L"dbghelp.dll",NULL,0):LoadLibraryExW(L"dbghelp.dll",NULL,0);
     m_kernel =  GetModuleHandleW(L"kernel32.dll");
-    if ( m_dbg == NULL || m_kernel == NULL ||  
+    if ( m_dbg == NULL || m_kernel == NULL ||
         (sMiniDumpWriteDumpStub = (MiniDumpWriteDumpPtr)GetProcAddress(m_dbg, "MiniDumpWriteDump")) == NULL)
     {
         return (0);

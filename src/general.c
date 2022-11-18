@@ -2,12 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <io.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
 #include "general.h"
 #include "ini_parser.h"
+#include "lz4.h"
+#include "cjson.h"
+#include "json_paser.h"
 
 #ifdef _MSC_VER
 #include <stdarg.h>
@@ -45,7 +49,7 @@ strtoui64_ptr crt_strtoui64 = NULL;
 bool WINAPI
 init_crt_funcs(void)
 {
-    HMODULE h_crt = GetModuleHandleW(L"msvcrt.dll"); 
+    HMODULE h_crt = GetModuleHandleW(L"msvcrt.dll");
     if (h_crt)
     {
         crt_sprintf = (sprintf_ptr)GetProcAddress(h_crt, "sprintf");
@@ -76,7 +80,7 @@ init_logs(void)
     }
 }
 
-void __cdecl 
+void __cdecl
 logmsg(const char *format, ...)
 {
     va_list args;
@@ -107,9 +111,9 @@ ini_path_init(void)
     bool  ret = false;
     WCHAR ini_path[MAX_PATH + 1] = {0};
     if (*ini_portable_path != '\0' && strlen(ini_portable_path) > 10)
-    {    
+    {
         return true;
-    }    
+    }
     if (!GetModuleFileNameW(dll_module, ini_path, MAX_PATH))
     {
         return false;
@@ -122,17 +126,17 @@ ini_path_init(void)
     {
         WCHAR ini_example[MAX_PATH + 1] = {0};
         wcsncpy(ini_example, ini_path, MAX_PATH);
-        if ((ret = PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"tmemutil.ini") && 
+        if ((ret = PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"tmemutil.ini") &&
                    PathFileExistsW(ini_example)) == false)
-        {              
-            if (PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"portable(example).ini") && 
+        {
+            if (PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"portable(example).ini") &&
                 PathFileExistsW(ini_example))
-            {                
+            {
                 ret = true;
             }
         }
         if (ret)
-        {           
+        {
             ret = CopyFileW(ini_example, ini_path, true);
         }
     }
@@ -298,7 +302,39 @@ get_file_version(void)
     return ver;
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+static WCHAR *
+util_make_u16(const char *utf8, WCHAR *utf16, int len)
+{
+    *utf16 = 0;
+    int m = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, utf16, len);
+    if (m > 0 && m <= len)
+    {
+        utf16[m-1] = 0;
+    }
+    else if (len > 0)
+    {
+        utf16[len-1] = 0;
+    }
+    return utf16;
+}
+
+static char *
+util_make_u8(const WCHAR *utf16, char *utf8, int len)
+{
+    *utf8 = 0;
+    int m = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, utf8, len, NULL, NULL);
+    if (m > 0 && m <= len)
+    {
+        utf8[m-1] = 0;
+    }
+    else if (len > 0)
+    {
+        utf8[len-1] = 0;
+    }
+    return utf8;
+}
+
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * 替换unix风格的路径符号
  */
 static char *
@@ -337,11 +373,11 @@ wchr_replace(WCHAR *path)
 }
 
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * c风格的unicode字符串替换函数
  */
 LPWSTR WINAPI
-wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by)
+wstr_replace(LPWSTR in, const size_t in_size, LPCWSTR pattern, LPCWSTR by)
 {
     WCHAR *in_ptr = in;
     WCHAR res[MAX_PATH + 1] = { 0 };
@@ -358,6 +394,20 @@ wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by)
     wcscpy(res + resoffset, in);
     wnsprintfW(in_ptr, (int) in_size, L"%ls", res);
     return in_ptr;
+}
+
+char* WINAPI
+str_replace(char *in, const size_t in_size, const char *pattern, const char *by)
+{
+    WCHAR in_ptr[MAX_PATH + 1] = {0};
+    WCHAR by_ptr[MAX_PATH + 1] = {0};
+    WCHAR pattern_ptr[MAX_PATH + 1] = {0};
+    util_make_u16(in, in_ptr, MAX_PATH);
+    util_make_u16(by, by_ptr, MAX_PATH);
+    util_make_u16(pattern, pattern_ptr, MAX_PATH);
+    wstr_replace(in_ptr, in_size, pattern_ptr, by_ptr);
+    util_make_u8(in_ptr, in, (int)in_size);
+    return in;
 }
 
 static bool
@@ -396,23 +446,25 @@ path_strip_suffix(char *path)
 static WCHAR *
 rand_str(WCHAR *str, const int len)
 {
-    int i;
-    for (i = 0; i < len; ++i)
-        str[i] = 'A' + rand() % 26;
-    str[len] = '\0';
+    srand((uint32_t)time(0) + GetCurrentProcessId());
+    for (int i = 0; i < len; ++i)
+    {
+        str[i] = L'A' + rand() % 26;
+    }
+    str[len] = 0;
     return str;
 }
 
 static bool
 try_write(LPCWSTR dir)
 {
-#define LEN_NAME 6    
+#define LEN_NAME 6
     HANDLE pfile = INVALID_HANDLE_VALUE;
     WCHAR dist_path[MAX_PATH] = {0};
     WCHAR temp[LEN_NAME + 1] = {0};
-    wnsprintfW(dist_path,MAX_PATH,L"%ls\\%ls", dir, rand_str(temp, LEN_NAME));  
-    pfile = CreateFileW(dist_path, GENERIC_READ | 
-            GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | 
+    wnsprintfW(dist_path,MAX_PATH,L"%ls\\%ls", dir, rand_str(temp, LEN_NAME));
+    pfile = CreateFileW(dist_path, GENERIC_READ |
+            GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY |
             FILE_FLAG_DELETE_ON_CLOSE, NULL);
     if (pfile == INVALID_HANDLE_VALUE)
     {
@@ -422,7 +474,7 @@ try_write(LPCWSTR dir)
     }
     CloseHandle(pfile);
     return (pfile != INVALID_HANDLE_VALUE);
-#undef LEN_NAME    
+#undef LEN_NAME
 }
 
 static bool
@@ -432,6 +484,17 @@ wexist_dir(LPCWSTR path)
     if (fileattr != INVALID_FILE_ATTRIBUTES)
     {
         return (fileattr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+    return false;
+}
+
+bool WINAPI
+wexist_file(LPCWSTR path)
+{
+    DWORD fileattr = GetFileAttributesW(path);
+    if (fileattr != INVALID_FILE_ATTRIBUTES)
+    {
+        return (fileattr & FILE_ATTRIBUTE_DIRECTORY) == 0;
     }
     return false;
 }
@@ -459,7 +522,7 @@ wcreate_dir(LPCWSTR dir)
 }
 
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * mode = 0, 目录是否存在
  * mode > 0, 目录是否存在并可写.
  */
@@ -481,13 +544,13 @@ exist_dir(const char *path, int mode)
     if (res && mode > 0)
     {
         res = try_write(u16_path);
-    }   
+    }
     free(u16_path);
     return res;
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- * mscrt _access for utf-8 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * mscrt _access for utf-8
  */
 bool WINAPI
 exist_file(const char *path, int mode)
@@ -503,7 +566,7 @@ exist_file(const char *path, int mode)
         res = true;
     }
     free(u16_path);
-    return res;       
+    return res;
 }
 
 bool WINAPI
@@ -577,8 +640,8 @@ path_to_absolute(LPWSTR path, int len)
     return (NULL != PathCombineW(path, NULL, lpfile));
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
- * 等待主窗口并获取句柄,增加线程退出倒计时8s 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * 等待主窗口并获取句柄,增加线程退出倒计时8s
  */
 HWND WINAPI
 get_moz_hwnd(LPWNDINFO pInfo)
@@ -646,7 +709,7 @@ is_gui(LPCWSTR lpFileName)
     return ret;
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * 获取当前进程所在目录，宽字符版本
  */
 bool WINAPI
@@ -667,7 +730,7 @@ wget_process_directory(LPWSTR lpstrName, DWORD len)
     return (i > 0 && i < (int) len);
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * 获取当前进程所在目录，utf8版本
  */
 bool WINAPI
@@ -682,7 +745,7 @@ get_process_directory(char *name, uint32_t len)
 }
 
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * 对比文件产品信息，是否为mozilla家族产品
  */
 m_family WINAPI
@@ -699,7 +762,7 @@ is_ff_official(void)
                          };
     WCHAR process_name[MAX_PATH + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
-    if (GetModuleFileNameW(NULL, process_name, MAX_PATH) > 0 && 
+    if (GetModuleFileNameW(NULL, process_name, MAX_PATH) > 0 &&
         get_product_name(process_name, product_name, NAMES_LEN, false))
     {
         for (; moz_array[i]; ++i)
@@ -713,28 +776,28 @@ is_ff_official(void)
         {
         case 0:
             var = MOZ_ICEWEASEL;
-            break; 
+            break;
         case 1:
             var = MOZ_FIREFOX;
-            break; 
+            break;
         case 2:
             var = MOZ_BETA;
-            break; 
+            break;
         case 3:
             var = MOZ_DEV;
-            break; 
+            break;
         case 4:
             var = MOZ_NIGHTLY;
-            break; 
+            break;
         default:
             var = MOZ_UNKOWN;
-            break;                                        
-        }        
+            break;
+        }
     }
     return var;
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * 通过调用地址,获取当前进程所在地址的模块名称的完整路径
  */
 static bool
@@ -785,7 +848,7 @@ is_flash_plugins(uintptr_t caller)
     bool res = false;
     WCHAR dll_name[VALUE_LEN + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
-    if (get_module_name(caller, dll_name, VALUE_LEN) && 
+    if (get_module_name(caller, dll_name, VALUE_LEN) &&
         get_product_name(dll_name, product_name, NAMES_LEN, true))
     {
         res = _wcsicmp(L"Shockwave Flash", product_name) == 0;
@@ -806,7 +869,7 @@ get_mozilla_profile(char *in_dir, int len, const char *appdt)
 /**************************************************************************************
  * 如果是参数启动,通过命令行参数，获取配置文件所在目录
  */
-static bool 
+static bool
 get_profile_arg(ini_cache *ini, char **out_path)
 {
     LPWSTR  *args = NULL;
@@ -819,7 +882,7 @@ get_profile_arg(ini_cache *ini, char **out_path)
     }
     for (int i = 1; i < m_arg; ++i)
     {
-        if ((_wcsicmp(args[i], L"-p") == 0  || 
+        if ((_wcsicmp(args[i], L"-p") == 0  ||
             _wcsicmp(args[i], L"-profile") == 0 ) && i < m_arg - 1)
         {
             char u8_arg[NAMES_LEN+1] = { 0 };
@@ -871,13 +934,25 @@ find_default_path(ini_cache *ini, char **out_path)
             inicache_read_string(m_section, "Default", out_path, ini))
         {
             res = true;
-        }        
+        }
     } while(0);
     if (m_section)
     {
         free(m_section);
     }
     return res;
+}
+
+static void
+rel2abs(char *in_dir, int len)
+{
+    WCHAR u16[MAX_PATH] = {0};
+    WCHAR tmp[MAX_PATH] = {0};
+    if (util_make_u16(in_dir, u16, MAX_PATH - 1)[0])
+    {
+        _wfullpath(tmp, u16, MAX_PATH - 1);
+        util_make_u8(tmp, in_dir, len);
+    }
 }
 
 /**************************************************************************************
@@ -901,21 +976,21 @@ get_profile_path(char *in_dir, int len, const char *appdt)
     {
     #ifdef _LOGDEBUG
         logmsg("get_profile_path error\n");
-    #endif 
-        iniparser_destroy_cache(&handle);       
+    #endif
+        iniparser_destroy_cache(&handle);
         return false;
     }
     if (path_strip_suffix(in_dir))
     {
         strncat(in_dir, "\\", len);
         strncat(in_dir, path, len);
-        _fullpath(in_dir, in_dir, len);
+        rel2abs(in_dir, len);
         if (in_dir[strlen(in_dir) - 1] == '\\')
         {
             in_dir[strlen(in_dir) - 1] = '\0';
         }
     }
-    iniparser_destroy_cache(&handle);   
+    iniparser_destroy_cache(&handle);
     free(path);
     return true;
 }
@@ -936,7 +1011,7 @@ write_ini_file(ini_cache *ini)
     else
     {
         res = inicache_new_section(\
-        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", ini);      
+        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", ini);
     }
     return res;
 }
@@ -944,34 +1019,32 @@ write_ini_file(ini_cache *ini)
 static void
 write_json_file(const char *appdt)
 {
+    cJSON *json = NULL;
+    WCHAR url[MAX_PATH+1] = {0};
     char path[MAX_PATH+1] = {0};
     char temp[MAX_PATH+1] = {0};
-    char cmp_ini[MAX_PATH+1] = {0};
-    char *m_dir = NULL;
-    if (!(get_process_directory(temp, MAX_PATH) && get_profile_path(path, MAX_PATH, appdt)))
+    if (!(get_process_directory(path, MAX_PATH) && get_profile_path(temp, MAX_PATH, appdt)))
     {
     #ifdef _LOGDEBUG
-        logmsg("profile path[%s]\n", path);
-    #endif        
-        return;
-    }
-    crt_snprintf(cmp_ini, MAX_PATH, "%s", path);
-    strncat(cmp_ini, "\\compatibility.ini", MAX_PATH);  
-    if (!ini_read_string("Compatibility", "LastPlatformDir", &m_dir, cmp_ini))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("ini_read_string[%s] error!\n", cmp_ini);
-    #endif         
-        return;
-    }
-    if (_stricmp(temp, m_dir) != 0)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("we need rewrite addonStartup.json.lz4\n");
+        logmsg("profile temp[%s]\n", temp);
     #endif
-        json_parser(path);
+        return;
     }
-    free(m_dir);
+    strncat(temp, "\\addonStartup.json.lz4", MAX_PATH);
+    if (wexist_file((LPCWSTR)util_make_u16(temp, url, MAX_PATH)))
+    {
+        if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("we need rewrite addonStartup.json.lz4\n");
+        #endif
+            json_parser((void *)json, url, path);
+        }
+    }
+    if (json)
+    {
+        cJSON_Delete(json);
+    }
 }
 
 bool WINAPI
@@ -984,13 +1057,13 @@ write_file(LPCWSTR appdata_path)
     char moz_profile[MAX_PATH + 1] =  {0};
     _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
     if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
-    {       
+    {
         return ret;
-    }   
+    }
     if (!WideCharToMultiByte(CP_UTF8, 0, appdata_path, -1, appdt, MAX_PATH, NULL, NULL))
     {
         return ret;
-    }   
+    }
     if (!get_mozilla_profile(moz_profile, MAX_PATH, appdt))
     {
         return ret;
@@ -1009,27 +1082,27 @@ write_file(LPCWSTR appdata_path)
             if (inicache_search_string("Name=dev-edition-default", &dev_name, &handle))
             {
                 ret = inicache_write_string(dev_name, "Path", "../../../", &handle);
-                ret = inicache_write_string(dev_name, "IsRelative", "1", &handle);    
-                free(dev_name); 
+                ret = inicache_write_string(dev_name, "IsRelative", "1", &handle);
+                free(dev_name);
             }
         }
         else if (inicache_search_string("Name=default", &m_name, &handle))
         {
             ret = inicache_write_string(m_name, "Path", "../../../", &handle);
             ret = inicache_write_string(m_name, "IsRelative", "1", &handle);
-            free(m_name); 
+            free(m_name);
         }
     }
     else
-    {    
+    {
         ret = write_ini_file(&handle);
     }
     if (handle)
     {
         iniparser_destroy_cache(&handle);
-    }     
+    }
     if (ret)
-    {                 
+    {
         write_json_file(appdt);
     }
     return ret;
@@ -1043,30 +1116,30 @@ get_appdt_path(WCHAR *path, int len)
     {
     #ifdef _LOGDEBUG
         logmsg("ini_path_init(%ls) return false!\n", ini_portable_path);
-    #endif        
+    #endif
         return false;
     }
     if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
-    {       
+    {
         return (ExpandEnvironmentStringsW(L"%APPDATA%", path, len) > 0);
-    } 
+    }
     if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path))
     {
     #ifdef _LOGDEBUG
         logmsg("(PortableDataPath be set default path!\n");
-    #endif         
+    #endif
         wnsprintfW(path, len, L"%ls", L"../Profiles");
     }
     else
-    {     
+    {
         MultiByteToWideChar(CP_UTF8, 0, buf, -1, path, len);
     }
     if (buf)
     {
         free(buf);
-    }   
+    }
     if (!path_to_absolute(path, len))
-    {       
+    {
         return false;
     }
     return !!wcsncat(path, L"\\AppData", len);
@@ -1081,14 +1154,14 @@ get_localdt_path(WCHAR *path, int len)
         return false;
     }
     if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
-    {       
+    {
         return (ExpandEnvironmentStringsW(L"%LOCALAPPDATA%", path, len) > 0);
-    }    
+    }
     if (ini_read_string("Env", "TmpDataPath", &buf, ini_portable_path));
     else if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path))
     {
         wnsprintfW(path, len, L"%ls", L"../Profiles");
-    }  
+    }
     if (buf)
     {
         MultiByteToWideChar(CP_UTF8, 0, buf, -1, path, len);

@@ -11,7 +11,7 @@
 #define PROCESS_NUM 10
 static  void* g_handle[PROCESS_NUM];
 
-static HANDLE 
+static HANDLE
 search_process(LPCWSTR lpstr, DWORD m_parent)
 {
     bool   b_more;
@@ -65,14 +65,14 @@ search_process(LPCWSTR lpstr, DWORD m_parent)
     return m_handle;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *  分析ExPath里的进程路径和参数以及启动方式,支持相对路径与环境变量
  *  如果末尾使用了,0 将尽可能的隐藏进程运行
  *  如果程序路径使用了双引号,设置工作目录为浏览器安装目录
  *  这意味着如果运行程序有路径方面的参数,
  *  那么路径可设置为相对于浏览器安装目录的相对路径
  */
-static int 
+static int
 get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
 {
     char *path = NULL;
@@ -81,19 +81,19 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
     int  ret = -1;
     char temp[VALUE_LEN+1] = {0};
     if (!ini_read_string("attach","ExPath",&path,ini_portable_path))
-    {       
+    {
         return -1;
-    }      
+    }
     pathlen = (int) strlen(path);
     if ((lp =  strchr(path, ',')) == NULL  || !isdigit(path[pathlen - 1]))
-    {      
+    {
         free(path);
         return -1;
     }
     if (true)
     {
         ret = path[pathlen-1] - '0';
-        path[lp-path] = '\0';    
+        path[lp-path] = '\0';
     }
     if (*path == '"')
     {
@@ -111,9 +111,9 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
         if (!wget_process_directory(wdir,len))
         {
             wdir[0] = L'\0';
-        }                 
+        }
     }
-    else 
+    else
     {
         if ((lp =  strchr(path, ' ')) != NULL)
         {
@@ -138,7 +138,7 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
     return ret;
 }
 
-bool WINAPI 
+bool WINAPI
 no_gui_boot(void)
 {
     LPWSTR  *args = NULL;
@@ -162,7 +162,7 @@ no_gui_boot(void)
     return ret;
 }
 
-static void 
+static void
 refresh_tray(void)
 {
     HWND hwnd ;          /* tray hwnd */
@@ -180,7 +180,7 @@ refresh_tray(void)
     }
 }
 
-void WINAPI 
+void WINAPI
 kill_trees(void)
 {
     if (g_handle[0]>0)
@@ -196,7 +196,7 @@ kill_trees(void)
     return;
 }
 
-HANDLE WINAPI 
+HANDLE WINAPI
 create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 {
     PROCESS_INFORMATION pi;
@@ -215,7 +215,7 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 	else
 	{
 	    wnsprintfW(process, MAX_PATH, L"%ls", wcmd);
-	}	    
+	}
     if (true)
     {
         fzero(&si,sizeof(si));
@@ -257,10 +257,10 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
     return pi.hProcess;
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *  此函数必须以线程方式调用,因为会阻塞主进程
  */
-unsigned WINAPI 
+unsigned WINAPI
 run_process(void * lparam)
 {
     WCHAR wcmd[VALUE_LEN+1] = {0};
@@ -275,15 +275,15 @@ run_process(void * lparam)
     if (no_gui_boot())
     {
         return (0);
-    } 
+    }
 #ifdef _LOGDEBUG
     logmsg("wcmd[%ls], param[%ls], pcd[%ls]\n", wcmd, param, pcd);
-#endif 
+#endif
     /* 重启外部进程需要延迟一下 */
     Sleep(500);
     if (wcslen(wcmd)>0 && !search_process(wcmd,0))
     {
-        DWORD pid = 0;      
+        DWORD pid = 0;
         g_handle[0] = create_new(wcmd, param, pcd, flags, &pid);
         if (g_handle[0] != NULL && (SleepEx(3000,false) == 0))
         {

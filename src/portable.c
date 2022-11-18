@@ -41,7 +41,7 @@ typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 SHSTDAPI SHILCreateFromPath (PCWSTR pszPath, PIDLIST_ABSOLUTE *ppidl, DWORD *rgfInOut);
 
 typedef HRESULT (WINAPI *SHGetFolderPathWPtr)(HWND hwndOwner,
-        int    nFolder, 
+        int    nFolder,
         HANDLE hToken,
         DWORD  dwFlags,
         LPWSTR pszPath);
@@ -78,7 +78,7 @@ typedef struct _dyn_link_desc
 }dyn_link_desc;
 
 /* AVX memset with non-temporal instructions */
-TETE_EXT_CLASS void * __cdecl 
+TETE_EXT_CLASS void * __cdecl
 memset_nontemporal_tt (void *dest, int c, size_t count)
 {
     return memset_avx(dest, c, count);
@@ -98,7 +98,7 @@ GetCpuFeature_tt(void)
     return 0;
 }
 
-TETE_EXT_CLASS intptr_t 
+TETE_EXT_CLASS intptr_t
 GetAppDirHash_tt(void)
 {
     return 0;
@@ -125,7 +125,7 @@ remove_hook(void **target)
     return false;
 }
 
-HRESULT WINAPI 
+HRESULT WINAPI
 HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
 {
     int folder = nFolder & 0xff;
@@ -173,7 +173,7 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
     return sSHGetSpecialFolderLocationStub(hwndOwner, nFolder, ppidl);
 }
 
-HRESULT WINAPI 
+HRESULT WINAPI
 HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
                      DWORD dwFlags,LPWSTR pszPath)
 {
@@ -221,7 +221,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
             if (localdt_path[0] != L'\0' && wcreate_dir(localdt_path))
             {
                 int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdt_path);
-                if (num>0 && num<MAX_PATH ) 
+                if (num>0 && num<MAX_PATH )
                     ret = S_OK;
             }
             break;
@@ -229,7 +229,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
         default:
             break;
     }
-    
+
     if (S_OK != ret)
     {
         ret = sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
@@ -237,7 +237,7 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     return ret;
 }
 
-bool WINAPI 
+bool WINAPI
 HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreate)
 {
     bool       internal;
@@ -255,7 +255,7 @@ HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreat
             lpszPath)) == S_OK ? true : false;
 }
 
-HRESULT WINAPI 
+HRESULT WINAPI
 HookSHGetKnownFolderIDList(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PIDLIST_ABSOLUTE *ppidl)
 {
     if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
@@ -269,7 +269,7 @@ HookSHGetKnownFolderIDList(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PID
     return sSHGetKnownFolderIDListStub(rfid,dwFlags,hToken,ppidl);
 }
 
-HRESULT WINAPI 
+HRESULT WINAPI
 HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR *ppszPath)
 {
     *ppszPath = NULL;
@@ -281,12 +281,12 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
             return S_FALSE;
         }
         *ppszPath = CoTaskMemAlloc(sizeof(appdata_path));
-        if (!*ppszPath) 
+        if (!*ppszPath)
         {
             return E_OUTOFMEMORY;
         #ifdef _LOGDEBUG
             logmsg("return E_OUTOFMEMORY\n");
-        #endif 
+        #endif
         }
         wcscpy(*ppszPath, appdata_path);
         PathRemoveBackslashW(*ppszPath);
@@ -311,13 +311,13 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
     return sSHGetKnownFolderPathStub(rfid,dwFlags,hToken,ppszPath);
 }
 
-static void 
+static void
 init_portable(void)
 {
 #define DLD(s,h) {#s, (void*)(Hook##s), (pointer_to_handler*)(void*)(&h)}
     int i;
     HMODULE h_shell32;
-    const dyn_link_desc api_tables[] = 
+    const dyn_link_desc api_tables[] =
     {
           DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
         , DLD(SHGetFolderPathW, sSHGetFolderPathWStub)
@@ -372,20 +372,20 @@ diff_days(void)
 }
 
 /* uninstall hook and clean up */
-void WINAPI 
+void WINAPI
 undo_it(void)
 {
     if (g_mutex)
     {
     #ifdef _LOGDEBUG
         logmsg("clean LIBPORTABLE_LAUNCHER_PROCESS\n");
-    #endif          
+    #endif
         CloseHandle(g_mutex);
     }
     /* 反注册uia */
     un_uia();
     /* 解除快捷键 */
-    uninstall_bosskey();    
+    uninstall_bosskey();
     /* 清理启动过的进程树 */
     kill_trees();
     jmp_end();
@@ -406,10 +406,9 @@ update_thread(void *lparam)
     {
     #ifdef _LOGDEBUG
         logmsg("get_localdt_path return false!\n");
-    #endif          
+    #endif
         return (0);
     }
-    
     if (!GetModuleFileNameW(NULL, path, MAX_PATH))
     {
         return (0);
@@ -439,14 +438,14 @@ update_thread(void *lparam)
         CloseHandle(create_new(wcmd, NULL, NULL, 2, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");
-    #endif        
-    }   
+    #endif
+    }
     return (1);
 }
 
-static bool 
+static bool
 init_hook_data(void)
-{  
+{
     HANDLE mutex = NULL;
     WCHAR appdt[MAX_PATH] = {0};
     if (!get_appdt_path(appdt, MAX_PATH))
@@ -454,24 +453,24 @@ init_hook_data(void)
     #ifdef _LOGDEBUG
         logmsg("get_appdt_path(%ls) return false!\n", appdt);
     #endif
-        return false;  
+        return false;
     }
     if (MH_Initialize() != MH_OK)
     {
     #ifdef _LOGDEBUG
         logmsg("MH_Initialize false!!!!\n");
-    #endif 
+    #endif
         return false;
-    } 
+    }
     if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
-    {        
+    {
         write_file(appdt);
     }
     else
     {
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_FILEIO_DEFINED!\n");
-    #endif 
+    #endif
     }
     if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
     {
@@ -481,7 +480,7 @@ init_hook_data(void)
     {
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
-    #endif        
+    #endif
     }
     if (ini_read_int("General", "Portable", ini_portable_path) > 0 && wcreate_dir(appdt))
     {
@@ -505,7 +504,7 @@ init_hook_data(void)
     return true;
 }
 
-static void 
+static void
 window_hooks(void)
 {
     int up = 0;
@@ -542,10 +541,10 @@ window_hooks(void)
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_ONTABS_DEFINED!\n");
     #endif
-    }    
+    }
     else if (inicache_read_int("General", "OnTabs", &plist) > 0)
     {
-        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");       
+        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");
         threads_on_tabs();
     }
     if (inicache_read_int("General", "DisableScan", &plist) > 0)
@@ -554,7 +553,7 @@ window_hooks(void)
     }
     if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL)); 
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL));
     }
     if (inicache_read_int("General", "Bosskey", &plist) > 0)
     {
@@ -565,16 +564,16 @@ window_hooks(void)
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_NEWPROCESS_DEFINED!\n");
     #endif
-    }      
+    }
     else if (inicache_read_int("General", "ProxyExe", &plist) > 0)
-    { 
+    {
         _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=1");
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
     }
     iniparser_destroy_cache(&plist);
 }
 
-static bool 
+static bool
 child_proces_if(void)
 {
     LPWSTR  *args = NULL;
@@ -585,9 +584,9 @@ child_proces_if(void)
         args = CommandLineToArgvW(GetCommandLineW(), &count);
         if ( NULL != args )
         {
-            int i;    
+            int i;
             for (i = 0; i < count; ++i)
-            {            
+            {
                 if ( (_wcsicmp(args[i], L"-greomni") == 0) )
                 {
                     ret = true;
@@ -595,12 +594,12 @@ child_proces_if(void)
                 }
             }
             LocalFree(args);
-        }        
+        }
     }
     return ret;
 }
 
-void WINAPI 
+void WINAPI
 do_it(void)
 {
     if (!child_proces_if())
@@ -622,7 +621,7 @@ extern "C" {
 #endif
 
 #if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
-int CALLBACK 
+int CALLBACK
 _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
 {
     switch(dwReason)

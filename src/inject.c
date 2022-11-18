@@ -43,7 +43,7 @@ unsigned char shell_code[] =
     0x50,                                                                   // push rax
     /* rax is saved, now overwrite the return address we pushed earlier */
     0x48, 0xB8, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,	            // mov rax, 0CCCCCCCCCCCCCCCCh
-    0x48, 0x89, 0x84, 0x24, 0x10, 0x00, 0x00, 0x00,                         // mov qword ptr [rsp+16],rax  
+    0x48, 0x89, 0x84, 0x24, 0x10, 0x00, 0x00, 0x00,                         // mov qword ptr [rsp+16],rax
     0x51,                                                                   // push rcx
     0x52,                                                                   // push rdx
     0x53,                                                                   // push rbx
@@ -97,8 +97,8 @@ unsigned char shell_code[] =
 #else
 #error Unsupported compiler.
 #endif
-  
-static void WINAPI 
+
+static void WINAPI
 ThreadProc(thread_data* pt)
 {
     typedef NTSTATUS (NTAPI *LdrLoadDllPtr)
@@ -121,7 +121,7 @@ ThreadProc(thread_data* pt)
     pfnLdrLoadDll(NULL, NULL, &usDllName, &DllHandle);
 }
 
-MOZ_NOINLINE 
+MOZ_NOINLINE
 static void WINAPI
 AfterThreadProc (void)
 {
@@ -135,7 +135,7 @@ AfterThreadProc (void)
 #pragma check_stack
 #endif
 
-static bool 
+static bool
 init_data(thread_data *pt)
 {
     bool    res = false;
@@ -144,7 +144,7 @@ init_data(thread_data *pt)
     if (NULL == nt_handle)
     {
         return res;
-    }    
+    }
     fzero(pt, sizeof(thread_data));
     pt->dwFuncAddr   = (uintptr_t)GetProcAddress(nt_handle, "LdrLoadDll");
     pt->dwRtlInitStr = (uintptr_t)GetProcAddress(nt_handle, "RtlInitUnicodeString");
@@ -203,7 +203,7 @@ install_jmp(CONTEXT *pc, thread_info *pinfo)
 #endif
 }
 
-unsigned WINAPI 
+unsigned WINAPI
 InjectDll(void *process)
 {
     thread_data dt;
@@ -223,7 +223,7 @@ InjectDll(void *process)
     #endif
         /* 我们并不需要获取函数精确的尺寸,不小于函数体就行 */
         df.func_size = VALUE_LEN;
-    }    
+    }
     t_size = df.data_size + df.code_size + df.func_size;
     do
     {
@@ -246,8 +246,8 @@ InjectDll(void *process)
         {
         #ifdef _LOGDEBUG
             logmsg("init_data false\n");
-        #endif  
-            break;          
+        #endif
+            break;
         }
         if ((df.code_buff = VirtualAllocEx(pi.hProcess, 0, t_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE)) == NULL)
         {
@@ -259,7 +259,7 @@ InjectDll(void *process)
         if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size, &dt, df.data_size))
         {
             break;
-        } 
+        }
         if (!write_memory(pi.hProcess, (uint8_t *)df.code_buff+df.code_size+df.data_size, ThreadProc, df.func_size))
         {
             break;

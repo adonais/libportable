@@ -36,13 +36,13 @@ cpu_has_avx(void)
     return has_avx;
 }
 
-static LIB_INLINE uint32_t 
-get_cache_size(void) 
+static LIB_INLINE uint32_t
+get_cache_size(void)
 {
     int eax, ebx, ecx, edx;
-    int size = 0;  
+    int size = 0;
     CPUID(0x80000000, &eax, &ebx, &ecx, &edx);
-    if ((uint32_t)eax >= 0x80000006) 
+    if ((uint32_t)eax >= 0x80000006)
     {
         CPUID(0x80000006, &eax, &ebx, &ecx, &edx);
         size = (ecx >> 16) & 0xffff;
@@ -54,28 +54,28 @@ static LIB_INLINE void*
 memset_less32(void *dst, int a, size_t n)
 {
     uint8_t *dt = (uint8_t *)dst;
-    if (n & 0x01) 
+    if (n & 0x01)
     {
         *dt++ = (uint8_t)a;
     }
-    if (n & 0x02) 
+    if (n & 0x02)
     {
         *(uint16_t *)dt = UU16(a);
         dt += 2;
     }
-    if (n & 0x04) 
+    if (n & 0x04)
     {
         _mm_stream_si32((int *)dt, UU32(a));
         dt += 4;
     }
-    if (n & 0x08) 
+    if (n & 0x08)
     {
         uint32_t c = UU32(a);
         _mm_stream_si32((int *)dt+0, c);
         _mm_stream_si32((int *)dt+1, c);
         dt += 8;
     }
-    if (n & 0x10) 
+    if (n & 0x10)
     {
         uint32_t c = UU32(a);
         _mm_stream_si32((int *)dt+0, c);
@@ -88,7 +88,7 @@ memset_less32(void *dst, int a, size_t n)
 }
 
 /* using non-temporal avx */
-void* __cdecl 
+void* __cdecl
 memset_avx(void* dst, int c, size_t size)
 {
     __m256i   vals;
@@ -106,7 +106,7 @@ memset_avx(void* dst, int c, size_t size)
         memset_less32(buffer, c, head);
         buffer += head;
         size -= head;
-    }   
+    }
     if ( c )
     {
         vals = _mm256_set1_epi8(c);
@@ -129,7 +129,7 @@ memset_avx(void* dst, int c, size_t size)
     return dst;
 }
 
-uint32_t __stdcall 
+uint32_t __stdcall
 get_level_size(void)
 {
     return cpu_has_avx()?get_cache_size():0;

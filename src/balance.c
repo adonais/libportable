@@ -8,7 +8,7 @@
 /**************************************************************************
  * 时间转换函数.
  */
-static 
+static
 LIB_INLINE uint64_t
 ft2ull(const FILETIME* ftime)
 {
@@ -20,12 +20,12 @@ ft2ull(const FILETIME* ftime)
 
 /**************************************************************************
  * 通过apc的连续调用,计算出cpu系统使用率.
- * cpu利用率 = (sys-idl)/sys 
+ * cpu利用率 = (sys-idl)/sys
  * lpArg, 用户apc回调参数
  * dwTimerLowValue, 定时器低位值
  * dwTimerHighValue, 定时器高位值
  */
-static void CALLBACK                          
+static void CALLBACK
 get_cpu_usage(LPVOID lpArg, DWORD  dwTimerLowValue, DWORD  dwTimerHighValue)
 {
     FILETIME idle, kernel, user;
@@ -79,8 +79,8 @@ set_cpu_priority(int val, int m_rate)
     }
     else if (m_pri != NORMAL_PRIORITY_CLASS)
     {
-        SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);        
-    }    
+        SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
+    }
 }
 
 /**************************************************************************
@@ -99,16 +99,16 @@ set_cpu_balance(void *lparam)
     LARGE_INTEGER m_duetime;
     int value = ini_read_int("attach", "CpuUse", ini_portable_path);
     memset(&m_windows, 0, sizeof(WNDINFO));
-    m_windows.hPid = GetCurrentProcessId(); 
+    m_windows.hPid = GetCurrentProcessId();
     if (!get_moz_hwnd(&m_windows))
-    {      
+    {
         return (0);
     }
     wnsprintfW(m_name, 32, L"%ls_%lu",m_pref, m_windows.hPid);
     if ((m_timer = CreateWaitableTimerW(NULL, false, m_name)) == NULL)
     {
         return (0);
-    }       
+    }
     m_duetime.QuadPart = -20000000;  /* 2 seconds pass */
     if (!SetWaitableTimer(m_timer, &m_duetime,2000, get_cpu_usage, (LPVOID)&m_cpu, false))
     {

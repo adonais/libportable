@@ -108,12 +108,12 @@ list_destroy(ini_list **pli)
         return;
     }
     for (node **cur = &(*pli)->pd; *cur;)
-    {       
+    {
         node *entry = *cur;
-        *cur = entry->next;  
+        *cur = entry->next;
         free(entry);
     }
-    free(*pli);   
+    free(*pli);
     *pli = NULL;
 }
 
@@ -162,7 +162,7 @@ list_find(node **pphead, const char *v)
         {
             p = p->next;
         }
-            
+
     }
     return p;
 }
@@ -221,14 +221,14 @@ list_print(node **pphead)
 {
     for (node *cur = *pphead; cur;)
     {
-    #ifdef _LOGDEBUG    
+    #ifdef _LOGDEBUG
         logmsg("%s", cur->content);
-    #endif    
+    #endif
         cur = cur->next;
     }
-#ifdef _LOGDEBUG    
+#ifdef _LOGDEBUG
     logmsg("\n");
-#endif    
+#endif
 }
 #endif
 
@@ -248,7 +248,7 @@ list_delete_if(node **pphead, remove_fn rm_node, const char *v)
         {
             cur = &en->next;
         }
-    }    
+    }
 }
 
 static void
@@ -308,7 +308,7 @@ utf16_to_mbcs(const wchar_t *utf16)
         free(a8);
         a8 = NULL;
     }
-    return a8;  
+    return a8;
 }
 
 wchar_t *WINAPI
@@ -335,7 +335,7 @@ mbcs_to_utf16(const char *ansi)
 char *WINAPI
 mbcs_to_utf8(const char *ansi)
 {
-#ifdef _WIN32     
+#ifdef _WIN32
     char *utf8 = NULL;
     wchar_t u16[MAX_COUNT + 2] = {0};
     int   codepage= AreFileApisANSI() ? CP_ACP : CP_OEMCP;
@@ -346,7 +346,7 @@ mbcs_to_utf8(const char *ansi)
     return utf8;
 #else
   return strdup(ansi);
-#endif      
+#endif
 }
 
 wchar_t *WINAPI
@@ -372,7 +372,7 @@ utf8_to_utf16(const char *utf8)
 char *WINAPI
 utf8_to_mbcs(const char *utf8)
 {
-#ifdef _WIN32      
+#ifdef _WIN32
     char *a8 = NULL;
     wchar_t u16[MAX_COUNT + 2] = {0};
     if (MultiByteToWideChar(CP_UTF8, 0, utf8, -1, u16, MAX_COUNT) > 0)
@@ -382,7 +382,7 @@ utf8_to_mbcs(const char *utf8)
     return a8;
 #else
   return strdup(utf8);
-#endif      
+#endif
 }
 
 
@@ -498,7 +498,7 @@ utf8_to_utf16be(uint8_t *outb, int *outlen, const uint8_t *in, int *inlen)
         processed = in;
     }
     *outlen = (int)(out - outstart) * 2;
-    *inlen = (int)(processed - instart); 
+    *inlen = (int)(processed - instart);
     return (*outlen);
 }
 
@@ -541,9 +541,9 @@ check_encoding(const uint8_t *str)
             continue;
         }
         GET_UTF8(codepoint, *(byte++), return false;);
-        min = byte - str == 1 ? 0 : byte - str == 2 ? 0x80 : 
+        min = byte - str == 1 ? 0 : byte - str == 2 ? 0x80 :
             1 << (5 * (byte - str) - 4);
-        if (codepoint < min || codepoint >= 0x110000   || 
+        if (codepoint < min || codepoint >= 0x110000   ||
            (codepoint >= 0xD800 && codepoint <= 0xDFFF)||
             get_lang_cjk(codepoint))
         {
@@ -595,7 +595,7 @@ get_file_type(FILE *fp)
     return m_type;
 }
 
-static LIB_INLINE 
+static LIB_INLINE
 void
 swap_half16(uint16_t *in)
 {
@@ -649,9 +649,9 @@ open_to_mem(ini_list **li, const char *path, bool write_access)
     }
     if (!fp)
     {
-    #ifdef _LOGDEBUG    
+    #ifdef _LOGDEBUG
         logmsg("fopen[%s] failed\n", path);
-    #endif    
+    #endif
         return false;
     }
     if ((m_type = get_file_type(fp)) == E_OTHER)
@@ -660,11 +660,11 @@ open_to_mem(ini_list **li, const char *path, bool write_access)
         int filesize = fseek(fp_end, 0, SEEK_END);
         if (filesize)
         {
-        #ifdef _LOGDEBUG    
+        #ifdef _LOGDEBUG
             logmsg("unkown file encode!\n");
-        #endif    
+        #endif
             fclose(fp);
-            return false;            
+            return false;
         }
     }
     (*li)->codes = m_type;
@@ -748,9 +748,9 @@ open_to_mem(ini_list **li, const char *path, bool write_access)
             }
             if (!list_insert(&(*li)->pd, NULL, buf))
             {
-            #ifdef _LOGDEBUG    
+            #ifdef _LOGDEBUG
                 logmsg("list_add failed\n");
-            #endif    
+            #endif
             }
             ++m_line;
         }
@@ -856,7 +856,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line,
             {
                 break;
             }
-            else if (*cur->content == ';' || *cur->content == '#' || 
+            else if (*cur->content == ';' || *cur->content == '#' ||
                     *cur->content == '\r' || *cur->content == '\n')
             {
                 continue;
@@ -868,7 +868,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line,
                 {
                 #ifdef _LOGDEBUG
                     logmsg("got it.\n");
-                #endif                     
+                #endif
                 }
             }
             else
@@ -876,9 +876,9 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line,
                 crt_sscanf(cur->content, "%[^\r|\n]", lpdata[i]);
             }
             if (*lpdata[i] == '\0')
-            {         
-                continue;          
-            }            
+            {
+                continue;
+            }
             ++i;
         }
         if (i < line)
@@ -939,7 +939,7 @@ save_to_file(ini_list **li)
                 fwrite(a8, 1, strlen(a8), (*li)->pf);
                 free(a8);
             }
-        }        
+        }
         else
         {
             fwrite(cur->content, 1, strlen(cur->content), (*li)->pf);
@@ -998,7 +998,7 @@ iniparser_destroy_cache(ini_cache *pli)
     list_destroy(pli);
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *  
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * windows上的fopen文件路径,必须为ansi或多字节编码
  * 所以,在这里还要检测一下文件名的编码.
  */
@@ -1008,19 +1008,19 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
     bool res = false;
     char *mbcs_path = NULL;
     do
-    {    
+    {
     #ifdef _WIN32
         if (!check_encoding((const uint8_t *)ini))
         {
-        #ifdef _LOGDEBUG    
+        #ifdef _LOGDEBUG
             logmsg("mbcs code, so no conversion is necessary!\n");
-        #endif              
+        #endif
         }
         else if ((mbcs_path = utf8_to_mbcs(ini)) == NULL)
         {
             break;
         }
-    #endif   
+    #endif
         if (_access(mbcs_path?mbcs_path:ini, 0) == -1)
         {
             if (!write_access)
@@ -1030,21 +1030,21 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
             if (!mbcs_create_file(mbcs_path?mbcs_path:ini))
             {
                 break;
-            }                
-        }      
+            }
+        }
         if (list_init(ini_table) == NULL)
         {
             break;
-        }         
+        }
         if (!open_to_mem(ini_table, mbcs_path?mbcs_path:ini, write_access))
         {
-        #ifdef _LOGDEBUG    
+        #ifdef _LOGDEBUG
             logmsg("open_to_mem error!\n");
-        #endif     
+        #endif
             list_destroy(ini_table);
             break;
         }
-        res = true; 
+        res = true;
     }while (0);
     if (mbcs_path)
     {
@@ -1159,7 +1159,7 @@ inicache_new_section(const char *value, ini_cache *ini)
     int  len = 0;
     char *end, *ptr = NULL;
     char sec[LEN_SECTION+1] = {0};
-    
+
     if (!(ini && *ini))
     {
         return false;
@@ -1168,22 +1168,22 @@ inicache_new_section(const char *value, ini_cache *ini)
     if ((ptr = strchr(value, '[')) == NULL)
     {
         return false;
-    }      
+    }
     if ((end = strchr(ptr, ']')) == NULL)
     {
         return false;
-    }  
+    }
     if ((len = (int)(end-ptr+2)) > LEN_SECTION)
     {
         return false;
-    }          
+    }
     else
     {
         crt_snprintf(sec, len, "%s", ptr);
     }
     if (*sec != '\0' && list_find(&(*ini)->pd, sec))
-    {  
-    #ifdef _LOGDEBUG    
+    {
+    #ifdef _LOGDEBUG
         logmsg("%s exists, no need to add.\n", sec);
     #endif
         return false;
@@ -1242,7 +1242,7 @@ inicache_write_string(const char *sec, const char *key, const char *value, ini_c
             else
             {
                 strncat(pos->content, "\n", LEN_CONTENT);
-            }            
+            }
         }
         else
         {
@@ -1302,7 +1302,7 @@ inicache_read_string(const char *sec, const char *key, char **buf, ini_cache *in
     if ((pos = list_parser(&(*ini)->pd, sec, key, buf)) != NULL)
     {
         res = true;
-    }   
+    }
     return res;
 }
 
@@ -1314,7 +1314,7 @@ ini_read_string(const char *sec, const char *key, char **buf, const char *path)
     if (!plist)
     {
         return false;
-    }   
+    }
     res = inicache_read_string(sec, key, buf, &plist);
     iniparser_destroy_cache(&plist);
     return res;
@@ -1357,7 +1357,7 @@ inicache_foreach_wkey(const char *sec,
                       wchar_t (*lpdata)[129],
                       const int line,
                       ini_cache *ini)
-{               
+{
     int  i = 0;
     bool res = false;
     char (*data)[129] = NULL;
@@ -1378,7 +1378,7 @@ inicache_foreach_wkey(const char *sec,
     }
     for (; i < line && *data[i] != '\0'; ++i)
     {
-        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;    
+        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;
     }
     if (i < line)
     {
@@ -1403,16 +1403,16 @@ inicache_foreach_key(const char *sec,
 
 /************************************************************
  * 遍历区段,把获得key和它的值写入lpdata二维数组             *
- * ini 区段入口                                             * 
+ * ini 区段入口                                             *
  * 二维数组首地址,保存多个段值                              *
  * 二维数组行数                                             *
  * ini文件路径                                              *
- ************************************************************/ 
+ ************************************************************/
 bool WINAPI
 ini_foreach_key(const char *sec,
                 char (*lpdata)[129],
-                const int line, 
-                const char *path) 
+                const int line,
+                const char *path)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, false);
@@ -1428,8 +1428,8 @@ ini_foreach_key(const char *sec,
 bool WINAPI
 ini_foreach_wkey(const char *sec,
                 wchar_t (*lpdata)[129],
-                const int line, 
-                const char *path) 
+                const int line,
+                const char *path)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, false);
@@ -1473,7 +1473,7 @@ inicache_foreach_wstring(const char *sec,
     if (i < line)
     {
         lpdata[i][0] = 0;
-    }    
+    }
     free(data);
     return res;
 }
@@ -1493,16 +1493,16 @@ inicache_foreach_string(const char *sec,
 
 /************************************************************
  * 遍历区段,把获得key的值写入lpdata二维数组                 *
- * ini 区段入口                                             *    
+ * ini 区段入口                                             *
  * 二维数组首地址,保存多个段值                              *
  * 二维数组行数                                             *
  * ini文件路径                                              *
- ************************************************************/ 
+ ************************************************************/
 bool WINAPI
 ini_foreach_string(const char *sec,
                    char (*lpdata)[129],
-                   const int line, 
-                   const char *path) 
+                   const int line,
+                   const char *path)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, false);
@@ -1518,8 +1518,8 @@ ini_foreach_string(const char *sec,
 bool WINAPI
 ini_foreach_wstring(const char *sec,
                     wchar_t (*lpdata)[129],
-                    const int line, 
-                    const char *path) 
+                    const int line,
+                    const char *path)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, false);
@@ -1569,45 +1569,45 @@ ini_search_string(const char *key, char **buf, const char *path)
 }
 
 /* 交换节点 */
-static node* node_swap(node* ptr1, node* ptr2) 
-{ 
-    node* tmp = ptr2->next; 
-    ptr2->next = ptr1; 
-    ptr1->next = tmp; 
-    return ptr2; 
-} 
-  
+static node* node_swap(node* ptr1, node* ptr2)
+{
+    node* tmp = ptr2->next;
+    ptr2->next = ptr1;
+    ptr1->next = tmp;
+    return ptr2;
+}
+
 /* 冒泡排序算法实现链表局部排序 */
-static void bubble_sort(node** head, int count) 
-{ 
-    node** h; 
-    int i, j, swapped; 
-  
-    for (i = 0; i <= count; i++) { 
-  
-        h = head; 
-        swapped = 0; 
-  
-        for (j = 0; j < count - i - 1; j++) { 
-  
-            node* p1 = *h; 
-            node* p2 = p1->next; 
-  
+static void bubble_sort(node** head, int count)
+{
+    node** h;
+    int i, j, swapped;
+
+    for (i = 0; i <= count; i++) {
+
+        h = head;
+        swapped = 0;
+
+        for (j = 0; j < count - i - 1; j++) {
+
+            node* p1 = *h;
+            node* p2 = p1->next;
+
             if (strcmp(p1->content, p2->content) > 0) {
-  
+
                 /* update the link after swapping */
-                *h = node_swap(p1, p2); 
-                swapped = 1; 
-            } 
-  
-            h = &(*h)->next; 
-        } 
-  
+                *h = node_swap(p1, p2);
+                swapped = 1;
+            }
+
+            h = &(*h)->next;
+        }
+
         /* break if the loop ended without any swap */
-        if (swapped == 0) 
-            break; 
-    } 
-} 
+        if (swapped == 0)
+            break;
+    }
+}
 
 /* ini区段排序 */
 bool WINAPI
@@ -1650,7 +1650,7 @@ ini_sort_section(const char *sec, const char *path)
     }
     res = inicache_sort_section(sec, &plist);
     iniparser_destroy_cache(&plist);
-    return res;    
+    return res;
 }
 
 #if defined(__clang__)

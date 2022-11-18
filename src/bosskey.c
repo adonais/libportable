@@ -13,7 +13,7 @@ bool init_bosskey(LPWNDINFO pInfo)
         return false;
     }
     _ui64tow(pInfo->hPid,atom,10);
-    pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;    
+    pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;
     return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
 }
 
@@ -67,7 +67,7 @@ void set_hotkey(LPWNDINFO pInfo)
     char  tmp_stor[3][16] = { {0,0} };
     pInfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
     pInfo->key_vk = 0xc0;           /* ~键  */
-    if ( ini_read_string("attach","Hotkey",&lpstr,ini_portable_path) )  
+    if ( ini_read_string("attach","Hotkey",&lpstr,ini_portable_path) )
     {
         int	i = 0;
         char *p = lpstr;
@@ -110,9 +110,9 @@ void WINAPI uninstall_bosskey(void)
     if (g_atom)
     {
         UnregisterHotKey(NULL, g_atom);
-        GlobalDeleteAtom(g_atom);  
+        GlobalDeleteAtom(g_atom);
         g_atom = 0;
-    }     
+    }
 }
 
 unsigned WINAPI bosskey_thread(void *lparam)
@@ -123,13 +123,13 @@ unsigned WINAPI bosskey_thread(void *lparam)
     if ( init_bosskey(&ff_info) )
     {
         MSG msg;
-        g_atom = ff_info.atom_str;     
+        g_atom = ff_info.atom_str;
         while (GetMessageW(&msg, NULL, 0, 0) > 0)
-        {         
+        {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
             EnumWindows(find_chwnd, (LPARAM)&ff_info);
-        }           
+        }
     }
     return (1);
 }

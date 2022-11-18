@@ -39,7 +39,7 @@ HANDLE g_mutex = NULL;
 static bool in_whitelist(LPCWSTR lpfile)
 {
     WCHAR *moz_processes[] = {L"", L"%windir%\\system32\\WerFault.exe",
-                              L"plugin-container.exe", 
+                              L"plugin-container.exe",
                               L"plugin-hang-ui.exe",
                               L"firefox-webcontent.exe",
                               L"Iceweasel-webcontent.exe",
@@ -88,7 +88,7 @@ static bool in_whitelist(LPCWSTR lpfile)
     {
         /* 核对白名单 */
         for ( i=0; i<EXCLUDE_NUM && white_list[i][0] != L'\0' ; i++ )
-        {        
+        {
             if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':' )
             {
                 path_to_absolute(white_list[i],VALUE_LEN);
@@ -111,7 +111,7 @@ static bool in_whitelist(LPCWSTR lpfile)
     return ret;
 }
 
-static bool 
+static bool
 process_cui(LPCWSTR lpfile)
 {
     WCHAR   lpname[VALUE_LEN+1] = {0};
@@ -137,7 +137,7 @@ process_cui(LPCWSTR lpfile)
     return true;
 }
 
-static bool 
+static bool
 process_plugin(LPCWSTR lpfile)
 {
     if ( StrStrIW(lpfile, L"SumatraPDF.exe")                          ||
@@ -152,7 +152,7 @@ process_plugin(LPCWSTR lpfile)
     return false;
 }
 
-static NTSTATUS WINAPI 
+static NTSTATUS WINAPI
 HookNtWriteVirtualMemory(HANDLE ProcessHandle,
                          PVOID BaseAddress,
                          PVOID Buffer,
@@ -185,10 +185,10 @@ skip_double_quote(wchar_t *p, int len)
         if (!tmp)
         {
             return false;
-        }        
+        }
         for(int j = 1; j < i; ++j)
         {
-            
+
             if (p[j]  != L'\"')
             {
                 tmp[k++] = p[j];
@@ -197,9 +197,9 @@ skip_double_quote(wchar_t *p, int len)
         if (tmp[wcslen(tmp) - 1] == L' ')
         {
             tmp[wcslen(tmp) - 1] = L'\0';
-        }    
+        }
         wcsncpy(p, tmp, len);
-        free(tmp);         
+        free(tmp);
     }
     return true;
 }
@@ -209,14 +209,14 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
 {
     bool    var = false;
     WCHAR   m_line[LEN_PARAM + 1] = {0};
-    LPCWSTR lpfile = cmd_path?cmd_path:image_path; 
+    LPCWSTR lpfile = cmd_path?cmd_path:image_path;
     wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
     if (!skip_double_quote(m_line, LEN_PARAM))
     {
     #ifdef _LOGDEBUG
         logmsg("skip_double_quote failed\n");
-    #endif            
-    }   
+    #endif
+    }
     var = wcscmp(m_line, lpfile) == 0;
     if (!var)
     {
@@ -242,7 +242,7 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
     }
 }
 
-static NTSTATUS WINAPI 
+static NTSTATUS WINAPI
 HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         ACCESS_MASK ProcessDesiredAccess,
                         ACCESS_MASK ThreadDesiredAccess,
@@ -264,7 +264,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                                     ProcessDesiredAccess, ThreadDesiredAccess,
                                     ProcessObjectAttributes, ThreadObjectAttributes,
                                     CreateProcessFlags, CreateThreadFlags, ProcessParameters,
-                                    CreateInfo, AttributeList);        
+                                    CreateInfo, AttributeList);
     }
     fzero(&myProcessParameters,sizeof(RTL_USER_PROCESS_PARAMETERS));
     if (process_plugin(ProcessParameters->ImagePathName.Buffer))
@@ -314,7 +314,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     return status;
 }
 
-static bool WINAPI 
+static bool WINAPI
 HookCreateProcessInternalW(HANDLE hToken,
                            LPCWSTR lpApplicationName,
                            LPWSTR lpCommandLine,
@@ -338,7 +338,7 @@ HookCreateProcessInternalW(HANDLE hToken,
                lpThreadAttributes,bInheritHandles,dwCreationFlags,
                lpEnvironment,lpCurrentDirectory,
                lpStartupInfo,lpProcessInformation,hNewToken);
-    }    
+    }
     if (lpApplicationName && wcslen(lpApplicationName)>1)
     {
         lpfile = (LPWSTR)lpApplicationName;
@@ -372,7 +372,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
     else if (process_cui(lpfile))
     {
-        
+
         {
         #ifdef _LOGDEBUG
             logmsg("%ls process, disabled-runes\n",lpfile);
@@ -392,20 +392,20 @@ HookCreateProcessInternalW(HANDLE hToken,
     return ret;
 }
 
-static bool 
+static bool
 is_authorized(LPCWSTR lpFileName)
 {
     bool    ret   = false;
     LPWSTR  filename = NULL;
-    WCHAR   *szAuthorizedList[] = { L"comctl32.dll", 
-                                    L"uxtheme.dll", 
+    WCHAR   *szAuthorizedList[] = { L"comctl32.dll",
+                                    L"uxtheme.dll",
                                     L"indicdll.dll",
                                     L"msctf.dll",
-                                    L"shell32.dll", 
+                                    L"shell32.dll",
                                     L"imageres.dll",
                                     L"winmm.dll",
-                                    L"ole32.dll", 
-                                    L"oleacc.dll", 
+                                    L"ole32.dll",
+                                    L"oleacc.dll",
                                     L"version.dll",
                                     L"oleaut32.dll",
                                     L"secur32.dll",
@@ -421,7 +421,7 @@ is_authorized(LPCWSTR lpFileName)
     if (_wcsicmp(lpFileName,dllpath) == 0)
     {
         return true;
-    }    
+    }
     if (lpFileName[1] == L':')
     {
         wchar_t sysdir[VALUE_LEN+1] = {0};
@@ -464,11 +464,11 @@ is_authorized(LPCWSTR lpFileName)
     return ret;
 }
 
-static HMODULE WINAPI 
+static HMODULE WINAPI
 HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
 {
     uintptr_t dwCaller = (uintptr_t)_ReturnAddress();
-    if ( is_authorized(lpFileName) ) 
+    if ( is_authorized(lpFileName) )
     {
         return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
     }
@@ -516,7 +516,7 @@ unsigned WINAPI init_safed(void)
         #endif
         }
     }
-#ifndef DISABLE_SAFE     
+#ifndef DISABLE_SAFE
     if (ver < 600 && ini_read_int("General", "SafeEx", ini_portable_path) > 0)
     {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
@@ -532,8 +532,8 @@ unsigned WINAPI init_safed(void)
         #ifdef _LOGDEBUG
             logmsg("NtWriteVirtualMemory hook failed!\n");
         #endif
-        }        
+        }
     }
-#endif    
+#endif
     return (1);
 }
