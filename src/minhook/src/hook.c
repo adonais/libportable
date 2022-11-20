@@ -47,7 +47,6 @@
 #define ACTION_DISABLE      0
 #define ACTION_ENABLE       1
 #define ACTION_APPLY_QUEUED 2
-
 // Hook information.
 typedef struct _HOOK_ENTRY
 {
@@ -174,7 +173,6 @@ static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
         if (ip == ((DWORD_PTR)pHook->pTarget + pHook->oldIPs[i]))
             return (DWORD_PTR)pHook->pTrampoline + pHook->newIPs[i];
     }
-
     return 0;
 }
 
@@ -205,11 +203,10 @@ static void ProcessThreadIPs(HANDLE hThread, UINT pos, UINT action)
     {
         count = pos + 1;
     }
-
     for (; pos < count; ++pos)
     {
         PHOOK_ENTRY pHook = &g_hooks.pItems[pos];
-        bool        enable = true;
+        bool        enable = false;
         DWORD_PTR   ip;
 
         switch (action)
@@ -222,7 +219,7 @@ static void ProcessThreadIPs(HANDLE hThread, UINT pos, UINT action)
             enable = true;
             break;
 
-        case ACTION_APPLY_QUEUED:
+        default: // ACTION_APPLY_QUEUED
             enable = pHook->queueEnable;
             break;
         }
@@ -243,8 +240,9 @@ static void ProcessThreadIPs(HANDLE hThread, UINT pos, UINT action)
 }
 
 //-------------------------------------------------------------------------
-static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
+static bool EnumerateThreads(PFROZEN_THREADS pThreads)
 {
+    bool succeeded = false;
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hSnapshot != INVALID_HANDLE_VALUE)
     {
@@ -252,6 +250,7 @@ static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
         te.dwSize = sizeof(THREADENTRY32);
         if (Thread32First(hSnapshot, &te))
         {
+            succeeded = true;
             do
             {
                 if (te.dwSize >= (FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(DWORD))
@@ -261,40 +260,55 @@ static VOID EnumerateThreads(PFROZEN_THREADS pThreads)
                     if (pThreads->pItems == NULL)
                     {
                         pThreads->capacity = INITIAL_THREAD_CAPACITY;
-                        pThreads->pItems
-                            = (LPDWORD)HeapAlloc(g_hHeap, 0, pThreads->capacity * sizeof(DWORD));
+                        pThreads->pItems = (LPDWORD)HeapAlloc(g_hHeap, 0, pThreads->capacity * sizeof(DWORD));
                         if (pThreads->pItems == NULL)
+                        {
+                            succeeded = false;
                             break;
+                        }
                     }
                     else if (pThreads->size >= pThreads->capacity)
                     {
-                        LPDWORD p = (LPDWORD)HeapReAlloc(
-                            g_hHeap, 0, pThreads->pItems, (pThreads->capacity * 2) * sizeof(DWORD));
-                        if (p == NULL)
-                            break;
-
                         pThreads->capacity *= 2;
+                        LPDWORD p = (LPDWORD)HeapReAlloc(g_hHeap, 0, pThreads->pItems, pThreads->capacity * sizeof(DWORD));
+                        if (p == NULL)
+                        {
+                            succeeded = false;
+                            break;
+                        }
                         pThreads->pItems = p;
                     }
                     pThreads->pItems[pThreads->size++] = te.th32ThreadID;
                 }
-
                 te.dwSize = sizeof(THREADENTRY32);
             } while (Thread32Next(hSnapshot, &te));
+            if (succeeded && GetLastError() != ERROR_NO_MORE_FILES)
+            {
+                succeeded = false;
+            }
+            if (!succeeded && pThreads->pItems != NULL)
+            {
+                HeapFree(g_hHeap, 0, pThreads->pItems);
+                pThreads->pItems = NULL;
+            }
         }
         CloseHandle(hSnapshot);
     }
+    return succeeded;
 }
 
 //-------------------------------------------------------------------------
-static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
+static MH_STATUS Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
 {
+    MH_STATUS status = MH_OK;
     pThreads->pItems   = NULL;
     pThreads->capacity = 0;
     pThreads->size     = 0;
-    EnumerateThreads(pThreads);
-
-    if (pThreads->pItems != NULL)
+    if (!EnumerateThreads(pThreads))
+    {
+        status = MH_ERROR_MEMORY_ALLOC;
+    }
+    else if (pThreads->pItems != NULL)
     {
         UINT i;
         for (i = 0; i < pThreads->size; ++i)
@@ -308,6 +322,7 @@ static VOID Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
             }
         }
     }
+    return status;
 }
 
 //-------------------------------------------------------------------------
@@ -325,7 +340,6 @@ static VOID Unfreeze(PFROZEN_THREADS pThreads)
                 CloseHandle(hThread);
             }
         }
-
         HeapFree(g_hHeap, 0, pThreads->pItems);
     }
 }
@@ -385,7 +399,6 @@ static MH_STATUS EnableAllHooksLL(bool enable)
 {
     MH_STATUS status = MH_OK;
     UINT i, first = INVALID_HOOK_POS;
-
     for (i = 0; i < g_hooks.size; ++i)
     {
         if (g_hooks.pItems[i].isEnabled != enable)
@@ -394,24 +407,23 @@ static MH_STATUS EnableAllHooksLL(bool enable)
             break;
         }
     }
-
     if (first != INVALID_HOOK_POS)
     {
         FROZEN_THREADS threads;
-        Freeze(&threads, ALL_HOOKS_POS, enable ? ACTION_ENABLE : ACTION_DISABLE);
-
-        for (i = first; i < g_hooks.size; ++i)
+        status = Freeze(&threads, ALL_HOOKS_POS, enable ? ACTION_ENABLE : ACTION_DISABLE);
+        if (status == MH_OK)
         {
-            if (g_hooks.pItems[i].isEnabled != enable)
+            for (i = first; i < g_hooks.size; ++i)
             {
-                status = EnableHookLL(i, enable);
-                if (status != MH_OK) break;
+                if (g_hooks.pItems[i].isEnabled != enable)
+                {
+                    status = EnableHookLL(i, enable);
+                    if (status != MH_OK) break;
+                }
             }
+            Unfreeze(&threads);
         }
-
-        Unfreeze(&threads);
     }
-
     return status;
 }
 
@@ -480,7 +492,10 @@ MH_STATUS WINAPI MH_Uninitialize(VOID)
             break;
         }
         status = EnableAllHooksLL(false);
-        if (status != MH_OK) break;
+        if (status != MH_OK)
+        {
+            break;
+        }
         // Free the internal function buffer.
         // HeapFree is actually not required, but some tools detect a false
         // memory leak without HeapFree.
@@ -596,26 +611,26 @@ MH_STATUS WINAPI MH_RemoveHook(LPVOID pTarget)
     do
     {
         UINT pos;
-
         if (g_hHeap == NULL)
         {
             status = MH_ERROR_NOT_INITIALIZED;
             break;
         }
-
         pos = FindHookEntry(pTarget);
         if (pos == INVALID_HOOK_POS)
         {
             status = MH_ERROR_NOT_CREATED;
             break;
         }
-
         if (g_hooks.pItems[pos].isEnabled)
         {
             FROZEN_THREADS threads;
-            Freeze(&threads, pos, ACTION_DISABLE);
-            status = EnableHookLL(pos, false);
-            Unfreeze(&threads);
+            status = Freeze(&threads, pos, ACTION_DISABLE);
+            if (status == MH_OK)
+            {
+                status = EnableHookLL(pos, false);
+                Unfreeze(&threads);
+            }
         }
         if (status == MH_OK)
         {
@@ -639,7 +654,6 @@ static MH_STATUS EnableHook(LPVOID pTarget, bool enable)
             status = MH_ERROR_NOT_INITIALIZED;
             break;
         }
-
         if (pTarget == MH_ALL_HOOKS)
         {
             status = EnableAllHooksLL(enable);
@@ -654,16 +668,17 @@ static MH_STATUS EnableHook(LPVOID pTarget, bool enable)
                 status = MH_ERROR_NOT_CREATED;
                 break;
             }
-
             if (g_hooks.pItems[pos].isEnabled == enable)
             {
                 status = enable ? MH_ERROR_ENABLED : MH_ERROR_DISABLED;
                 break;
             }
-
-            Freeze(&threads, pos, ACTION_ENABLE);
-            status = EnableHookLL(pos, enable);
-            Unfreeze(&threads);
+            status = Freeze(&threads, pos, ACTION_ENABLE);
+            if (status == MH_OK)
+            {
+                status = EnableHookLL(pos, enable);
+                Unfreeze(&threads);
+            }
         }
     } while(0);
     LeaveSpinLock();
@@ -735,9 +750,7 @@ MH_STATUS WINAPI MH_ApplyQueued(VOID)
 {
     MH_STATUS status = MH_OK;
     UINT i, first = INVALID_HOOK_POS;
-
     EnterSpinLock();
-
     if (g_hHeap != NULL)
     {
         for (i = 0; i < g_hooks.size; ++i)
@@ -748,32 +761,30 @@ MH_STATUS WINAPI MH_ApplyQueued(VOID)
                 break;
             }
         }
-
         if (first != INVALID_HOOK_POS)
         {
             FROZEN_THREADS threads;
-            Freeze(&threads, ALL_HOOKS_POS, ACTION_APPLY_QUEUED);
-
-            for (i = first; i < g_hooks.size; ++i)
+            status = Freeze(&threads, ALL_HOOKS_POS, ACTION_APPLY_QUEUED);
+            if (status == MH_OK)
             {
-                PHOOK_ENTRY pHook = &g_hooks.pItems[i];
-                if (pHook->isEnabled != pHook->queueEnable)
+                for (i = first; i < g_hooks.size; ++i)
                 {
-                    status = EnableHookLL(i, pHook->queueEnable);
-                    if (status != MH_OK)
-                        break;
+                    PHOOK_ENTRY pHook = &g_hooks.pItems[i];
+                    if (pHook->isEnabled != pHook->queueEnable)
+                    {
+                        status = EnableHookLL(i, pHook->queueEnable);
+                        if (status != MH_OK)
+                            break;
+                    }
                 }
+                Unfreeze(&threads);
             }
-
-            Unfreeze(&threads);
         }
     }
     else
     {
         status = MH_ERROR_NOT_INITIALIZED;
     }
-
     LeaveSpinLock();
-
     return status;
 }

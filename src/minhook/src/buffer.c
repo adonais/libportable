@@ -90,7 +90,7 @@ static LPVOID FindPrevFreeRegion(LPVOID pAddress, LPVOID pMinAddr, DWORD dwAlloc
 {
     ULONG_PTR tryAddr = (ULONG_PTR)pAddress;
 
-    // Round down to the next allocation granularity.
+    // Round down to the allocation granularity.
     tryAddr -= tryAddr % dwAllocationGranularity;
 
     // Start from the previous allocation granularity multiply.
@@ -99,7 +99,7 @@ static LPVOID FindPrevFreeRegion(LPVOID pAddress, LPVOID pMinAddr, DWORD dwAlloc
     while (tryAddr >= (ULONG_PTR)pMinAddr)
     {
         MEMORY_BASIC_INFORMATION mbi;
-        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) == 0)
+        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(mbi)) == 0)
             break;
 
         if (mbi.State == MEM_FREE)
@@ -121,7 +121,7 @@ static LPVOID FindNextFreeRegion(LPVOID pAddress, LPVOID pMaxAddr, DWORD dwAlloc
 {
     ULONG_PTR tryAddr = (ULONG_PTR)pAddress;
 
-    // Round down to the next allocation granularity.
+    // Round down to the allocation granularity.
     tryAddr -= tryAddr % dwAllocationGranularity;
 
     // Start from the next allocation granularity multiply.
@@ -130,7 +130,7 @@ static LPVOID FindNextFreeRegion(LPVOID pAddress, LPVOID pMaxAddr, DWORD dwAlloc
     while (tryAddr <= (ULONG_PTR)pMaxAddr)
     {
         MEMORY_BASIC_INFORMATION mbi;
-        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) == 0)
+        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(mbi)) == 0)
             break;
 
         if (mbi.State == MEM_FREE)
@@ -308,7 +308,7 @@ VOID FreeBuffer(LPVOID pBuffer)
 BOOL IsExecutableAddress(LPVOID pAddress)
 {
     MEMORY_BASIC_INFORMATION mi;
-    VirtualQuery(pAddress, &mi, sizeof(MEMORY_BASIC_INFORMATION));
+    VirtualQuery(pAddress, &mi, sizeof(mi));
 
     return (mi.State == MEM_COMMIT && (mi.Protect & PAGE_EXECUTE_FLAGS));
 }

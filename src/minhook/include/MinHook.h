@@ -79,8 +79,7 @@ typedef enum MH_STATUS
 
     // Failed to change the memory protection.
     MH_ERROR_MEMORY_PROTECT
-}
-MH_STATUS;
+} MH_STATUS;
 
 // Thread access rights for suspending/resuming threads.
 #define THREAD_ACCESS \

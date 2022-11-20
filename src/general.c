@@ -1097,13 +1097,13 @@ write_file(LPCWSTR appdata_path)
     {
         ret = write_ini_file(&handle);
     }
-    if (handle)
-    {
-        iniparser_destroy_cache(&handle);
-    }
     if (ret)
     {
         write_json_file(appdt);
+    }
+    if (handle)
+    {
+        iniparser_destroy_cache(&handle);
     }
     return ret;
 }

@@ -30,7 +30,7 @@
 #  define _MEM_BUFFER_H_
 
 // Size of each memory slot.
-#ifdef _M_X64
+#if defined(_M_X64) || defined(__x86_64__)
     #define MEMORY_SLOT_SIZE 64
 #else
     #define MEMORY_SLOT_SIZE 32
