@@ -401,7 +401,7 @@ update_thread(void *lparam)
     WCHAR *pos = NULL;
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[MAX_PATH+1] = {0};
-    WCHAR wcmd[MAX_PATH+1] = {0};
+    WCHAR wcmd[MAX_BUFF+1] = {0};
     if (!get_localdt_path(temp, MAX_PATH))
     {
     #ifdef _LOGDEBUG
@@ -425,7 +425,7 @@ update_thread(void *lparam)
     }
     if (ini_read_int("update", "be_ready", ini_portable_path) > 0)
     {
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-k %lu -e \"%ls\" -s \"%ls\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
+        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-k %lu -e \"%ls\" -s \"%ls\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will install!\n");
@@ -434,7 +434,7 @@ update_thread(void *lparam)
     else if (diff_days())
     {
         Sleep(8000);
-        wnsprintfW(wcmd, MAX_PATH, L"%ls"_UPDATE L"-i auto -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
+        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-i auto -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");

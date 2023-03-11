@@ -17,7 +17,6 @@
 #define MAX_COUNT 1024
 #define LEN_STRINGS 128
 #define LEN_SECTION 64
-volatile long grw_locked = 0;
 
 #define GET_UTF8(val, GET_BYTE, ERROR)           \
     val = (GET_BYTE);                            \
@@ -60,30 +59,6 @@ truncate_file(FILE *fp, long n)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 #endif
-
-static void
-enter_rwlock(void)
-{
-    uint64_t spin_count = 0;
-    while (_InterlockedCompareExchange(&grw_locked, 1, 0) != 0)
-    {
-        if (spin_count < 32)
-        {
-            Sleep(0);
-        }
-        else
-        {
-            Sleep(1);
-        }
-        ++spin_count;
-    }
-}
-
-static void
-leave_rwlock(void)
-{
-    InterlockedExchange(&grw_locked, 0);
-}
 
 static ini_list *
 list_init(ini_list **pli)
@@ -631,7 +606,7 @@ fgetws_ex(wchar_t *string, int n, FILE *stream, str_encoding m_type)
 }
 
 static bool
-open_to_mem(ini_list **li, const char *path, bool write_access)
+open_to_mem(ini_list **li, const wchar_t *path, bool write_access)
 {
     FILE *fp = NULL;
     str_encoding m_type = E_OTHER;
@@ -641,16 +616,16 @@ open_to_mem(ini_list **li, const char *path, bool write_access)
     // enter_rwlock();
     if (write_access)
     {
-        fp = fopen(path, "rb+");
+        fp = _wfopen(path, L"rb+");
     }
     else
     {
-        fp = fopen(path, "rb");
+        fp = _wfopen(path, L"rb");
     }
     if (!fp)
     {
     #ifdef _LOGDEBUG
-        logmsg("fopen[%s] failed\n", path);
+        logmsg("open_to_mem(), _wfopen failed\n");
     #endif
         return false;
     }
@@ -949,9 +924,9 @@ save_to_file(ini_list **li)
 }
 
 static bool
-mbcs_exist_dir(const char *path)
+iniparser_exist_dir(const wchar_t *path)
 {
-    DWORD fileattr = GetFileAttributesA(path);
+    uint32_t fileattr = GetFileAttributesW(path);
     if (fileattr != INVALID_FILE_ATTRIBUTES)
     {
         return (fileattr & FILE_ATTRIBUTE_DIRECTORY) != 0;
@@ -960,25 +935,25 @@ mbcs_exist_dir(const char *path)
 }
 
 static bool
-mbcs_create_file(const char *dir)
+iniparser_create_file(const wchar_t *dir)
 {
-    char *p = NULL;
-    char tmp_name[MAX_PATH];
-    strcpy(tmp_name, dir);
-    p = strchr(tmp_name, '\\');
-    for (; p != NULL; *p = '\\', p = strchr(p + 1, '\\'))
+    wchar_t *p = NULL;
+    wchar_t tmp_name[MAX_PATH] = {0};
+    wcsncpy(tmp_name, dir, MAX_PATH - 1);
+    p = wcschr(tmp_name, L'\\');
+    for (; p != NULL; *p = L'\\', p = wcschr(p + 1, L'\\'))
     {
-        *p = '\0';
-        if (mbcs_exist_dir(tmp_name))
+        *p = L'\0';
+        if (iniparser_exist_dir(tmp_name))
         {
             continue;
         }
-        if (!CreateDirectoryA(tmp_name, NULL))
+        if (!CreateDirectoryW(tmp_name, NULL))
         {
             return false;
         }
     }
-    return (_access(tmp_name, 0) != -1 ? true: (fclose(fopen(tmp_name, "wb+")), true));
+    return (_waccess(tmp_name, 0) != -1 ? true: (fclose(_wfopen(tmp_name, L"wb+")), true));
 }
 
 /* 销毁解析器 */
@@ -999,35 +974,27 @@ iniparser_destroy_cache(ini_cache *pli)
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * windows上的fopen文件路径,必须为ansi或多字节编码
- * 所以,在这里还要检测一下文件名的编码.
+ *
+ * ini 必须是utf8文件名
  */
 static bool
 ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
 {
     bool res = false;
-    char *mbcs_path = NULL;
+    wchar_t *u16_path = NULL;
     do
     {
-    #ifdef _WIN32
-        if (!check_encoding((const uint8_t *)ini))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("mbcs code, so no conversion is necessary!\n");
-        #endif
-        }
-        else if ((mbcs_path = utf8_to_mbcs(ini)) == NULL)
+        if ((u16_path = utf8_to_utf16(ini)) == NULL)
         {
             break;
         }
-    #endif
-        if (_access(mbcs_path?mbcs_path:ini, 0) == -1)
+        if (_waccess(u16_path, 0) == -1)
         {
             if (!write_access)
             {
                 break;
             }
-            if (!mbcs_create_file(mbcs_path?mbcs_path:ini))
+            if (!iniparser_create_file(u16_path))
             {
                 break;
             }
@@ -1036,7 +1003,7 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
         {
             break;
         }
-        if (!open_to_mem(ini_table, mbcs_path?mbcs_path:ini, write_access))
+        if (!open_to_mem(ini_table, u16_path, write_access))
         {
         #ifdef _LOGDEBUG
             logmsg("open_to_mem error!\n");
@@ -1044,11 +1011,14 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
             list_destroy(ini_table);
             break;
         }
+        #ifdef _LOGDEBUG
+            logmsg("open_to_mem ok!\n");
+        #endif
         res = true;
     }while (0);
-    if (mbcs_path)
+    if (u16_path)
     {
-        free(mbcs_path);
+        free(u16_path);
     }
     return res;
 }

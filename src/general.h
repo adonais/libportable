@@ -11,6 +11,7 @@
 #define   EXCLUDE_NUM 32                    /* 白名单个数(数组最大行数) */
 #define   VALUE_LEN 128                     /* 保存值的最大长度 */
 #define   BUFSIZE   (MAX_PATH*2)
+#define   MAX_BUFF  1024
 #define   LOCK_SPIN_COUNT 1500
 #define   SIZE_OF_NT_SIGNATURE  sizeof (DWORD)
 #define   NAMES_LEN             64

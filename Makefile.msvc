@@ -24,7 +24,7 @@ GEN_LIB  = lib.exe
 MAKE	   = nmake
 LIBPORTABLE_STATIC =
 
-!if "$(MY_DEBUG)"=="1"
+!if "$(APP_DEBUG)"=="1"
 CFLAGS   = $(CFLAGS) /O2 /Zi /Fd$(DISTDIR)\portable$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
 LDFLAGS  = $(LDFLAGS) /DEBUG
 !elseif "$(CC)"=="cl"

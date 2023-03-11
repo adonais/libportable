@@ -12,7 +12,7 @@ AR       = lib.exe
 !ERROR Unsupported platforms!
 !endif
 
-!if "$(MY_DEBUG)"=="1"
+!if "$(APP_DEBUG)"=="1"
 CFLAGS = $(CFLAGS) /O2 /Zi /Fd$(DISTDIR)\minhook$(BITS).pdb /D "DEBUG" /D "_LOGDEBUG"
 LDFLAGS  = $(LDFLAGS) /DEBUG
 !elseif "$(CC)"=="cl.exe"
