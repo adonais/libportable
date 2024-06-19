@@ -643,7 +643,7 @@ init_uia(void)
     return SUCCEEDED(hr);
 }
 
-unsigned WINAPI
+static unsigned WINAPI
 threads_on_win10(void *lparam)
 {
     WNDINFO  ff_info = { 0 };
@@ -678,7 +678,7 @@ threads_on_tabs(void)
     #ifdef _LOGDEBUG
         logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
     #endif
-    }    
+    }
     message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, GetCurrentThreadId());
     if (message_hook == NULL)
     {

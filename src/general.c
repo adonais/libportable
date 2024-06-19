@@ -17,6 +17,19 @@
 #include <stdarg.h>
 #endif
 
+#if defined _MSC_VER && _MSC_VER > 1500 && !defined(__clang__)
+#pragma intrinsic(__cpuid, _xgetbv)
+#elif defined(__GNUC__)
+extern void __cpuid(int CPUInfo[4], int info_type);
+#else
+#endif
+
+#define CPUID(func, a, b, c, d) do {\
+    int regs[4];\
+    __cpuid(regs, func); \
+    *a = regs[0]; *b = regs[1];  *c = regs[2];  *d = regs[3];\
+  } while(0)
+
 #define MAX_MESSAGE 1024
 #define MAX_ALLSECTIONS 640
 #define SECTION_NAMES 32
@@ -870,13 +883,13 @@ get_mozilla_profile(char *in_dir, int len, const char *appdt)
  * 如果是参数启动,通过命令行参数，获取配置文件所在目录
  */
 static bool
-get_profile_arg(ini_cache *ini, char **out_path)
+get_profile_arg(const ini_cache *ini, char **out_path)
 {
     LPWSTR  *args = NULL;
     int     m_arg = 0;
     bool    ret = false;
     args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
-    if (NULL == args)
+    if (NULL == args || ini == NULL)
     {
         return ret;
     }
@@ -893,8 +906,8 @@ get_profile_arg(ini_cache *ini, char **out_path)
             }
             crt_snprintf(u8_arg, NAMES_LEN, "Name=%s", var);
             free(var); var = NULL;
-            if (inicache_search_string(u8_arg, &var, ini) &&
-                inicache_read_string(var, "Path", out_path, ini))
+            if (inicache_search_string(u8_arg, &var, (ini_cache *)ini) &&
+                inicache_read_string(var, "Path", out_path, (ini_cache *)ini))
             {
                 ret = true;
             }
@@ -914,14 +927,18 @@ get_profile_arg(ini_cache *ini, char **out_path)
  * 当ini区段内有Locked=1时， 下面的Default=为默认配置目录所在.
  */
 static bool
-find_default_path(ini_cache *ini, char **out_path)
+find_default_path(const ini_cache *ini, char **out_path)
 {
     bool res = false;
     char *m_section = NULL;
+    if (!ini || !out_path)
+    {
+        return res;
+    }
     do
     {
-        if (inicache_search_string("Default=1", &m_section, ini) &&
-            inicache_read_string(m_section, "Path", out_path, ini))
+        if (inicache_search_string("Default=1", &m_section, (ini_cache *)ini) &&
+            inicache_read_string(m_section, "Path", out_path,(ini_cache *) ini))
         {
             res = true;
             break;
@@ -930,8 +947,8 @@ find_default_path(ini_cache *ini, char **out_path)
         {
             free(m_section), m_section = NULL;
         }
-        if (inicache_search_string("Locked=1", &m_section, ini) &&
-            inicache_read_string(m_section, "Default", out_path, ini))
+        if (inicache_search_string("Locked=1", &m_section, (ini_cache *)ini) &&
+            inicache_read_string(m_section, "Default", out_path, (ini_cache *)ini))
         {
             res = true;
         }
@@ -959,25 +976,19 @@ rel2abs(char *in_dir, int len)
  * 获取firefox配置文件目录或者便携式配置目录路径
  */
 static bool
-get_profile_path(char *in_dir, int len, const char *appdt)
+get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *handle)
 {
     char *path = NULL;
-    ini_cache handle = NULL;
-    if (!get_mozilla_profile(in_dir, len, appdt))
+    if (!get_mozilla_profile(in_dir, len, appdt) || !handle)
     {
         return false;
     }
-    if ((handle = iniparser_create_cache(in_dir, false)) == NULL)
-    {
-        return false;
-    }
-    if (!(get_profile_arg(&handle, &path) || find_default_path(&handle, &path) ||
-        inicache_read_string("Profile0", "Path", &path, &handle)))
+    if (!(get_profile_arg(handle, &path) || find_default_path(handle, &path) ||
+        inicache_read_string("Profile0", "Path", &path, (ini_cache *)handle)))
     {
     #ifdef _LOGDEBUG
         logmsg("get_profile_path error\n");
     #endif
-        iniparser_destroy_cache(&handle);
         return false;
     }
     if (path_strip_suffix(in_dir))
@@ -990,8 +1001,10 @@ get_profile_path(char *in_dir, int len, const char *appdt)
             in_dir[strlen(in_dir) - 1] = '\0';
         }
     }
-    iniparser_destroy_cache(&handle);
-    free(path);
+    if (path)
+    {
+        free(path);
+    }
     return true;
 }
 
@@ -1017,13 +1030,13 @@ write_ini_file(ini_cache *ini)
 }
 
 static void
-write_json_file(const char *appdt)
+write_json_file(const char *appdt, const ini_cache *ini)
 {
     cJSON *json = NULL;
     WCHAR url[MAX_PATH+1] = {0};
     char path[MAX_PATH+1] = {0};
     char temp[MAX_PATH+1] = {0};
-    if (!(get_process_directory(path, MAX_PATH) && get_profile_path(temp, MAX_PATH, appdt)))
+    if (!(get_process_directory(path, MAX_PATH) && get_profile_path(temp, MAX_PATH, appdt, ini)))
     {
     #ifdef _LOGDEBUG
         logmsg("profile temp[%s]\n", temp);
@@ -1097,12 +1110,16 @@ write_file(LPCWSTR appdata_path)
     {
         ret = write_ini_file(&handle);
     }
-    if (ret)
-    {
-        write_json_file(appdt);
-    }
     if (handle)
     {
+        iniparser_destroy_cache(&handle);
+    }
+    if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path) != 1 && (handle = iniparser_create_cache(moz_profile, false)) != NULL)
+    {
+    #ifdef _LOGDEBUG
+        logmsg("DisableExtensionPortable return false\n", ini_portable_path);
+    #endif
+        write_json_file(appdt, &handle);
         iniparser_destroy_cache(&handle);
     }
     return ret;
@@ -1196,6 +1213,44 @@ get_os_version(void)
     #undef VER_NUM
     }
     return ver;
+}
+
+static LIB_INLINE uint32_t
+get_cache_size(void)
+{
+    int eax, ebx, ecx, edx;
+    int size = 0;
+    CPUID(0x80000000, &eax, &ebx, &ecx, &edx);
+    if ((uint32_t)eax >= 0x80000006)
+    {
+        CPUID(0x80000006, &eax, &ebx, &ecx, &edx);
+        size = (ecx >> 16) & 0xffff;
+    }
+    return size * 1024;
+}
+
+bool WINAPI
+cpu_has_avx(void)
+{
+    bool has_avx = false;
+    bool has_avx_hardware = false;
+    int  eax, ebx, ecx, edx;
+    CPUID(0x1, &eax, &ebx, &ecx, &edx);
+    if ( eax >= 0x2)
+    {
+        /* check OSXSAVE flags */
+        has_avx_hardware = (ecx & 0x10000000) != 0;
+    }
+    /* check AVX feature flags and XSAVE enabled by kernel */
+    has_avx = has_avx_hardware && (ecx & 0x08000000) != 0 \
+              &&(_xgetbv(0) & 6) == 6;
+    return has_avx;
+}
+
+uint32_t __stdcall
+get_level_size(void)
+{
+    return cpu_has_avx() ? get_cache_size() : 0;
 }
 
 bool WINAPI

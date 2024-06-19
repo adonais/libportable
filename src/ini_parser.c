@@ -641,6 +641,10 @@ open_to_mem(ini_list **li, const wchar_t *path, bool write_access)
             fclose(fp);
             return false;
         }
+        else
+        {
+            m_type = E_ZERO;
+        }
     }
     (*li)->codes = m_type;
     if (m_type == E_UNICODE || m_type == E_UNICODE_BIG)
@@ -1085,36 +1089,23 @@ ini_delete_section(const char *sec, const char *path)
 static void
 replace_insert(node **pnode, const char *in, const char *sub, const char *by)
 {
-    char *res = NULL;
-    char *needle;
-    const char *split = sub;
+    char *res = NULL, *needle = NULL;
     const char *in_ptr = in;
     size_t in_size = strlen(in) + 16;
     if ((res = (char *)malloc(in_size)) == NULL)
     {
         return;
     }
-    needle = strstr(in_ptr, sub);
-    if (!needle)
-    {
-        needle = strstr(in_ptr, by);
-        split = by;
-    }
-    while (needle)
+    while ((needle = strstr(in_ptr, sub)) != NULL)
     {
         memset(res, 0, in_size);
-        if (needle - in_ptr == 0)
-        {
-            strncpy(res, in_ptr, strlen(by));
-        }
-        else
+        if (needle - in_ptr > 0)
         {
             strncpy(res, in_ptr, needle - in_ptr);
-            strncat(res, by, in_size - 1);
         }
+        strncat(res, by, in_size - 1);
         list_insert(pnode, NULL, res);
-        in_ptr = needle + (int) strlen(split);
-        needle = strstr(in_ptr, split);
+        in_ptr = needle + (int) strlen(sub);
     }
     if (*in_ptr != '\0')
     {
@@ -1158,13 +1149,20 @@ inicache_new_section(const char *value, ini_cache *ini)
     #endif
         return false;
     }
-    if ((*ini)->breaks == CHR_WIN)
-    {
-        replace_insert(&(*ini)->pd, value, "\n", "\r\n");
+    if ((*ini)->codes == E_ZERO)
+    {   /* empty file */
+        list_insert(&(*ini)->pd, NULL, value);
     }
     else
     {
-        replace_insert(&(*ini)->pd, value, "\r\n", "\n");
+        if ((*ini)->breaks == CHR_WIN)
+        {
+            replace_insert(&(*ini)->pd, value, "\n", "\r\n");
+        }
+        else
+        {
+            replace_insert(&(*ini)->pd, value, "\r\n", "\n");
+        }
     }
     return true;
 }

@@ -104,6 +104,8 @@ extern bool     WINAPI print_process_module(DWORD pid);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
+extern uint32_t WINAPI get_level_size(void);
+extern bool     WINAPI cpu_has_avx(void);
 
 #ifdef __cplusplus
 }

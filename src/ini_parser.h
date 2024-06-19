@@ -23,6 +23,7 @@ typedef enum
     E_UNICODE_BIG,
     E_UTF8,
     E_UTF8_BOM,
+    E_ZERO,
 } str_encoding;
 
 typedef struct _node

@@ -81,6 +81,10 @@ typedef struct _dyn_link_desc
 TETE_EXT_CLASS void * __cdecl
 memset_nontemporal_tt (void *dest, int c, size_t count)
 {
+    if (!cpu_has_avx())
+    {
+        return memset(dest, c, count);
+    }
     return memset_avx(dest, c, count);
 }
 
@@ -636,7 +640,7 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
             const SSPM fnSetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
             if (fnSetSearchPathMode)
             {
-          	    fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+                fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
             }
         }
         DisableThreadLibraryCalls(hModule);
