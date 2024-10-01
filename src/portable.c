@@ -438,7 +438,8 @@ update_thread(void *lparam)
     else if (diff_days())
     {
         Sleep(8000);
-        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-i auto -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
+        /* Use single threading during updates */
+        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-i auto -t 1 -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");
