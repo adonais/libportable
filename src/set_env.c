@@ -115,11 +115,63 @@ setenv_tt(void)
             }
             if (inicache_read_int("General", "Portable", &plist) > 0)
             {
+                char *app = NULL;
+                char *local = NULL;
+                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL && !cmd_has_profile())
+                {
+                    WCHAR appdt[MAX_PATH + 1] =  {0};
+                    WCHAR localdt[MAX_PATH + 1] =  {0};
+                    WCHAR env_appdt[MAX_BUFF] =  {0};
+                    WCHAR env_localdt[MAX_BUFF] =  {0};
+                    if (!inicache_read_string("General", "PortableDataPath", &app, &plist))
+                    {
+                        wnsprintfW(appdt, MAX_PATH, L"%ls", L"../Profiles");
+                    }
+                    else
+                    {
+                        MultiByteToWideChar(CP_UTF8, 0, app, -1, appdt, MAX_PATH);
+                    }
+                    if (!inicache_read_string("Env", "TmpDataPath", &local, &plist))
+                    {
+                        wnsprintfW(localdt, MAX_PATH, L"%ls", appdt);
+                    }
+                    else
+                    {
+                        MultiByteToWideChar(CP_UTF8, 0, local, -1, localdt, MAX_PATH);
+                    }
+                    if (*appdt)
+                    {
+                        path_to_absolute(appdt, MAX_PATH);
+                        wnsprintfW(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%ls", appdt);
+                    }
+                    if (*localdt)
+                    {
+                        path_to_absolute(localdt, MAX_PATH);
+                        wcsncat(localdt, L"\\LocalAppData\\Temp\\Fx", MAX_PATH);
+                        wnsprintfW(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%ls", localdt);
+                    }
+                    if (env_appdt[0] && env_localdt[0])
+                    {
+                    #ifdef _LOGDEBUG
+                        logmsg("Fx 132.x used portable profiles\n");
+                    #endif
+                        crt_setenv(env_appdt);
+                        crt_setenv(env_localdt);
+                    }
+                }
                 crt_setenv(L"MOZ_LEGACY_PROFILES=0");
                 crt_setenv(L"SNAP_NAME=firefox");
             #ifdef _LOGDEBUG
                 logmsg("disable multipath configuration\n");
             #endif
+                if (app)
+                {
+                    free(app);
+                }
+                if (local)
+                {
+                    free(local);
+                } 
             }
             if (inicache_foreach_wkey("Env", env_buf, EXCLUDE_NUM, &plist))
             {

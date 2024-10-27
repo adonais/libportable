@@ -833,6 +833,29 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
     return res;
 }
 
+bool
+cmd_has_profile(void)
+{
+    int     count = 0;
+    bool    ret = false;
+    LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
+    args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if ( NULL != args )
+    {
+        int i;
+        for (i = 0; i < count; ++i)
+        {
+            if ((_wcsicmp(args[i], L"--profile") == 0))
+            {
+                ret = true;
+                break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
 bool WINAPI
 is_specialdll(uintptr_t caller, LPCWSTR files)
 {
@@ -1011,7 +1034,7 @@ get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *hand
 static bool
 write_ini_file(ini_cache *ini)
 {
-    bool res = inicache_new_section("[General]\r\nStartWithLastProfile=1\r\n\r\n", ini);
+    bool res = inicache_new_section("[General]\r\nStartWithLastProfile=1\r\nVersion=2\r\n\r\n", ini);
     if (!res)
     {
         return res;
@@ -1069,7 +1092,7 @@ write_file(LPCWSTR appdata_path)
     char appdt[MAX_PATH + 1] = {0};
     char moz_profile[MAX_PATH + 1] =  {0};
     _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
-    if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
+    if (ini_read_int("General", "Portable", ini_portable_path) <= 0 || cmd_has_profile())
     {
         return ret;
     }

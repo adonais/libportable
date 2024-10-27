@@ -106,6 +106,7 @@ extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
 extern uint32_t WINAPI get_level_size(void);
 extern bool     WINAPI cpu_has_avx(void);
+extern bool     WINAPI cmd_has_profile(void);
 
 #ifdef __cplusplus
 }
