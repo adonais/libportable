@@ -63,16 +63,16 @@ endif
 ifeq ($(LIBPORTABLE_STATIC),1)
 CFLAGS   += -DLIBPORTABLE_STATIC
 LD       =$(AR) rcs
-OUT      = $(DISTDIR)/umpv$(BITS)_s.lib
+OUT      = $(DISTDIR)/umpv_s.lib
 LDFLAGS  =
 OBJS     = $(DEP)/*.o
 else
-OUT      = $(DISTDIR)/umpv$(BITS).dll
+OUT      = $(DISTDIR)/umpv.dll
 DEPLIBS  = -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 -lcomctl32 -luser32 -lkernel32
 LDFLAGS  += -L$(DISTDIR) $(DEPLIBS) \
             -nostdlib --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,--gc-sections -Wl,-s
-DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libumpv$(BITS).dll.a
+DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libumpv.dll.a
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  += --define UNICODE -J rc -O coff
 OBJECTS  += $(DEP)/resource.o

@@ -48,7 +48,7 @@ LDFLAGS  = /NOLOGO /LTCG
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 LD       = lib.exe
-OUT	 = $(DISTDIR)\umpv$(BITS)_s.lib
+OUT	 = $(DISTDIR)\umpv_s.lib
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
@@ -57,7 +57,7 @@ CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 OBJDLL   = $(OBJDLL)
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /SECTION:.shrd,RWS
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
-OUT	 = $(DISTDIR)\umpv$(BITS).dll
+OUT	 = $(DISTDIR)\umpv.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res
 OBJS     = $(OBJDLL)
 !endif

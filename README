@@ -4,19 +4,19 @@ HOW TO BUILD umpv.dll
 ## System requirements
 ------------------
 
-	- C compiler 
-	
-	mingw/gcc, msys2
+- C compiler 
 
-	mingw/gcc on:
-	https://sourceforge.net/projects/libportable/files/Tools/
+mingw/gcc, msys2
 
-	msys2 project on
-	https://sourceforge.net/projects/msys2/
+mingw/gcc on:
+https://sourceforge.net/projects/libportable/files/Tools/
 
-	 or
+msys2 project on
+https://sourceforge.net/projects/msys2/
 
-	Microsoft Visual Studio .
+ or
+
+Microsoft Visual Studio .
 
 ## Build!
 ------------------
@@ -41,5 +41,5 @@ nmake -f Makefile.msvc
 
 ## Injecting mpv.exe's import table
 
-	setdll32 /d:umpv32.dll mpv.exe       // 32 bits mpv player    
-	setdll64 /d:umpv64.dll mpv.exe       // 64 bits mpv player    
+setdll32 /d:umpv32.dll mpv.exe       // 32 bits mpv player
+setdll64 /d:umpv64.dll mpv.exe       // 64 bits mpv player
