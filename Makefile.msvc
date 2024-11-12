@@ -1,0 +1,98 @@
+# nmake -f Makefile.msvc
+
+CC   = cl.exe
+CPP	 = cl.exe
+VC12_CRT =
+TCMALLOC =
+CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /TC /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+           /D "WIN32_LEAN_AND_MEAN" /D "_CRT_SECURE_NO_WARNINGS" /GS- /GR- /utf-8 /Gs10000000
+LD       = link.exe /DLL
+MAKE	 = nmake
+
+LIBPORTABLE_STATIC =
+
+!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
+PLATFORM = X64
+BITS	 = 64
+CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64" /favor:blend
+ASMFLAGS = -fwin64 -O2 -DWINDOWS -Worphan-labels
+!else
+PLATFORM = X86
+BITS	 = 32
+CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
+ASMFLAGS = -fwin32 -O2 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
+!endif
+
+CPPFLAGS = $(CFLAGS) /TP
+
+MD       = @mkdir
+CP	 = copy
+RM	 = @del /q
+RMDIR    = @rmdir /s /q
+SRC      = src
+SUB_DIR  = $(SRC)\minhook
+SUBMK    =\
+	@cd $(SUB_DIR) && $(MAKE) -f Makefile.msvc
+
+DEP      = .dep
+RC       = rc.exe
+RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
+MIN_INC  = $(SRC)\minhook\include
+
+OBJDLL   = $(DEP)\umpv.obj $(DEP)\inipara.obj $(DEP)\bosskey.obj $(DEP)\internal_crt.obj \
+           $(DEP)\confpath.obj $(DEP)\oneinst.obj $(DEP)\internal_exp.obj
+
+
+CFLAGS   = $(CFLAGS) /I$(MIN_INC)
+LDFLAGS  = /NOLOGO /LTCG
+
+!if "$(LIBPORTABLE_STATIC)"=="1"
+LD       = lib.exe
+OUT	 = $(DISTDIR)\umpv$(BITS)_s.lib
+CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
+CRTFLAGS =
+OBJS     = $(DEP)\*.obj
+!else
+CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
+OBJDLL   = $(OBJDLL)
+LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /SECTION:.shrd,RWS
+CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
+OUT	 = $(DISTDIR)\umpv$(BITS).dll
+OBJDLL   = $(OBJDLL)  $(DEP)\resource.res
+OBJS     = $(OBJDLL)
+!endif
+
+DISTDIR	 = Release
+OUT1	 = $(DISTDIR)\minhook$(BITS).lib
+
+EXEC		= \
+	@echo coming to src subdir...  && \
+	@if not exist $(DISTDIR) $(MD) $(DISTDIR) 2>NUL 1>NUL && \
+	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
+
+all                     : $(OUT1) $(OUT)
+$(OUT1)			: $(SUB_DIR)/Makefile.msvc
+	$(SUBMK)
+$(OUT)			: $(OBJDLL)
+	$(LD) /OUT:"$@" $(OBJS) $(MIN_LIB) $(CRTFLAGS) $(LDFLAGS)
+$(DEP)\umpv.obj         : $(SRC)\umpv.c $(SRC)\umpv.h
+	$(EXEC)
+	$(CC) $(CFLAGS) /c $(SRC)\umpv.c /Fo$@
+$(DEP)\internal_crt.obj : $(SRC)\internal_crt.c $(SRC)\internal_crt.h
+	$(CC) $(CFLAGS) /c $(SRC)\internal_crt.c /Fo$@
+$(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
+	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
+$(DEP)\oneinst.obj     : $(SRC)\oneinst.c $(SRC)\oneinst.h
+	$(CC) $(CFLAGS) /c $(SRC)\oneinst.c /Fo$@
+$(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
+	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
+$(DEP)\confpath.obj     : $(SRC)\confpath.c $(SRC)\confpath.h
+	$(CC) $(CFLAGS) /c $(SRC)\confpath.c /Fo$@
+$(DEP)\internal_exp.obj : $(SRC)\internal_exp.c $(SRC)\internal_exp.h
+	$(CC) $(CFLAGS) /c $(SRC)\internal_exp.c /Fo$@
+$(DEP)\resource.res     : $(SRC)\resource.rc
+	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
+
+.PHONY		            : clean
+clean                   : 
+	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL

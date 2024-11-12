@@ -1,0 +1,35 @@
+#ifndef _APP_RES_INVOKED_
+#define _APP_RES_INVOKED_
+
+#ifndef _MAC
+
+// Version
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,400
+PRODUCTVERSION  1,0,0,400
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080904E4"
+    BEGIN
+      VALUE "CompanyName", "ZH_CN NetWork\0"
+      VALUE "FileDescription", "umpv DLL for mpv player by adonais\0"
+      VALUE "FileVersion", "1.0.0"
+      VALUE "InternalName", "umpv\0"
+      VALUE "LegalCopyright", "License: BSD 2\0"
+      VALUE "OriginalFilename", "umpv.dll\0"
+      VALUE "ProductName", "umpv.dll"
+      VALUE "ProductVersion", "1.0.0"
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x809, 1252
+  END
+END
+
+#endif    // !_MAC
+
+#endif    // _APP_RES_INVOKED_
