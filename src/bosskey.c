@@ -159,13 +159,13 @@ bosskey_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         case WM_DESTROY:
         {
-            PostThreadMessage(boss_t, WM_QUIT, 0, 0);
+            PostThreadMessageW(boss_t, WM_QUIT, 0, 0);
             break;
         }
         default:
             break;
     }
-    return CallWindowProc(boss_wnd, hwnd, message, wParam, lParam);
+    return CallWindowProcW(boss_wnd, hwnd, message, wParam, lParam);
 }
 
 static DWORD WINAPI

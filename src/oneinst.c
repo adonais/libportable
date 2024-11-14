@@ -374,9 +374,6 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
     LPWSTR *szlist = NULL;
     const bool single = read_appint(L"libumpv", L"#OneInstance") > 0;
     const bool redirect = read_appint(L"libumpv", L"#ArgRedirect") > 0;
-#ifdef _LOGDEBUG
-    logmsg("[hook_command] process_id = %u\n", GetCurrentProcessId());
-#endif
     if ((szlist = sCommandLineToArgvWstub(pline, numargs)) != NULL && (single || redirect) && *numargs > 0 && *numargs < 4)
     {
         bool mp_pts = false;
@@ -447,9 +444,6 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
             {   /* 从pipe不能加载远程list文件, 但可以加载其他媒体文件 */
                 mp_list = true;
             }
-        #ifdef _LOGDEBUG
-            logmsg("[hook_command] mp_pts = %d, use_bd = %d, use_ipc = %d\n", mp_pts, use_bd, use_ipc);
-        #endif
             if (lib_pid == cur_pid)
             {
                 if ((parg = mp_update_command((const WCHAR **)szlist, pline, *numargs, mp_exist_listplay(list_path) ? NULL: list_path, iso_path, use_ipc, use_bd)) != NULL)
@@ -498,7 +492,7 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                 #endif
                     if (!mp_write_quit())
                     {
-                        SendMessage((HWND)mpv_window_hwnd, WM_CLOSE, 0, 0);
+                        SendMessageW((HWND)mpv_window_hwnd, WM_CLOSE, 0, 0);
                     }
                     Sleep(1000);     // 等待ipc server关闭
                 }
