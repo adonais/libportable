@@ -59,7 +59,7 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"default-browser-agent.exe",
                               L"private_browsing.exe"
                              };
-    static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN+1];
+    static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN];
     int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);
     LPCWSTR pname = lpfile;
     bool    ret = false;
@@ -73,7 +73,7 @@ static bool in_whitelist(LPCWSTR lpfile)
     {
         /* firefox目录下进程的路径 */
         int   num;
-        WCHAR temp[VALUE_LEN+1];
+        WCHAR temp[VALUE_LEN];
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
         wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
         wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
@@ -82,7 +82,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         {
             wnsprintfW(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
         }
-        ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path);
+        ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path, true);
     }
     if ( (ret = !ret) == false )
     {
@@ -258,7 +258,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     bool      tohook = false;
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
     trace_command(ProcessParameters->ImagePathName.Buffer, ProcessParameters->CommandLine.Buffer);
-    if (!ini_read_int("General", "SafeEx", ini_portable_path))
+    if (!ini_read_int("General", "SafeEx", ini_portable_path, true))
     {
         return sNtCreateUserProcess(ProcessHandle, ThreadHandle,
                                     ProcessDesiredAccess, ThreadDesiredAccess,
@@ -271,7 +271,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     {
         tohook = true;
     }
-    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0)
+    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path, true) > 0)
     {
         if (ProcessParameters->ImagePathName.Length > 0 &&
              in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
@@ -332,7 +332,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     bool    tohook = false;
     LPCWSTR lpfile = lpCommandLine?lpCommandLine:lpApplicationName;
     trace_command(lpApplicationName, lpCommandLine);
-    if (!ini_read_int("General", "SafeEx", ini_portable_path))
+    if (!ini_read_int("General", "SafeEx", ini_portable_path, true))
     {
         return sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
                lpThreadAttributes,bInheritHandles,dwCreationFlags,
@@ -358,7 +358,7 @@ HookCreateProcessInternalW(HANDLE hToken,
     #endif
     }
     /* 如果启用白名单制度(严格检查) */
-    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path) > 0)
+    else if (ini_read_int("General", "EnableWhiteList", ini_portable_path, true) > 0)
     {
         if (!in_whitelist((LPCWSTR)lpfile))
         {
@@ -517,7 +517,7 @@ unsigned WINAPI init_safed(void)
         }
     }
 #ifndef DISABLE_SAFE
-    if (ver < 600 && ini_read_int("General", "SafeEx", ini_portable_path) > 0)
+    if (ver < 600 && ini_read_int("General", "SafeEx", ini_portable_path, true) > 0)
     {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
         if (!creator_hook(pLoadLibraryEx, HookLoadLibraryExW, (LPVOID*)&sLoadLibraryExStub))

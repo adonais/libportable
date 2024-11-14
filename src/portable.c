@@ -348,26 +348,13 @@ init_portable(void)
 #undef DLD
 }
 
-static uint64_t
-ini_read_uint64(const char *sec, const char *key, const char *ini)
-{
-    char *m_str = NULL;
-    uint64_t result = 0;
-    if (ini_read_string(sec, key, &m_str, ini))
-    {
-        result = crt_strtoui64(m_str, NULL, 10);
-        free(m_str);
-    }
-    return result;
-}
-
 static bool
 diff_days(void)
 {
     bool res = false;
     const uint64_t diff = 3600*24;
     uint64_t cur_time = (uint64_t)time(NULL);
-    uint64_t last_time = ini_read_uint64("update", "last_check", ini_portable_path);
+    uint64_t last_time = ini_read_uint64("update", "last_check", ini_portable_path, true);
     if (cur_time - last_time > diff)
     {
         res = true;
@@ -427,7 +414,7 @@ update_thread(void *lparam)
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
         _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
     }
-    if (ini_read_int("update", "be_ready", ini_portable_path) > 0)
+    if (ini_read_int("update", "be_ready", ini_portable_path, true) > 0)
     {
         wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-k %lu -e \"%ls\" -s \"%ls\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
@@ -487,7 +474,7 @@ init_hook_data(void)
         logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
     #endif
     }
-    if (ini_read_int("General", "Portable", ini_portable_path) > 0 && wcreate_dir(appdt))
+    if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
     {
         init_portable();
         init_safed();
@@ -515,7 +502,7 @@ window_hooks(void)
     int up = 0;
     ini_cache plist = NULL;
     DWORD ver = get_os_version();
-    plist = iniparser_create_cache(ini_portable_path, false);
+    plist = iniparser_create_cache(ini_portable_path, false, true);
     if (!plist)
     {
         return;
@@ -633,17 +620,6 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
     {
     case DLL_PROCESS_ATTACH:
         dll_module = (HMODULE)hModule;
-        SetDllDirectoryW(L"");
-        const HMODULE hlib = GetModuleHandleW(L"kernel32.dll");
-        if (hlib)
-        {
-            typedef BOOL (WINAPI * SSPM) (DWORD);
-            const SSPM fnSetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
-            if (fnSetSearchPathMode)
-            {
-                fnSetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-            }
-        }
         DisableThreadLibraryCalls(hModule);
     #ifdef _LOGDEBUG
         init_logs();

@@ -49,6 +49,8 @@ static PFNGFVSW pfnGetFileVersionInfoSizeW;
 static PFNGFVIW pfnGetFileVersionInfoW;
 static PFNVQVW pfnVerQueryValueW;
 char ini_portable_path[MAX_PATH + 1] = {0};
+WCHAR xre_profile_path[MAX_BUFF] = {0};
+WCHAR xre_profile_local_path[MAX_BUFF] = {0};
 LoadLibraryExPtr sLoadLibraryExStub = NULL;
 
 /* we need link to the old msvcrt sometimes, so ... */
@@ -80,16 +82,16 @@ init_crt_funcs(void)
 #endif
 
 #ifdef _LOGDEBUG
-#define LOG_FILE "run_hook.log"
-static char logfile_buf[MAX_PATH + 1];
+#define LOG_FILE L"run_hook.log"
+static WCHAR logfile_buf[MAX_PATH + 1];
 
 void WINAPI
 init_logs(void)
 {
-    if (*logfile_buf == '\0' && GetEnvironmentVariableA("APPDATA", logfile_buf, MAX_PATH) > 0)
+    if (*logfile_buf == '\0' && GetEnvironmentVariableW(L"APPDATA", logfile_buf, MAX_PATH) > 0)
     {
-        strncat(logfile_buf, "\\", MAX_PATH);
-        strncat(logfile_buf, LOG_FILE, MAX_PATH);
+        wcsncat(logfile_buf, L"\\", MAX_PATH);
+        wcsncat(logfile_buf, LOG_FILE, MAX_PATH);
     }
 }
 
@@ -99,14 +101,14 @@ logmsg(const char *format, ...)
     va_list args;
     char buffer[MAX_MESSAGE];
     va_start(args, format);
-    if (strlen(logfile_buf) > 0)
+    if (wcslen(logfile_buf) > 0)
     {
         FILE *pFile = NULL;
         int len = wvnsprintfA(buffer, MAX_MESSAGE, format, args);
         if (len > 0 && len < MAX_MESSAGE)
         {
             buffer[len] = '\0';
-            if ((pFile = fopen(logfile_buf, "a+")) != NULL)
+            if ((pFile = _wfopen(logfile_buf, L"a+")) != NULL)
             {
                 fwrite(buffer, strlen(buffer), 1, pFile);
                 fclose(pFile);
@@ -544,7 +546,7 @@ exist_dir(const char *path, int mode)
 {
     bool  res = false;
     DWORD fileattr = 0;
-    LPWSTR u16_path = utf8_to_utf16(path);
+    LPWSTR u16_path = ini_utf8_utf16(path, NULL);
     if (!u16_path)
     {
         return false;
@@ -569,7 +571,7 @@ bool WINAPI
 exist_file(const char *path, int mode)
 {
     bool  res = false;
-    LPWSTR u16_path = utf8_to_utf16(path);
+    LPWSTR u16_path = ini_utf8_utf16(path, NULL);
     if (!u16_path)
     {
         return false;
@@ -586,7 +588,7 @@ bool WINAPI
 create_dir(const char *dir)
 {
     bool   res = false;
-    LPWSTR u16_path = utf8_to_utf16(dir);
+    LPWSTR u16_path = ini_utf8_utf16(dir, NULL);
     if (!u16_path)
     {
         return false;
@@ -833,22 +835,66 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
     return res;
 }
 
-bool
-cmd_has_profile(void)
+bool WINAPI
+cmd_has_profile(char *pout, const int size)
 {
     int     count = 0;
     bool    ret = false;
     LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
-    args = CommandLineToArgvW(GetCommandLineW(), &count);
-    if ( NULL != args )
+    if (NULL != args)
     {
-        int i;
-        for (i = 0; i < count; ++i)
+        for (int i = 0; i < count; ++i)
         {
-            if ((_wcsicmp(args[i], L"--profile") == 0))
+            WCHAR *p = NULL;
+            if (args[i][0] == '-')
+            {
+                p = &args[i][1];
+                if (args[i][1] == '-')
+                {
+                    p = &args[i][2];
+                }
+            }
+            if (p && (_wcsicmp(p, L"p") == 0 || _wcsicmp(p, L"profile") == 0)  && (i + 1 < count))
             {
                 ret = true;
+                if (pout)
+                {
+                    util_make_u8(args[i + 1], pout, (int)size);
+                }
                 break;
+            }
+        }
+        LocalFree(args);
+    }
+    return ret;
+}
+
+bool WINAPI
+cmd_has_setup(void)
+{
+    int     count = 0;
+    bool    ret = false;
+    LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (NULL != args)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            WCHAR *p = NULL;
+            if (args[i][0] == '-')
+            {
+                p = &args[i][1];
+                if (args[i][1] == '-')
+                {
+                    p = &args[i][2];
+                }
+            }
+            if (p)
+            {
+                if ((_wcsicmp(p, L"p") == 0 || _wcsicmp(p, L"ProfileManager") == 0) && (i + 1 == count))
+                {
+                    ret = true;
+                    break;
+                }
             }
         }
         LocalFree(args);
@@ -896,7 +942,7 @@ is_flash_plugins(uintptr_t caller)
  *获取profiles.ini文件绝对路径,保存到in_dir数组
  */
 static bool
-get_mozilla_profile(char *in_dir, int len, const char *appdt)
+get_mozilla_inifile(char *in_dir, int len, const char *appdt)
 {
     int m = crt_snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\Mozilla\\Firefox\\profiles.ini");
     return (m > 0 && m < len);
@@ -906,42 +952,28 @@ get_mozilla_profile(char *in_dir, int len, const char *appdt)
  * 如果是参数启动,通过命令行参数，获取配置文件所在目录
  */
 static bool
-get_profile_arg(const ini_cache *ini, char **out_path)
+get_arg_path(const ini_cache *ini, char **out_path, bool *relative)
 {
-    LPWSTR  *args = NULL;
-    int     m_arg = 0;
-    bool    ret = false;
-    args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
-    if (NULL == args || ini == NULL)
+    bool ret = false;
+    char name[NAMES_LEN+1] = {0};
+    if (cmd_has_profile(name, NAMES_LEN))
     {
-        return ret;
-    }
-    for (int i = 1; i < m_arg; ++i)
-    {
-        if ((_wcsicmp(args[i], L"-p") == 0  ||
-            _wcsicmp(args[i], L"-profile") == 0 ) && i < m_arg - 1)
+        if (name[0])
         {
-            char u8_arg[NAMES_LEN+1] = { 0 };
-            char *var = utf16_to_utf8(args[i+1]);
-            if (!var)
+            char *var = NULL;
+            char u8_arg[MAX_PATH] = {0};
+            crt_snprintf(u8_arg, MAX_PATH - 1, "Name=%s", name);
+            if (inicache_search_string(u8_arg, &var, (ini_cache *)ini) && inicache_read_string(var, "Path", out_path, (ini_cache *)ini))
             {
-                break;
-            }
-            crt_snprintf(u8_arg, NAMES_LEN, "Name=%s", var);
-            free(var); var = NULL;
-            if (inicache_search_string(u8_arg, &var, (ini_cache *)ini) &&
-                inicache_read_string(var, "Path", out_path, (ini_cache *)ini))
-            {
+                if (relative)
+                {
+                    *relative = inicache_read_int(var, "IsRelative", (ini_cache *)ini) > 0;
+                }
+                free(var);
                 ret = true;
             }
-            if (var)
-            {
-                free(var);
-            }
-            break;
         }
     }
-    LocalFree(args);
     return ret;
 }
 
@@ -950,37 +982,88 @@ get_profile_arg(const ini_cache *ini, char **out_path)
  * 当ini区段内有Locked=1时， 下面的Default=为默认配置目录所在.
  */
 static bool
-find_default_path(const ini_cache *ini, char **out_path)
+get_default_path(const ini_cache *ini, char **out_path, bool *relative)
 {
     bool res = false;
-    char *m_section = NULL;
-    if (!ini || !out_path)
+    if (ini && out_path)
     {
-        return res;
-    }
-    do
-    {
-        if (inicache_search_string("Default=1", &m_section, (ini_cache *)ini) &&
-            inicache_read_string(m_section, "Path", out_path,(ini_cache *) ini))
+        char *m_section = NULL;
+        do
         {
-            res = true;
-            break;
-        }
+            if (inicache_search_string("Default=1", &m_section, (ini_cache *)ini) &&
+                inicache_read_string(m_section, "Path", out_path,(ini_cache *) ini))
+            {
+                res = true;
+            #ifdef _LOGDEBUG
+                logmsg("Path[%s]\n", *out_path);
+            #endif
+                break;
+            }
+            ini_safe_free(m_section);
+            if (is_ff_official() == MOZ_DEV)
+            {
+                if (inicache_search_string("Name=dev-edition-default", &m_section, (ini_cache *)ini) &&
+                    inicache_read_string(m_section, "Path", out_path, (ini_cache *)ini))
+                {
+                    res = true;
+                    break;
+                }
+            }
+            else
+            {
+                if (inicache_search_string("Name=default", &m_section, (ini_cache *)ini) &&
+                    inicache_read_string(m_section, "Path", out_path, (ini_cache *)ini))
+                {
+                    res = true;
+                    break;
+                }
+            }
+        } while(0);
         if (m_section)
         {
-            free(m_section), m_section = NULL;
+            if (relative)
+            {
+                *relative = inicache_read_int(m_section, "IsRelative", (ini_cache *)ini) > 0;
+            }
+            free(m_section);
         }
-        if (inicache_search_string("Locked=1", &m_section, (ini_cache *)ini) &&
-            inicache_read_string(m_section, "Default", out_path, (ini_cache *)ini))
-        {
-            res = true;
-        }
-    } while(0);
-    if (m_section)
-    {
-        free(m_section);
     }
     return res;
+}
+
+static bool
+get_extern_path(const ini_cache *ini, char **out_path, bool *relative)
+{
+    if (ini && out_path && inicache_read_string("Profile0", "Path", out_path, (ini_cache *)ini))
+    {
+        if (relative)
+        {
+            *relative = inicache_read_int("Profile0", "IsRelative", (ini_cache *)ini) > 0;
+        }
+        return true;
+    }
+    return false;
+}
+
+static int
+get_last_section(const ini_cache *ini)
+{
+    int m = -1;
+    const int k = 7;
+    char data[VALUE_LEN][NAMES_LEN] = {0};
+    inicache_foreach_section(data, VALUE_LEN, (ini_cache *)ini);
+    for (int i = 0; i < VALUE_LEN; ++i)
+    {
+        if (*data[i] && strncmp(data[i], "Profile", k) == 0 && data[i][k] != 0)
+        {
+            int v = atoi(&data[i][k]);
+            if (m < v)
+            {
+                m = v;
+            }
+        }
+    }
+    return m;
 }
 
 static void
@@ -1002,19 +1085,23 @@ static bool
 get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *handle)
 {
     char *path = NULL;
-    if (!get_mozilla_profile(in_dir, len, appdt) || !handle)
+    bool relative = false;
+    if (!handle || !get_mozilla_inifile(in_dir, len, appdt))
     {
+        *in_dir = 0;
         return false;
     }
-    if (!(get_profile_arg(handle, &path) || find_default_path(handle, &path) ||
-        inicache_read_string("Profile0", "Path", &path, (ini_cache *)handle)))
+    if (!(get_arg_path(handle, &path, &relative) ||
+        get_default_path(handle, &path, &relative) ||
+        get_extern_path(handle, &path, &relative)))
     {
     #ifdef _LOGDEBUG
         logmsg("get_profile_path error\n");
     #endif
+        *in_dir = 0;
         return false;
     }
-    if (path_strip_suffix(in_dir))
+    if (relative && path_strip_suffix(in_dir))
     {
         strncat(in_dir, "\\", len);
         strncat(in_dir, path, len);
@@ -1031,55 +1118,66 @@ get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *hand
     return true;
 }
 
+ 
 static bool
-write_ini_file(ini_cache *ini)
+write_section_header(ini_cache *ini, const int num)
 {
-    bool res = inicache_new_section("[General]\r\nStartWithLastProfile=1\r\nVersion=2\r\n\r\n", ini);
-    if (!res)
-    {
-        return res;
-    }
+    char data[VALUE_LEN + 1] = {0};
     if (is_ff_official() == MOZ_DEV)
     {
-        res = inicache_new_section(\
-        "[Profile0]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", ini);
+        wnsprintfA(data, VALUE_LEN, "[Profile%d]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", num);
     }
     else
     {
-        res = inicache_new_section(\
-        "[Profile0]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", ini);
+        wnsprintfA(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", num);
+        
     }
-    return res;
+    return inicache_new_section(data, ini);
+}
+
+static bool
+search_default_section(ini_cache *ini, char **pvalue)
+{
+    if (is_ff_official() == MOZ_DEV)
+    {
+        return inicache_search_string("Name=dev-edition-default", pvalue, ini);
+    }
+    return inicache_search_string("Default=1", pvalue, ini);
+}
+
+static bool
+write_ini_file(ini_cache *ini)
+{
+    if (inicache_new_section("[General]\r\nStartWithLastProfile=1\r\nVersion=2\r\n\r\n", ini))
+    {
+        return write_section_header(ini, 0);
+    }
+    return false;
 }
 
 static void
-write_json_file(const char *appdt, const ini_cache *ini)
+write_json_file(void)
 {
-    cJSON *json = NULL;
-    WCHAR url[MAX_PATH+1] = {0};
-    char path[MAX_PATH+1] = {0};
-    char temp[MAX_PATH+1] = {0};
-    if (!(get_process_directory(path, MAX_PATH) && get_profile_path(temp, MAX_PATH, appdt, ini)))
+    if (*xre_profile_path)
     {
-    #ifdef _LOGDEBUG
-        logmsg("profile temp[%s]\n", temp);
-    #endif
-        return;
-    }
-    strncat(temp, "\\addonStartup.json.lz4", MAX_PATH);
-    if (wexist_file((LPCWSTR)util_make_u16(temp, url, MAX_PATH)))
-    {
-        if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url))
+        cJSON *json = NULL;
+        char path[MAX_BUFF+1] = {0};
+        WCHAR url[MAX_BUFF+1] = {0};
+        wnsprintfW(url, MAX_BUFF, L"%ls\\addonStartup.json.lz4", xre_profile_path);
+        if (wexist_file((LPCWSTR)url))
         {
-        #ifdef _LOGDEBUG
-            logmsg("we need rewrite addonStartup.json.lz4\n");
-        #endif
-            json_parser((void *)json, url, path);
+            if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url) && get_process_directory(path, MAX_BUFF))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("we need rewrite addonStartup.json.lz4\n");
+            #endif
+                json_parser((void *)json, url, path);
+            }
         }
-    }
-    if (json)
-    {
-        cJSON_Delete(json);
+        if (json)
+        {
+            cJSON_Delete(json);
+        }
     }
 }
 
@@ -1089,44 +1187,77 @@ write_file(LPCWSTR appdata_path)
     bool ret = false;
     bool exists = false;
     ini_cache handle = NULL;
-    char appdt[MAX_PATH + 1] = {0};
-    char moz_profile[MAX_PATH + 1] =  {0};
+    char appdt[MAX_BUFF + 1] = {0};
+    char moz_profile[MAX_BUFF + 1] =  {0};
     _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
-    if (ini_read_int("General", "Portable", ini_portable_path) <= 0 || cmd_has_profile())
+    if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
         return ret;
     }
-    if (!WideCharToMultiByte(CP_UTF8, 0, appdata_path, -1, appdt, MAX_PATH, NULL, NULL))
+    if (cmd_has_setup())
+    {
+    #ifdef _LOGDEBUG
+        logmsg("browser setup profile\n");
+    #endif
+        return ret;
+    }
+    if (cmd_has_profile(NULL, 0))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("browser profile boot\n");
+    #endif
+        return ret;
+    }
+    if (!WideCharToMultiByte(CP_UTF8, 0, appdata_path, -1, appdt, MAX_BUFF, NULL, NULL))
     {
         return ret;
     }
-    if (!get_mozilla_profile(moz_profile, MAX_PATH, appdt))
+    if (!get_mozilla_inifile(moz_profile, MAX_BUFF, appdt))
     {
         return ret;
     }
     exists = exist_file(moz_profile, 0);
-    if ((handle = iniparser_create_cache(moz_profile, true)) == NULL)
+    if ((handle = iniparser_create_cache(moz_profile, true, true)) == NULL)
     {
         return ret;
     }
     if (exists)
     {
-        char *m_name = NULL;
-        if (is_ff_official() == MOZ_DEV)
+        int n = -1;
+        char *psection = NULL;
+        char *out_path = NULL;
+        if (search_default_section(&handle, &psection))
         {
-            char *dev_name = NULL;
-            if (inicache_search_string("Name=dev-edition-default", &dev_name, &handle))
+            if (inicache_read_string(psection, "Path", &out_path, &handle))
             {
-                ret = inicache_write_string(dev_name, "Path", "../../../", &handle);
-                ret = inicache_write_string(dev_name, "IsRelative", "1", &handle);
-                free(dev_name);
+                if (strcmp(out_path, "../../../") != 0)
+                {
+                    if ((n = get_last_section(&handle)) >= 0)
+                    {
+                        inicache_write_string(psection, "Name", NULL, &handle);
+                        inicache_write_string(psection, "Default", NULL, &handle);
+                        write_section_header(&handle, n + 1);
+                    }
+                }
+            }
+            else
+            {
+                ret = inicache_write_string(psection, "Path", "../../../", &handle);
+                ret = inicache_write_string(psection, "IsRelative", "1", &handle);
             }
         }
-        else if (inicache_search_string("Name=default", &m_name, &handle))
+        else
         {
-            ret = inicache_write_string(m_name, "Path", "../../../", &handle);
-            ret = inicache_write_string(m_name, "IsRelative", "1", &handle);
-            free(m_name);
+            n = get_last_section(&handle);
+            write_section_header(&handle, n + 1);
+        }
+        if (psection)
+        {
+            free(psection);
+        }
+        if (out_path)
+        {
+            free(out_path);
         }
     }
     else
@@ -1137,12 +1268,18 @@ write_file(LPCWSTR appdata_path)
     {
         iniparser_destroy_cache(&handle);
     }
-    if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path) != 1 && (handle = iniparser_create_cache(moz_profile, false)) != NULL)
+    if (true)
+    {
+        wnsprintfW(xre_profile_path, MAX_BUFF, L"%ls", appdata_path);
+        PathRemoveFileSpecW(xre_profile_path);
+        ret = get_localdt_path(xre_profile_local_path, MAX_BUFF);
+    }
+    if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
     {
     #ifdef _LOGDEBUG
         logmsg("DisableExtensionPortable return false\n", ini_portable_path);
     #endif
-        write_json_file(appdt, &handle);
+        write_json_file();
         iniparser_destroy_cache(&handle);
     }
     return ret;
@@ -1159,11 +1296,11 @@ get_appdt_path(WCHAR *path, int len)
     #endif
         return false;
     }
-    if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
+    if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
         return (ExpandEnvironmentStringsW(L"%APPDATA%", path, len) > 0);
     }
-    if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path))
+    if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path, true))
     {
     #ifdef _LOGDEBUG
         logmsg("(PortableDataPath be set default path!\n");
@@ -1193,12 +1330,12 @@ get_localdt_path(WCHAR *path, int len)
     {
         return false;
     }
-    if (ini_read_int("General", "Portable", ini_portable_path) <= 0)
+    if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
         return (ExpandEnvironmentStringsW(L"%LOCALAPPDATA%", path, len) > 0);
     }
-    if (ini_read_string("Env", "TmpDataPath", &buf, ini_portable_path));
-    else if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path))
+    if (ini_read_string("Env", "TmpDataPath", &buf, ini_portable_path, true));
+    else if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path, true))
     {
         wnsprintfW(path, len, L"%ls", L"../Profiles");
     }

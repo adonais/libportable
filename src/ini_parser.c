@@ -15,8 +15,6 @@
 
 #define LEN_CONTENT 260
 #define MAX_COUNT 1024
-#define LEN_STRINGS 128
-#define LEN_SECTION 64
 
 #define GET_UTF8(val, GET_BYTE, ERROR)           \
     val = (GET_BYTE);                            \
@@ -164,29 +162,37 @@ list_rfind(node **pphead, position end, position *find)
 static bool
 list_insert(node **pphead, position pos, const char *v)
 {
-    position p = NULL;
-    size_t len = strlen(v);
-    if (len > LEN_CONTENT - 1)
+    bool ret = false;
+    while (pphead && v)
     {
-        return false;
+        position p = NULL;
+        node *tmp = NULL;
+        size_t len = strlen(v);
+        if (len > LEN_CONTENT - 1)
+        {
+            ret = false;
+            break;
+        }
+        if (!pos)
+        {
+            p = list_ender(pphead);
+        }
+        else
+        {
+            p = pos;
+        }
+        if (NULL == (tmp = (node *) calloc(1, sizeof(node) + LEN_CONTENT)))
+        {
+            ret = false;
+            break;
+        }
+        memcpy(tmp->content, v, len + 1);
+        tmp->next = p->next;
+        p->next = tmp;
+        ret = true;
+        break;
     }
-    if (!pos)
-    {
-        p = list_ender(pphead);
-    }
-    else
-    {
-        p = pos;
-    }
-    node *tmp = (node *) calloc(1, sizeof(node) + LEN_CONTENT);
-    if (NULL == tmp)
-    {
-        return false;
-    }
-    memcpy(tmp->content, v, len + 1);
-    tmp->next = p->next;
-    p->next = tmp;
-    return true;
+    return ret;
 }
 
 #ifdef _LOGDEBUG
@@ -244,20 +250,48 @@ list_delete_node(node **pphead, position pos)
     }
 }
 
-char *WINAPI
-utf16_to_utf8(const wchar_t *utf16)
+static char*
+ini_make_u8(const wchar_t *utf16, char *utf8, int len)
 {
-    int   size = 0;
+    *utf8 = 0;
+    int m = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, utf8, len, NULL, NULL);
+    if (m > 0 && m <= len)
+    {
+        utf8[m-1] = 0;
+    }
+    else if (len > 0)
+    {
+        utf8[len-1] = 0;
+    }
+    return utf8;
+}
+
+/***********************************************************************************
+ * 如果函数执行成功, (*out_len) 返回转换后的字符个数, 包含结束符0
+ * 所以, buf =  (*out_len - 1) * sizeof(TCHAR)
+ ***********************************************************************************/
+char* WINAPI
+ini_utf16_utf8(const wchar_t *utf16, size_t *out_len)
+{
+    int   m, size = 0;
     char *utf8 = NULL;
 
     size = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, NULL, 0, NULL, NULL);
-    utf8 = size ? (char*) malloc(size+ 1) : 0;
+    utf8 = size > 0 ? (char*) malloc(size+1) : 0;
     if (NULL == utf8 )
     {
         return NULL;
     }
-    size = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, utf8, size, NULL, NULL);
-    if (!size)
+    m = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, utf8, size, NULL, NULL);
+    if (m > 0 && m <= size)
+    {
+        if (out_len)
+        {
+            *out_len = (size_t)m;
+        }
+        utf8[m-1] = 0;
+    }
+    else
     {
         free(utf8);
         utf8 = NULL;
@@ -265,20 +299,30 @@ utf16_to_utf8(const wchar_t *utf16)
     return utf8;
 }
 
-char *WINAPI
-utf16_to_mbcs(const wchar_t *utf16)
+char* WINAPI
+ini_utf16_mbcs(int codepage, const wchar_t *utf16, size_t *out_len)
 {
     int   size = 0;
     char *a8 = NULL;
-    int   codepage= AreFileApisANSI() ? CP_ACP : CP_OEMCP;
+    if (codepage < 0)
+    {
+        codepage= AreFileApisANSI() ? CP_ACP : CP_OEMCP;
+    }
     size = WideCharToMultiByte(codepage, 0, utf16, -1, NULL, 0, NULL, NULL);
-    a8 = size ? (char*) malloc(size+ 1) : 0;
+    a8 = size > 0 ? (char*) malloc(size+ 1) : 0;
     if (NULL == a8)
     {
         return NULL;
     }
     size = WideCharToMultiByte(codepage, 0, utf16, -1, a8, size, NULL, NULL);
-    if (!size)
+    if (size > 0)
+    {
+        if (out_len)
+        {
+            *out_len = (size_t)size;
+        }
+    }
+    else
     {
         free(a8);
         a8 = NULL;
@@ -286,20 +330,30 @@ utf16_to_mbcs(const wchar_t *utf16)
     return a8;
 }
 
-wchar_t *WINAPI
-mbcs_to_utf16(const char *ansi)
+wchar_t* WINAPI
+ini_mbcs_utf16(int codepage, const char *ansi, size_t *out_len)
 {
     int size;
     wchar_t *u16 = NULL;
-    int   codepage = AreFileApisANSI() ? CP_ACP : CP_OEMCP;
+    if (codepage < 0)
+    {
+        codepage= AreFileApisANSI() ? CP_ACP : CP_OEMCP;
+    }
     size = MultiByteToWideChar(codepage, 0, ansi, -1, NULL, 0);
-    u16 = size ? (wchar_t*) malloc(sizeof(wchar_t) * (size + 1)) : 0;
+    u16 = size > 0 ? (wchar_t*) malloc(sizeof(wchar_t) * (size + 1)) : 0;
     if (!u16)
     {
         return NULL;
     }
     size = MultiByteToWideChar(codepage, 0, ansi, -1, u16, size);
-    if (!size)
+    if (size > 0)
+    {
+        if (out_len)
+        {
+            *out_len = (size_t)size;
+        }
+    }
+    else
     {
         free(u16);
         return NULL;
@@ -307,16 +361,16 @@ mbcs_to_utf16(const char *ansi)
     return u16;
 }
 
-char *WINAPI
-mbcs_to_utf8(const char *ansi)
+char* WINAPI
+ini_mbcs_utf8(int codepage, const char *ansi, size_t *out_len)
 {
 #ifdef _WIN32
     char *utf8 = NULL;
-    wchar_t u16[MAX_COUNT + 2] = {0};
-    int   codepage= AreFileApisANSI() ? CP_ACP : CP_OEMCP;
-    if (MultiByteToWideChar(codepage, 0, ansi, -1, u16, MAX_COUNT) > 0)
+    wchar_t *u16 = ini_mbcs_utf16(codepage, ansi, NULL);
+    if (u16)
     {
-        utf8 = utf16_to_utf8(u16);
+        utf8 = ini_utf16_utf8(u16, out_len);
+        free(u16);
     }
     return utf8;
 #else
@@ -324,19 +378,26 @@ mbcs_to_utf8(const char *ansi)
 #endif
 }
 
-wchar_t *WINAPI
-utf8_to_utf16(const char *utf8)
+wchar_t* WINAPI
+ini_utf8_utf16(const char *utf8, size_t *out_len)
 {
     int size;
     wchar_t *u16 = NULL;
     size = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
-    u16 = size ? (wchar_t*) malloc(sizeof(wchar_t) * (size + 1)) : 0;
+    u16 = size > 0 ? (wchar_t*) malloc(sizeof(wchar_t) * (size + 1)) : 0;
     if (!u16)
     {
         return NULL;
     }
     size = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, u16, size);
-    if (!size)
+    if (size > 0)
+    {
+        if (out_len)
+        {
+            *out_len = (size_t)size;
+        }
+    }
+    else
     {
         free(u16);
         return NULL;
@@ -344,22 +405,22 @@ utf8_to_utf16(const char *utf8)
     return u16;
 }
 
-char *WINAPI
-utf8_to_mbcs(const char *utf8)
+char* WINAPI
+ini_utf8_mbcs(int codepage, const char *utf8, size_t *out_len)
 {
 #ifdef _WIN32
     char *a8 = NULL;
-    wchar_t u16[MAX_COUNT + 2] = {0};
-    if (MultiByteToWideChar(CP_UTF8, 0, utf8, -1, u16, MAX_COUNT) > 0)
+    wchar_t *u16 = ini_utf8_utf16(utf8, NULL);
+    if (u16)
     {
-        a8 = utf16_to_mbcs(u16);
+        a8 = ini_utf16_mbcs(codepage, u16, out_len);
+        free(u16);
     }
     return a8;
 #else
   return strdup(utf8);
 #endif
 }
-
 
 static int
 utf8_to_utf16be(uint8_t *outb, int *outlen, const uint8_t *in, int *inlen)
@@ -477,53 +538,112 @@ utf8_to_utf16be(uint8_t *outb, int *outlen, const uint8_t *in, int *inlen)
     return (*outlen);
 }
 
-static bool
-get_lang_cjk(uint32_t code)
+static int
+utf16be_to_utf8(unsigned char *out, int *outlen, const unsigned char *inb, int *inlenb)
 {
-    bool res = false;
-    uint32_t cid = (uint32_t) GetSystemDefaultLCID();
-    switch (cid)
+    unsigned char *outstart = out;
+    const unsigned char *processed = inb;
+    unsigned char *outend = out + *outlen;
+    unsigned short *in = (unsigned short *) inb;
+    unsigned short *inend;
+    unsigned int c, d, inlen;
+    unsigned char *tmp;
+    int bits;
+
+    if ((*inlenb % 2) == 1) (*inlenb)--;
+    inlen = *inlenb / 2;
+    inend = in + inlen;
+    while (in < inend)
     {
-        case 0x0804: // 简中
-        case 0x0404: // 繁体
-        case 0x0411: // 日文
-        case 0x0412: // 韩文
+        if (true)
         {
-            if (code < 0x2E80)
-            {
-                res = true;
-            }
-            break;
+            tmp = (unsigned char *) in;
+            c = *tmp++;
+            c = c << 8;
+            c = c | (unsigned int) *tmp;
+            in++;
         }
-        default:
-            break;
+        if ((c & 0xFC00) == 0xD800)
+        { /* surrogates */
+            if (in >= inend)
+            { /* (in > inend) shouldn't happens */
+                *outlen = (int)(out - outstart);
+                *inlenb = (int)(processed - inb);
+                return (-2);
+            }
+            if (true)
+            {
+                tmp = (unsigned char *) in;
+                d = *tmp++;
+                d = d << 8;
+                d = d | (unsigned int) *tmp;
+                in++;
+            }
+            if ((d & 0xFC00) == 0xDC00)
+            {
+                c &= 0x03FF;
+                c <<= 10;
+                c |= d & 0x03FF;
+                c += 0x10000;
+            }
+            else
+            {
+                *outlen = (int)(out - outstart);
+                *inlenb = (int)(processed - inb);
+                return (-2);
+            }
+        }
+
+        /* assertion: c is a single UTF-4 value */
+        if (out >= outend) break;
+        if (c < 0x80)
+        {
+            *out++ = c;
+            bits = -6;
+        }
+        else if (c < 0x800)
+        {
+            *out++ = ((c >> 6) & 0x1F) | 0xC0;
+            bits = 0;
+        }
+        else if (c < 0x10000)
+        {
+            *out++ = ((c >> 12) & 0x0F) | 0xE0;
+            bits = 6;
+        }
+        else
+        {
+            *out++ = ((c >> 18) & 0x07) | 0xF0;
+            bits = 12;
+        }
+
+        for (; bits >= 0; bits -= 6)
+        {
+            if (out >= outend) break;
+            *out++ = ((c >> bits) & 0x3F) | 0x80;
+        }
+        processed = (const unsigned char *) in;
     }
-    return res;
+    *outlen = (int)(out - outstart);
+    *inlenb = (int)(processed - inb);
+    return (*outlen);
 }
 
 static bool
-check_encoding(const uint8_t *str)
+utf8_check(const uint8_t *str)
 {
     const uint8_t *byte;
     uint32_t codepoint, min;
-
     while (*str)
     {
         byte = str;
-        if ((*str >> 7) == 0)
-        {
-            ++str;
-            continue;
-        }
         GET_UTF8(codepoint, *(byte++), return false;);
-        min = byte - str == 1 ? 0 : byte - str == 2 ? 0x80 :
-            1 << (5 * (byte - str) - 4);
-        if (codepoint < min || codepoint >= 0x110000   ||
-           (codepoint >= 0xD800 && codepoint <= 0xDFFF)||
-            get_lang_cjk(codepoint))
-        {
+        min = byte - str == 1 ? 0 : byte - str == 2 ? 0x80 : 1 << (5 * (byte - str) - 4);
+        if (codepoint < min || codepoint >= 0x110000 ||
+            codepoint == 0xFFFE /* BOM */ ||
+            (codepoint >= 0xD800 && codepoint <= 0xDFFF) /* surrogates */
+           )
             return false;
-        }
         str = byte;
     }
     return true;
@@ -570,9 +690,56 @@ get_file_type(FILE *fp)
     return m_type;
 }
 
-static LIB_INLINE
-void
-swap_half16(uint16_t *in)
+static str_encoding
+get_block_type(const uint8_t *buf, const int size)
+{
+    if (!buf || size <= 0)
+    {
+        return E_OTHER;
+    }
+    if (memcmp(buf, "\xEF\xBB\xBF", 3) == 0)
+    {
+        return E_UTF8_BOM;
+    }
+    else if (memcmp(buf, "\xFF\xFE", 2) == 0)
+    {
+        return E_UNICODE;
+    }
+    else if (memcmp(buf, "\xFE\xFF", 2) == 0)
+    {
+        return E_UNICODE_BIG;
+    }
+    else if (utf8_check(buf))
+    {
+        return E_UTF8;
+    }
+    return E_ANSI;
+}
+
+static str_line
+get_block_eol(const char *str, const int len)
+{
+    char *p = NULL;
+    if (!str || len <= 0)
+    {
+        return CHR_UNKOWN;
+    }
+    if ((p = strchr(str, '\n')))
+    {
+        if (p > str && *(p - 1) == '\r')
+        {
+            return CHR_WIN;
+        }
+        else
+        {
+            return CHR_UNIX;
+        }
+    }
+    return CHR_UNKOWN;
+}
+
+static LIB_INLINE void
+be_to_le(uint16_t *in)
 {
     uint16_t tmp = *in >> 8 | *in << 8;
     *in = tmp;
@@ -581,39 +748,70 @@ swap_half16(uint16_t *in)
 static wchar_t *
 fgetws_ex(wchar_t *string, int n, FILE *stream, str_encoding m_type)
 {
+    int i = 0;
     if (!string || !stream || feof(stream) || n <= 0)
     {
         return NULL;
     }
-    int i = 0;
     while (i < n - 1 && !feof(stream))
     {
-        if (fread(&string[i], sizeof(wchar_t), 1, stream) != 1) break;
+        if (fread(&string[i], sizeof(wchar_t), 1, stream) != 1)
+        {
+            break;
+        }
         if (m_type == E_UNICODE_BIG)
         {
-            swap_half16(&string[i]);
+            be_to_le(&string[i]);
         }
         // Check the character readed, break if it's '\n'
         if (string[i] == L'\n')
         {
-            i++;
+            ++i;
             break;
         }
-        i++;
+        ++i;
     }
-    string[i] = 0x0;
+    string[i] = 0;
     return string;
 }
 
 static bool
-open_to_mem(ini_list **li, const wchar_t *path, bool write_access)
+read_lines(char *text, const int len, char **ptr)
+{
+    char *p = NULL;
+    if (!(**ptr))
+    {
+        return false;
+    }
+    if ((p = strchr((*ptr), '\n')))
+    {
+        if (p > (*ptr) && (*(p - 1) == '\r'))
+        {
+            *(p - 1) = 0;
+        }
+        else
+        {
+            *p = 0;
+        }
+        crt_snprintf(text, len - 1, "%s", *ptr);
+        ++p;
+        (*ptr) = p;
+    }
+    else
+    {
+        **ptr = 0;
+    }
+    return true;
+}
+
+static bool
+open_to_mem(ini_list **li, const wchar_t *path, const bool write_access)
 {
     FILE *fp = NULL;
     str_encoding m_type = E_OTHER;
     int m_line = 0;
     size_t n = 0;
     char buf[MAX_COUNT+1] = { 0 };
-    // enter_rwlock();
     if (write_access)
     {
         fp = _wfopen(path, L"rb+");
@@ -679,7 +877,7 @@ open_to_mem(ini_list **li, const wchar_t *path, bool write_access)
                     wbuf[n - 1] = L'\0';
                 }
             }
-            if (WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, MAX_COUNT, NULL, NULL) != 0)
+            if (ini_make_u8(wbuf, buf, MAX_COUNT)[0])
             {
                 list_insert(&(*li)->pd, NULL, buf);
             }
@@ -718,8 +916,8 @@ open_to_mem(ini_list **li, const wchar_t *path, bool write_access)
                     buf[n - 1] = '\0';
                 }
             }
-            if ((m_type != E_UTF8_BOM) && !check_encoding((const uint8_t *)buf) &&
-               ((data=mbcs_to_utf8(buf)) !=NULL))
+            if ((m_type != E_UTF8_BOM) && !utf8_check((const uint8_t *)buf) &&
+               ((data = ini_mbcs_utf8(-1, buf, NULL)) != NULL))
             {
                 strncpy(buf, data, MAX_COUNT);
                 free(data);
@@ -796,8 +994,8 @@ list_parser(node **pphead, const char *ps, const char *pk, char **value)
                 {
                     break;
                 }
-                if (crt_sscanf(it->content, "%*[^=] = %[^\'|;|#]", *value) == 1 ||
-                    crt_sscanf(it->content, "%*[^=] = \'%[^\'|;|#]", *value) == 1)
+                if (crt_sscanf(it->content, "%*[^=] = %[^\'|;|#|\r|\n]", *value) == 1 ||
+                    crt_sscanf(it->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", *value) == 1)
                 {
                     v_find = true;
                 }
@@ -816,8 +1014,23 @@ list_parser(node **pphead, const char *ps, const char *pk, char **value)
     return it;
 }
 
+static void
+list_section(node **pphead, char (*lpdata)[LEN_SECTION], const int line)
+{
+    int i = 0;
+    node *it = NULL;
+    for (it = *pphead; it && i < line; it = it->next)
+    {
+        char *p = NULL;
+        if (it->content[0] == '[' && (p = strrchr(it->content, ']')))
+        {
+            crt_sscanf(&it->content[1], "%[^]]", lpdata[i++]);
+        }
+    }
+}
+
 static bool
-ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line, bool get_key)
+ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[LEN_STRINGS], int line, bool get_key)
 {
     bool res = false;
     position pos = NULL;
@@ -842,8 +1055,8 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line,
             }
             if (!get_key)
             {
-                if (crt_sscanf(cur->content, "%*[^=] = %[^\'|;|#]", lpdata[i]) == 1 ||
-                    crt_sscanf(cur->content, "%*[^=] = \'%[^\'|;|#]", lpdata[i]) == 1)
+                if (crt_sscanf(cur->content, "%*[^=] = %[^\'|;|#|\r|\n]", lpdata[i]) == 1 ||
+                    crt_sscanf(cur->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", lpdata[i]) == 1)
                 {
                 #ifdef _LOGDEBUG
                     logmsg("got it.\n");
@@ -852,7 +1065,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[129], int line,
             }
             else
             {
-                crt_sscanf(cur->content, "%[^\r|\n]", lpdata[i]);
+                crt_sscanf(cur->content, "%[^\r\n]", lpdata[i]);
             }
             if (*lpdata[i] == '\0')
             {
@@ -912,7 +1125,7 @@ save_to_file(ini_list **li)
         }
         else if ((*li)->codes == E_ANSI)
         {
-            char *a8 = utf8_to_mbcs(cur->content);
+            char *a8 = ini_utf8_mbcs(-1, cur->content, NULL);
             if (a8)
             {
                 fwrite(a8, 1, strlen(a8), (*li)->pf);
@@ -968,9 +1181,12 @@ iniparser_destroy_cache(ini_cache *pli)
     {
         return;
     }
-    if ((*pli)->write && (*pli)->pf)
+    if ((*pli)->write)
     {
         save_to_file(pli);
+    }
+    if ((*pli)->pf)
+    {
         fclose((*pli)->pf);
         (*pli)->pf = NULL;
     }
@@ -982,13 +1198,13 @@ iniparser_destroy_cache(ini_cache *pli)
  * ini 必须是utf8文件名
  */
 static bool
-ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
+iniparser_from_file(const char *ini, ini_list **ini_table, const bool write_access)
 {
     bool res = false;
     wchar_t *u16_path = NULL;
     do
     {
-        if ((u16_path = utf8_to_utf16(ini)) == NULL)
+        if ((u16_path = ini_utf8_utf16(ini, NULL)) == NULL)
         {
             break;
         }
@@ -1015,9 +1231,6 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
             list_destroy(ini_table);
             break;
         }
-        #ifdef _LOGDEBUG
-            logmsg("open_to_mem ok!\n");
-        #endif
         res = true;
     }while (0);
     if (u16_path)
@@ -1027,13 +1240,98 @@ ini_parser_create(const char *ini, ini_list **ini_table, bool write_access)
     return res;
 }
 
+static bool
+iniparser_from_memory(const char *buf, const int size, ini_list **ini_table)
+{
+    bool ret = false;
+    char *ptxt = NULL;
+    str_line eol = CHR_UNKOWN;
+    str_encoding type = get_block_type((const uint8_t *)buf, size);
+    switch (type)
+    {
+        case E_UTF8:
+        {
+            ptxt = _strdup(buf);
+            break;
+        }
+        case E_UTF8_BOM:
+        {
+            if ((ptxt = (char *)calloc(1, size)))
+            {
+                memcpy(ptxt, &buf[3], size - 3);
+            }
+            break;
+        }
+        case E_UNICODE:
+        {
+            ptxt = ini_utf16_utf8((const wchar_t *)&buf[2], NULL);
+            break;
+        }
+        case E_UNICODE_BIG:
+        {
+            int inlen = size - 2;
+            int outlen = inlen * 4;
+            if ((ptxt = (char *)calloc(1, outlen + 2)))
+            {
+                int result = utf16be_to_utf8((uint8_t *)ptxt, &outlen, (const uint8_t *)&buf[2], &inlen);
+                if (result < 0)
+                {
+                    free(ptxt);
+                    ptxt = NULL;
+                }
+            }
+            break;
+        }
+        case E_ANSI:
+        {
+            ptxt = ini_mbcs_utf8(-1, buf, NULL);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+    if (ptxt && (eol = get_block_eol(ptxt, (const int)strlen(ptxt))) && list_init(ini_table))
+    {
+        char *tmp = ptxt;
+        char text[MAX_COUNT+1] = {0};
+        (*ini_table)->codes = type;
+        (*ini_table)->breaks = eol;
+        while ((*tmp) && read_lines(text, MAX_COUNT, &tmp))
+        {
+            if (*text == ';' || *text == '#')
+            {
+                continue;
+            }
+            if (!list_insert(&(*ini_table)->pd, NULL, text))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("list_add failed\n");
+            #endif
+                break;
+            }
+        }
+        ret = true;
+    }
+    ini_safe_free(ptxt);
+    return ret;
+}
+
 ini_cache WINAPI
-iniparser_create_cache(const char *ini, bool write_access)
+iniparser_create_cache(const char *ini, const int access_or_size, const bool isfile)
 {
     ini_cache ini_handle = NULL;
-    if (ini_parser_create(ini, &ini_handle, write_access))
+    if (isfile)
     {
-        ini_handle->write = write_access;
+        if (iniparser_from_file(ini, &ini_handle, (const bool)access_or_size))
+        {
+            ini_handle->write = (const bool)access_or_size;
+        }
+    }
+    else if (iniparser_from_memory(ini, access_or_size, &ini_handle))
+    {
+        ini_handle->write = false;
     }
     return ini_handle;
 }
@@ -1076,7 +1374,7 @@ bool WINAPI
 ini_delete_section(const char *sec, const char *path)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, true);
+    ini_cache plist = iniparser_create_cache(path, true, true);
     if (!plist)
     {
         return false;
@@ -1125,7 +1423,6 @@ inicache_new_section(const char *value, ini_cache *ini)
     {
         return false;
     }
-    ;
     if ((ptr = strchr(value, '[')) == NULL)
     {
         return false;
@@ -1149,29 +1446,14 @@ inicache_new_section(const char *value, ini_cache *ini)
     #endif
         return false;
     }
-    if ((*ini)->codes == E_ZERO)
-    {   /* empty file */
-        list_insert(&(*ini)->pd, NULL, value);
-    }
-    else
-    {
-        if ((*ini)->breaks == CHR_WIN)
-        {
-            replace_insert(&(*ini)->pd, value, "\n", "\r\n");
-        }
-        else
-        {
-            replace_insert(&(*ini)->pd, value, "\r\n", "\n");
-        }
-    }
-    return true;
+    return list_insert(&(*ini)->pd, NULL, value);
 }
 
 bool WINAPI
 ini_new_section(const char *value, const char *path)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, true);
+    ini_cache plist = iniparser_create_cache(path, true, true);
     if (!plist)
     {
         return false;
@@ -1181,12 +1463,29 @@ ini_new_section(const char *value, const char *path)
     return res;
 }
 
+void WINAPI
+inicache_foreach_section(char (*lpdata)[LEN_SECTION], const int line, ini_cache *ini)
+{
+    list_section(&(*ini)->pd, lpdata, line);
+}
+
+void WINAPI
+ini_foreach_section(char (*lpdata)[LEN_SECTION], const int line, const char *path, const bool isfile)
+{
+    ini_cache plist = iniparser_create_cache(path, true, isfile);
+    if (plist)
+    {
+        inicache_foreach_section(lpdata, line, &plist);
+        iniparser_destroy_cache(&plist);
+    }
+}
+
 bool WINAPI
 inicache_write_string(const char *sec, const char *key, const char *value, ini_cache *ini)
 {
     bool res = true;
     position pos = NULL;
-    if (!(ini && *ini))
+    if (!(ini && *ini && sec))
     {
         return false;
     }
@@ -1217,7 +1516,7 @@ inicache_write_string(const char *sec, const char *key, const char *value, ini_c
             list_delete_node(&(*ini)->pd, pos);
         }
     }
-    else if ((pos = list_parser(&(*ini)->pd, sec, NULL, NULL)) != NULL)
+    else if (key && value && (pos = list_parser(&(*ini)->pd, sec, NULL, NULL)) != NULL)
     {
         size_t len = strlen(key) + strlen(value) + 6;
         char *new_value = (char *) calloc(1, len + 1);
@@ -1250,7 +1549,7 @@ ini_write_string(const char *sec, const char *key, const char *new_value, const 
 {
     bool res = false;
     ini_cache plist = NULL;
-    if ((plist = iniparser_create_cache(path, true)) != NULL)
+    if ((plist = iniparser_create_cache(path, true, true)) != NULL)
     {
         res = inicache_write_string(sec, key, new_value, &plist);
         iniparser_destroy_cache(&plist);
@@ -1275,10 +1574,10 @@ inicache_read_string(const char *sec, const char *key, char **buf, ini_cache *in
 }
 
 bool WINAPI
-ini_read_string(const char *sec, const char *key, char **buf, const char *path)
+ini_read_string(const char *sec, const char *key, char **buf, const char *path, const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1288,12 +1587,40 @@ ini_read_string(const char *sec, const char *key, char **buf, const char *path)
     return res;
 }
 
+uint64_t WINAPI
+ini_read_uint64(const char *sec, const char *key, const char *path, const bool isfile)
+{
+    char *m_str = NULL;
+    uint64_t result = 0;
+    if (ini_read_string(sec, key, &m_str, path, isfile))
+    {
+        result = _strtoui64(m_str, NULL, 10);
+        free(m_str);
+    }
+    return result;
+}
+
+uint64_t WINAPI
+inicache_read_uint64(const char *sec, const char *key, ini_cache *ini)
+{
+    uint64_t res = 0;
+    char *value = NULL;
+    if (inicache_read_string(sec, key, &value, ini))
+    {
+        res = _strtoui64(value, NULL, 10);
+    }
+    if (value)
+    {
+        free(value);
+    }
+    return res;
+}
 int WINAPI
-ini_read_int(const char *sec, const char *key, const char *path)
+ini_read_int(const char *sec, const char *key, const char *path, const bool isfile)
 {
     int res = 0;
     char *value = NULL;
-    if (ini_read_string(sec, key, &value, path))
+    if (ini_read_string(sec, key, &value, path, isfile))
     {
         res = atoi(value);
     }
@@ -1322,18 +1649,18 @@ inicache_read_int(const char *sec, const char *key, ini_cache *ini)
 
 bool WINAPI
 inicache_foreach_wkey(const char *sec,
-                      wchar_t (*lpdata)[129],
+                      wchar_t (*lpdata)[LEN_STRINGS],
                       const int line,
                       ini_cache *ini)
 {
     int  i = 0;
     bool res = false;
-    char (*data)[129] = NULL;
+    char (*data)[LEN_STRINGS] = NULL;
     if (!(ini && *ini))
     {
         return false;
     }
-    data = (char (*)[129])calloc(1, line * sizeof(data[0]));
+    data = (char (*)[LEN_STRINGS])calloc(1, line * sizeof(data[0]));
     if (!data)
     {
         return false;
@@ -1346,7 +1673,7 @@ inicache_foreach_wkey(const char *sec,
     }
     for (; i < line && *data[i] != '\0'; ++i)
     {
-        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;
+        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS - 1)>0;
     }
     if (i < line)
     {
@@ -1358,7 +1685,7 @@ inicache_foreach_wkey(const char *sec,
 
 bool WINAPI
 inicache_foreach_key(const char *sec,
-                     char (*lpdata)[129],
+                     char (*lpdata)[LEN_STRINGS],
                      const int line,
                      ini_cache *ini)
 {
@@ -1378,12 +1705,13 @@ inicache_foreach_key(const char *sec,
  ************************************************************/
 bool WINAPI
 ini_foreach_key(const char *sec,
-                char (*lpdata)[129],
+                char (*lpdata)[LEN_STRINGS],
                 const int line,
-                const char *path)
+                const char *path,
+                const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1395,12 +1723,13 @@ ini_foreach_key(const char *sec,
 
 bool WINAPI
 ini_foreach_wkey(const char *sec,
-                wchar_t (*lpdata)[129],
+                wchar_t (*lpdata)[LEN_STRINGS],
                 const int line,
-                const char *path)
+                const char *path,
+                const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1412,18 +1741,18 @@ ini_foreach_wkey(const char *sec,
 
 bool WINAPI
 inicache_foreach_wstring(const char *sec,
-                         wchar_t (*lpdata)[129],
+                         wchar_t (*lpdata)[LEN_STRINGS],
                          const int line,
                          ini_cache *ini)
 {
     int  i = 0;
     bool res = false;
-    char (*data)[129] = NULL;
+    char (*data)[LEN_STRINGS] = NULL;
     if (!(ini && *ini))
     {
         return false;
     }
-    data = (char (*)[129])calloc(1, line * sizeof(data[0]));
+    data = (char (*)[LEN_STRINGS])calloc(1, line * sizeof(data[0]));
     if (!data)
     {
         return false;
@@ -1436,7 +1765,7 @@ inicache_foreach_wstring(const char *sec,
     }
     for (; i < line && *data[i] != '\0'; ++i)
     {
-        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS)>0;
+        res = MultiByteToWideChar(CP_UTF8, 0, data[i], -1, lpdata[i], LEN_STRINGS - 1)>0;
     }
     if (i < line)
     {
@@ -1448,7 +1777,7 @@ inicache_foreach_wstring(const char *sec,
 
 bool WINAPI
 inicache_foreach_string(const char *sec,
-                        char (*lpdata)[129],
+                        char (*lpdata)[LEN_STRINGS],
                         const int line,
                         ini_cache *ini)
 {
@@ -1468,12 +1797,13 @@ inicache_foreach_string(const char *sec,
  ************************************************************/
 bool WINAPI
 ini_foreach_string(const char *sec,
-                   char (*lpdata)[129],
+                   char (*lpdata)[LEN_STRINGS],
                    const int line,
-                   const char *path)
+                   const char *path,
+                    const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1485,12 +1815,13 @@ ini_foreach_string(const char *sec,
 
 bool WINAPI
 ini_foreach_wstring(const char *sec,
-                    wchar_t (*lpdata)[129],
+                    wchar_t (*lpdata)[LEN_STRINGS],
                     const int line,
-                    const char *path)
+                    const char *path,
+                    const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1523,10 +1854,10 @@ inicache_search_string(const char *key, char **buf, ini_cache *ini)
 }
 
 bool WINAPI
-ini_search_string(const char *key, char **buf, const char *path)
+ini_search_string(const char *key, char **buf, const char *path, const bool isfile)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, false);
+    ini_cache plist = iniparser_create_cache(path, false, isfile);
     if (!plist)
     {
         return false;
@@ -1611,7 +1942,7 @@ bool WINAPI
 ini_sort_section(const char *sec, const char *path)
 {
     bool res = false;
-    ini_cache plist = iniparser_create_cache(path, true);
+    ini_cache plist = iniparser_create_cache(path, true, true);
     if (!plist)
     {
         return false;

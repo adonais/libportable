@@ -24,8 +24,7 @@
 #ifdef _LOGDEBUG
 extern void __cdecl logmsg(const char *format, ...);
 #endif
-extern char * __stdcall utf8_to_mbcs(const char *utf8);
-extern wchar_t *__stdcall utf8_to_utf16(const char *utf8);
+extern char * __stdcall ini_utf8_mbcs(int codepage, const char *utf8, size_t *out_len);
 extern bool __stdcall get_process_directory(char *name, uint32_t len);
 extern bool __stdcall wget_process_directory(LPWSTR lpstrName, DWORD len);
 extern bool __stdcall wcreate_dir(LPCWSTR dir);
@@ -260,7 +259,7 @@ json_replaces(cJSON *json, LPCWSTR u_file, LPCWSTR u_save, const char * win_prof
             #endif
                 break;
             }
-            if ((win_ansi_path = utf8_to_mbcs(system_path)) == NULL)
+            if ((win_ansi_path = ini_utf8_mbcs(-1, system_path, NULL)) == NULL)
             {
                 break;
             }
@@ -299,7 +298,7 @@ json_replaces(cJSON *json, LPCWSTR u_file, LPCWSTR u_save, const char * win_prof
             {
                 *strrchr(extension_path, '\\') = '\0';
             }
-            if ((profiles_ansi_path = utf8_to_mbcs(extension_path)) == NULL)
+            if ((profiles_ansi_path = ini_utf8_mbcs(-1, extension_path, NULL)) == NULL)
             {
                 break;
             }

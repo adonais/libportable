@@ -67,7 +67,7 @@ void set_hotkey(LPWNDINFO pInfo)
     char  tmp_stor[3][16] = { {0,0} };
     pInfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
     pInfo->key_vk = 0xc0;           /* ~键  */
-    if ( ini_read_string("attach","Hotkey",&lpstr,ini_portable_path) )
+    if (ini_read_string("attach","Hotkey",&lpstr,ini_portable_path, true))
     {
         int	i = 0;
         char *p = lpstr;
@@ -85,13 +85,13 @@ void set_hotkey(LPWNDINFO pInfo)
                 strncpy(tmp_stor[i],p,15);
             }
         }
-        for ( num = 0 ; num <= i ; num++ )
+        for (num = 0 ; num <= i ; num++)
         {
             tmp[num] = atoi(tmp_stor[num]);
         }
-        if ( is_modkey(tmp[0]) )
+        if (is_modkey(tmp[0]))
         {
-            if ( (i==2) && is_modkey(tmp[1]) && !is_modkey(tmp[2]) )
+            if ((i==2) && is_modkey(tmp[1]) && !is_modkey(tmp[2]))
             {
                 pInfo->key_mod = tmp[0]|tmp[1];
                 pInfo->key_vk = tmp[2];

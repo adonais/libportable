@@ -80,7 +80,7 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
     int  pathlen = 0;
     int  ret = -1;
     char temp[VALUE_LEN+1] = {0};
-    if (!ini_read_string("attach","ExPath",&path,ini_portable_path))
+    if (!ini_read_string("attach","ExPath",&path,ini_portable_path, true))
     {
         return -1;
     }

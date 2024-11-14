@@ -75,6 +75,8 @@ extern bool WINAPI init_crt_funcs(void);
 #endif
 
 extern char ini_portable_path[MAX_PATH + 1];
+extern WCHAR xre_profile_path[MAX_BUFF];
+extern WCHAR xre_profile_local_path[MAX_BUFF];
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
 extern bool creator_hook(void *target, void *func, void **original);
@@ -106,7 +108,8 @@ extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
 extern uint32_t WINAPI get_level_size(void);
 extern bool     WINAPI cpu_has_avx(void);
-extern bool     WINAPI cmd_has_profile(void);
+extern bool     WINAPI cmd_has_setup(void);
+extern bool     WINAPI cmd_has_profile(char *pout, const int size);
 
 #ifdef __cplusplus
 }

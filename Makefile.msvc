@@ -55,6 +55,10 @@ CFLAGS   = $(CFLAGS) --target=i686-pc-windows-msvc
 !endif
 !endif
 
+!if "$(CC)"=="clang-cl"
+CFLAGS   = $(CFLAGS) -Wno-unused-function
+!endif
+
 MD       = @mkdir
 CP       = copy /y
 RM       = @del /q

@@ -580,7 +580,7 @@ static bool
 init_uia(void)
 {
     HRESULT hr;
-    ini_cache plist  = iniparser_create_cache(ini_portable_path, false);
+    ini_cache plist  = iniparser_create_cache(ini_portable_path, false, true);
     if (!plist)
     {
         return false;

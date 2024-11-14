@@ -95,83 +95,61 @@ setenv_tt(void)
     ini_cache plist = NULL;
     if (init_process_envp())
     {
-        wchar_t env_buf[EXCLUDE_NUM][VALUE_LEN + 1];
+        wchar_t env_buf[EXCLUDE_NUM][VALUE_LEN];
         crt_setenv(L"LIBPORTABLE_SETENV_DEFINED=1");
-        if ((plist = iniparser_create_cache(ini_portable_path, false)) != NULL)
+        if ((plist = iniparser_create_cache(ini_portable_path, false, true)) != NULL)
         {
             char *val_str = NULL;
             if (inicache_read_string("Env", "NpluginPath", &val_str, &plist))
             {
-                WCHAR plugin_str[VALUE_LEN + 1] = {L'M',L'O',L'Z',L'_',L'P',L'L',L'U',L'G',L'I',
-                                                   L'N',L'_',L'P',L'A',L'T',L'H',L'=',0};
+                WCHAR plugin_str[VALUE_LEN] = {L'M',L'O',L'Z',L'_',L'P',L'L',L'U',L'G',L'I',
+                                               L'N',L'_',L'P',L'A',L'T',L'H',L'=',0};
                 int envlen = (int)wcslen(plugin_str);
                 MultiByteToWideChar(CP_UTF8, 0, val_str, -1, plugin_str+envlen, VALUE_LEN-envlen);
                 path_to_absolute(plugin_str+envlen, VALUE_LEN-envlen);
                 crt_setenv(plugin_str);
-            #ifdef _LOGDEBUG
-                logmsg("NpluginPath[%ls]\n", plugin_str+envlen);
-            #endif
                 free(val_str);
             }
             if (inicache_read_int("General", "Portable", &plist) > 0)
             {
-                char *app = NULL;
-                char *local = NULL;
-                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL && !cmd_has_profile())
+                WCHAR env_appdt[MAX_BUFF] =  {0};
+                WCHAR env_localdt[MAX_BUFF] =  {0};
+                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL && !cmd_has_setup())
                 {
-                    WCHAR appdt[MAX_PATH + 1] =  {0};
-                    WCHAR localdt[MAX_PATH + 1] =  {0};
-                    WCHAR env_appdt[MAX_BUFF] =  {0};
-                    WCHAR env_localdt[MAX_BUFF] =  {0};
-                    if (!inicache_read_string("General", "PortableDataPath", &app, &plist))
+                    if (*xre_profile_path)
                     {
-                        wnsprintfW(appdt, MAX_PATH, L"%ls", L"../Profiles");
+                        wnsprintfW(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%ls", xre_profile_path);
                     }
-                    else
+                    if (*xre_profile_local_path)
                     {
-                        MultiByteToWideChar(CP_UTF8, 0, app, -1, appdt, MAX_PATH);
+                        wnsprintfW(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%ls", xre_profile_local_path);
                     }
-                    if (!inicache_read_string("Env", "TmpDataPath", &local, &plist))
+                    if (env_appdt[0])
                     {
-                        wnsprintfW(localdt, MAX_PATH, L"%ls", appdt);
-                    }
-                    else
-                    {
-                        MultiByteToWideChar(CP_UTF8, 0, local, -1, localdt, MAX_PATH);
-                    }
-                    if (*appdt)
-                    {
-                        path_to_absolute(appdt, MAX_PATH);
-                        wnsprintfW(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%ls", appdt);
-                    }
-                    if (*localdt)
-                    {
-                        path_to_absolute(localdt, MAX_PATH);
-                        wcsncat(localdt, L"\\LocalAppData\\Temp\\Fx", MAX_PATH);
-                        wnsprintfW(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%ls", localdt);
-                    }
-                    if (env_appdt[0] && env_localdt[0])
-                    {
-                    #ifdef _LOGDEBUG
-                        logmsg("Fx 132.x used portable profiles\n");
-                    #endif
                         crt_setenv(env_appdt);
+                    #ifdef _LOGDEBUG
+                        logmsg("we setup XRE_PROFILE_PATH\n");
+                    #endif
+                    }
+                    if (env_localdt[0])
+                    {
                         crt_setenv(env_localdt);
                     }
                 }
-                crt_setenv(L"MOZ_LEGACY_PROFILES=0");
-                crt_setenv(L"SNAP_NAME=firefox");
-            #ifdef _LOGDEBUG
-                logmsg("disable multipath configuration\n");
-            #endif
-                if (app)
+                if (!cmd_has_profile(NULL, 0))
                 {
-                    free(app);
+                    crt_setenv(L"MOZ_LEGACY_PROFILES=0");
+                    crt_setenv(L"SNAP_NAME=firefox");
+                #ifdef _LOGDEBUG
+                    logmsg("disable multipath configuration\n");
+                #endif
                 }
-                if (local)
+            #ifdef _LOGDEBUG
+                else
                 {
-                    free(local);
-                } 
+                    logmsg("browser profile boot\n");
+                }
+            #endif
             }
             if (inicache_foreach_wkey("Env", env_buf, EXCLUDE_NUM, &plist))
             {
