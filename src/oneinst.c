@@ -8,7 +8,7 @@
 #include "internal_crt.h"
 #include "MinHook.h"
 
-#define BUFF_8M  1024 * 1000 * 8
+#define BUFF_8M  1024 * 1024 * 8
 #define DVD_MAXIMUM 10737418240
 #define PL_STR   (L"--playlist=\"%s\"")
 #define BD_STR   (L"bd:// --bluray-device=\"%s\"")

@@ -14,7 +14,6 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
     uint8_t x, c, *p = (uint8_t *)code, cflags, opcode, pref = 0;
     uint8_t *ht = hde32_table, m_mod, m_reg, m_rm, disp_size = 0;
 
-    // Avoid using memset to reduce the footprint.
     __stosb((LPBYTE)hs, 0, sizeof(hde32s));
 
     for (x = 16; x; x--)
@@ -178,7 +177,7 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
             }
             for (; ht != table_end; ht += 2)
                 if (*ht++ == opcode) {
-                    if (*ht++ & pref && !((*ht << m_reg) & 0x80))
+                    if ((*ht++ & pref) && !((*ht << m_reg) & 0x80))
                         goto error_operand;
                     else
                         break;
@@ -229,6 +228,7 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
                 disp_size = 2;
                 if (!(pref & PRE_67))
                     disp_size <<= 1;
+                break;
         }
 
         if (m_mod != 3 && m_rm == 4 && !(pref & PRE_67)) {
@@ -254,6 +254,7 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
             case 4:
                 hs->flags |= F_DISP32;
                 hs->disp.disp32 = *(uint32_t *)p;
+                break;
         }
         p += disp_size;
     } else if (pref & PRE_LOCK)
