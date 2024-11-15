@@ -52,13 +52,10 @@ find_mscrt(void *hmod, WCHAR *crt_buf, int len)
             break;
         }
         const char *dll_name = (const char *) ((BYTE *) hmod + pimport->Name);
-        if (PathMatchSpecA(dll_name, "vcruntime*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
+        if (PathMatchSpecA(dll_name, "api-ms-win-crt-environment-*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
         {
             strncpy(name, dll_name, CRT_LEN);
             ret = MultiByteToWideChar(CP_UTF8, 0, strlowr(name), -1, crt_buf, len) > 0;
-        #ifdef _LOGDEBUG
-            logmsg("crt_buf[%ls]\n", crt_buf);
-        #endif
             break;
         }
         pimport++;
@@ -74,7 +71,7 @@ static bool
 init_process_envp(void)
 {
     WCHAR crt_names[CRT_LEN + 1] = {0};
-    if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == L'v')
+    if (find_mscrt(dll_module, crt_names, CRT_LEN) && *crt_names == L'a')
     {
     #ifdef _LOGDEBUG
         logmsg("ok, The /MD build was also used\n");

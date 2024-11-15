@@ -1,7 +1,7 @@
 CC       := $(CROSS_COMPILING)gcc 
 CFLAGS   = -O2
 LD       = $(CC) -o
-MSCRT    := -lmsvcrt
+MSCRT    := -mcrtdll=ucrt
 MSVC     = 0
 DFLAGS   ?=
 LTO      ?=
