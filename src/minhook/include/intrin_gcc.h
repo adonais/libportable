@@ -32,47 +32,6 @@
 #error Unsupported compiler
 #endif
 
-/*
-	FIXME: review all "memory" clobbers, add/remove to match Visual C++
-	behavior: some "obvious" memory barriers are not present in the Visual C++
-	implementation - e.g. __stosX; on the other hand, some memory barriers that
-	*are* present could have been missed
-*/
-
-/*
-	NOTE: this is a *compatibility* header. Some functions may look wrong at
-	first, but they're only "as wrong" as they would be on Visual C++. Our
-	priority is compatibility
-
-	NOTE: unlike most people who write inline asm for GCC, I didn't pull the
-	constraints and the uses of __volatile__ out of my... hat. Do not touch
-	them. I hate cargo cult programming
-
-	NOTE: be very careful with declaring "memory" clobbers. Some "obvious"
-	barriers aren't there in Visual C++ (e.g. __stosX)
-
-	NOTE: review all intrinsics with a return value, add/remove __volatile__
-	where necessary. If an intrinsic whose value is ignored generates a no-op
-	under Visual C++, __volatile__ must be omitted; if it always generates code
-	(for example, if it has side effects), __volatile__ must be specified. GCC
-	will only optimize out non-volatile asm blocks with outputs, so input-only
-	blocks are safe. Oddities such as the non-volatile 'rdmsr' are intentional
-	and follow Visual C++ behavior
-
-	NOTE: on GCC 4.1.0, please use the __sync_* built-ins for barriers and
-	atomic operations. Test the version like this:
-
-	#if (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) > 40100
-		...
-
-	Pay attention to the type of barrier. Make it match with what Visual C++
-	would use in the same case
-*/
-#if (defined(__i386__) || defined(__x86_64__)) && !defined(__MINGW_INTRIN_INLINE)
-#include "intrin_x86.h"
-#define __noop(...) ((void)0)
-#endif
-
 #endif
 
 /* EOF */
