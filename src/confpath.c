@@ -77,8 +77,9 @@ find_mscrt(void *hmod, WCHAR *crtbuf, int len)
         if (PathMatchSpecA(dll_name, "api-ms-win-crt-environment-*.dll") || PathMatchSpecA(dll_name, "msvcr*.dll"))
         {
             char name[VALUE_LEN];
-            api_strncpy(name, (*dll_name == 'a' ? "ucrtbase.dll" : dll_name), VALUE_LEN);
-            ret = MultiByteToWideChar(CP_UTF8, 0, api_strlwr(name), -1, crtbuf, len) > 0;
+            api_memset(name, 0, sizeof(name));
+            api_strncpy(name, (*dll_name == 'a' ? "ucrtbase.dll" : "msvcrt.dll"), VALUE_LEN - 1);
+            ret = mp_make_u16(name, crtbuf, len)[0] != 0;
         #ifdef _LOGDEBUG
             logmsg("[config_path] crtbuf[%s]\n", name);
         #endif

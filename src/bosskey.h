@@ -9,6 +9,7 @@ typedef struct _WNDINFO
     int   atom_str;
     int   key_mod;
     int   key_vk;
+    int   status;
 } WNDINFO, *LPWNDINFO;
 
 #ifdef __cplusplus

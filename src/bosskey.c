@@ -10,6 +10,8 @@ static volatile long boss_t;
 extern volatile DWORD lib_pid;
 extern volatile long lib_init_once;
 extern volatile INT_PTR mpv_window_hwnd;
+extern WCHAR ini_path[MAX_PATH+1];
+extern void mp_command_pause(const bool enable);
 
 static bool
 is_mozclass(HWND hwnd)
@@ -25,17 +27,15 @@ find_chwnd(HWND hwnd, LPARAM lParam)
     LPWNDINFO pinfo = (LPWNDINFO)lParam;
     DWORD dw_pid = 0;
     GetWindowThreadProcessId(hwnd, &dw_pid);
-    if ((dw_pid == pinfo->pid) && dw_pid && IsWindowVisible(hwnd))
+    if (dw_pid > 0x4 && (dw_pid == pinfo->pid) && is_mozclass(hwnd))
     {
-        if (is_mozclass(hwnd))
+        if (IsWindowVisible(hwnd))
         {
             ShowWindow(hwnd,SW_MINIMIZE);
             ShowWindow(hwnd,SW_HIDE);
+            pinfo->status = SW_HIDE;
         }
-    }
-    else if ((dw_pid == pinfo->pid) && dw_pid && !IsWindowVisible(hwnd))
-    {
-        if (is_mozclass(hwnd))
+        else
         {
             SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, 3);
             ShowWindow(hwnd,SW_SHOW);
@@ -43,9 +43,11 @@ find_chwnd(HWND hwnd, LPARAM lParam)
             {
                 ShowWindow(hwnd,SW_RESTORE);
             }
+            pinfo->status = SW_SHOW;
         }
+        return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
 static inline bool
@@ -152,6 +154,29 @@ regster_hotkey(LPWNDINFO pinfo)
     return true;
 }
 
+static void
+bosskey_send_pause(void)
+{
+    int m = 0;
+    WCHAR script[MAX_BUFFER];
+    if (*ini_path && (m = api_snwprintf(script, MAX_BUFFER, L"%s", ini_path)) > 0 && m < MAX_BUFFER)
+    {
+        if (PathRemoveFileSpecW(script) && PathAppendW(script, L"scripts\\pause-when-minimize.lua"))
+        {
+            if (!PathFileExistsW(script))
+            {
+                mp_command_pause(mph.status == SW_HIDE ? true : false);
+            }
+        #ifdef _LOGDEBUG
+            else
+            {
+                logmsg("[bosskey_thread] pause-when-minimize.lua exist, do nothing\n");
+            }
+        #endif
+        }
+    }
+}
+
 static LRESULT CALLBACK
 bosskey_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -171,16 +196,16 @@ bosskey_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 static DWORD WINAPI
 bosskey_thread(void * lparam)
 {
-    if (get_moz_hwnd(&mph) && read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), NULL) && regster_hotkey(&mph))
+    if (get_moz_hwnd(&mph) && read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && regster_hotkey(&mph))
     {   /* 重定向主窗口循环, 主要是让bosskey_thread正常退出 */
         if ((boss_wnd = (WNDPROC) SetWindowLongPtrW(mph.h, GWLP_WNDPROC, (LONG_PTR) bosskey_proc)))
         {
             MSG msg;
             while (GetMessageW(&msg, NULL, 0, 0) > 0 && msg.message != WM_QUIT)
             {
-                if (msg.message == WM_HOTKEY)
+                if (msg.message == WM_HOTKEY && !EnumWindows(find_chwnd, (LPARAM)&mph))
                 {
-                    EnumWindows(find_chwnd, (LPARAM)&mph);
+                    bosskey_send_pause();
                 }
             }
         #ifdef _LOGDEBUG

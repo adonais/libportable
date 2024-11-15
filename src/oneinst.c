@@ -10,12 +10,13 @@
 
 #define BUFF_8M  1024 * 1024 * 8
 #define DVD_MAXIMUM 10737418240
-#define PL_STR   (L"--playlist=\"%s\"")
-#define BD_STR   (L"bd:// --bluray-device=\"%s\"")
-#define IPC_STR  (L" --input-ipc-server=libumpv")
-#define IPC_NAME (L"\\\\.\\pipe\\libumpv")
-#define IPC_CMD  (L"{\"command\": [\"loadfile\", \"%s\"]}\n")
-#define IPC_QUIT ("{\"command\": [\"quit\"]}\n")
+#define PL_STR    (L"--playlist=\"%s\"")
+#define BD_STR    (L"bd:// --bluray-device=\"%s\"")
+#define IPC_STR   (L" --input-ipc-server=libumpv")
+#define IPC_NAME  (L"\\\\.\\pipe\\libumpv")
+#define IPC_CMD   (L"{\"command\": [\"loadfile\", \"%s\"]}\n")
+#define IPC_QUIT  ("{\"command\": [\"quit\"]}\n")
+#define IPC_PAUSE ("{\"command\": [\"set_property\", \"pause\", %s]}\n")
 
 typedef LPWSTR *(*CommandLineToArgvWptr)(LPCWSTR pline, int *numargs);
 static CommandLineToArgvWptr pCommandLineToArgvW,sCommandLineToArgvWstub;
@@ -193,28 +194,6 @@ mp_open_ipc(HANDLE *ptr_pipe)
     return true;
 }
 
-static bool
-mp_write_quit(void)
-{
-    bool ret = false;
-    HANDLE hpipe = INVALID_HANDLE_VALUE;
-    if (mp_open_ipc(&hpipe))
-    {
-        DWORD dw;
-        if(WriteFile(hpipe, IPC_QUIT, (DWORD)api_strlen(IPC_QUIT) + 1, &dw, NULL))
-        {
-            ret = true;
-        }
-    #ifdef _LOGDEBUG
-        else
-        {
-            logmsg("[hook_command] Failed to write quit\n");
-        }
-    #endif
-    }
-    return ret;
-}
-
 static void
 mp_write_ipc(const HANDLE hpipe, LPWSTR pfile)
 {
@@ -242,6 +221,28 @@ mp_write_ipc(const HANDLE hpipe, LPWSTR pfile)
         #endif
         }
     }
+}
+
+static bool
+mp_write_quit(void)
+{
+    bool ret = false;
+    HANDLE hpipe = INVALID_HANDLE_VALUE;
+    if (mp_open_ipc(&hpipe))
+    {
+        DWORD dw;
+        if(WriteFile(hpipe, IPC_QUIT, (DWORD)api_strlen(IPC_QUIT) + 1, &dw, NULL))
+        {
+            ret = true;
+        }
+    #ifdef _LOGDEBUG
+        else
+        {
+            logmsg("[hook_command] Failed to write quit\n");
+        }
+    #endif
+    }
+    return ret;
 }
 
 static void
@@ -527,6 +528,26 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
         } while(0);
     }
     return szlist;
+}
+
+void
+mp_command_pause(const bool enable)
+{
+    bool ret = false;
+    HANDLE hpipe = INVALID_HANDLE_VALUE;
+    if (mp_open_ipc(&hpipe))
+    {
+        DWORD dw;
+        char data[VALUE_LEN];
+        api_memset(data, 0, sizeof(data));
+        api_snprintf(data, VALUE_LEN - 1, IPC_PAUSE, enable ? "true" : "false");
+        if(!WriteFile(hpipe, data, (DWORD)api_strlen(data) + 1, &dw, NULL))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("[hook_command] Failed to write pause\n");
+        #endif
+        }
+    }
 }
 
 BOOL WINAPI

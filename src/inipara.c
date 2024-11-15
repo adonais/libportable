@@ -106,47 +106,6 @@ read_appint(LPCWSTR cat,LPCWSTR name)
     return ret;
 }
 
-bool WINAPI
-foreach_section(LPCWSTR cat,                     /* ini 区段 */
-                WCHAR (*lpdata)[VALUE_LEN + 1],  /* 二维数组首地址,保存多个段值 */
-                int line                         /* 二维数组行数 */
-               )
-{
-    DWORD	res = 0;
-    LPWSTR	lpstring;
-    LPWSTR	m_key;
-    int		i = 0;
-    const	WCHAR delim[] = L"=";
-    DWORD	num = VALUE_LEN * sizeof(WCHAR) * line;
-    if ((lpstring = (LPWSTR)SYS_MALLOC(num)) != NULL)
-    {
-        if ( (res = GetPrivateProfileSectionW(cat, 
-                                              lpstring, 
-                                              num, 
-                                              ini_path)
-             ) > 0 
-           )
-        {
-            api_memset(*lpdata, 0, num);
-            m_key = lpstring;
-            while(*m_key != L'\0'&& i < line)
-            {
-                LPCWSTR strtmp;
-                WCHAR temp[VALUE_LEN] = {0};
-                api_wcsncpy(temp, m_key, VALUE_LEN - 1);
-                if ((strtmp = api_wcsstr(temp, delim)) != NULL)
-                {
-                    api_wcsncpy(lpdata[i], &strtmp[1], VALUE_LEN - 1);
-                }
-                m_key += api_wcslen(m_key) + 1;
-                ++i;
-            }
-        }
-        SYS_FREE(lpstring);
-    }
-    return (res > 0);
-}
-
 #ifdef _LOGDEBUG
 void WINAPI 
 init_logs(void)

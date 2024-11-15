@@ -7,13 +7,12 @@
 #define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
 #define   SYS_FREE(x)		 (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
 
-#define   VALUE_LEN 128                     /* 保存值的最大长度 */
+#define   VALUE_LEN 128
 #define   BUFSIZE   (MAX_PATH*2)
 #define   MAX_BUFFER 1024
 #define   LOCK_SPIN_COUNT 1500
 #define   SIZE_OF_NT_SIGNATURE  sizeof (DWORD)
 #define   NAMES_LEN             64
-#define   goodHandle(m_handle) ( (m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE) )
 
 #if defined(__GNUC__)
 #define SHARED __attribute__((section(".shrd"), shared))
@@ -44,10 +43,6 @@ bool WINAPI read_appkey(LPCWSTR lpappname,           /* 区段名 */
                         void*   filename             /* 文件名,默认为空 */
                         );
 int  WINAPI read_appint(LPCWSTR cat, LPCWSTR name);
-bool WINAPI foreach_section(LPCWSTR cat,                     /* ini 区段 */
-                            wchar_t(*lpdata)[VALUE_LEN+1],   /* 二维数组首地址,保存多个段值 */
-                            int line                         /* 二维数组行数 */
-                            );
 bool WINAPI exists_dir(LPCWSTR path);
 bool WINAPI create_dir(LPCWSTR full_path);
 bool WINAPI get_basedir(LPWSTR lpstrName, const int len);
