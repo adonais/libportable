@@ -89,7 +89,7 @@ CFLAGS   += -D_LOGDEBUG
 endif
 
 all                   : $(OUT1) $(OUT)
-$(OUT1)               : $(SUB_DIR)/Makefile
+$(OUT1)               : $(SUB_DIR)/Makefile $(SUB_DIR)/src/*.c $(SUB_DIR)/src/*.h
 	$(call SUBMK)
 $(OUT)                : $(OBJECTS) $(OUT1)
 	$(LD) $@ $(OBJS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)

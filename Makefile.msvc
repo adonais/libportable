@@ -71,7 +71,7 @@ EXEC		= \
 	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
 
 all                     : $(OUT1) $(OUT)
-$(OUT1)			: $(SUB_DIR)/Makefile.msvc
+$(OUT1)			: $(SUB_DIR)/Makefile.msvc $(SUB_DIR)/src/*.c $(SUB_DIR)/src/*.h
 	$(SUBMK)
 $(OUT)			: $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(MIN_LIB) $(CRTFLAGS) $(LDFLAGS)
