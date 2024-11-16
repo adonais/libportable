@@ -75,7 +75,7 @@ typedef struct _global_hooks
 } global_hooks;
 
 //-------------------------------------------------------------------------
-// win 8.x function:
+// Windows 8.x functions:
 //-------------------------------------------------------------------------
 
 typedef DWORD (*ptr_PssCaptureSnapshot)(HANDLE ProcessHandle, PSS_CAPTURE_FLAGS CaptureFlags, DWORD ThreadContextFlags, HPSS *SnapshotHandle);
@@ -135,7 +135,6 @@ static PHOOK_ENTRY AddHookEntry()
         g_hooks.capacity *= 2;
         g_hooks.pItems = p;
     }
-
     return &g_hooks.pItems[g_hooks.size++];
 }
 
@@ -190,7 +189,6 @@ static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
         if (ip == ((DWORD_PTR)pHook->pTarget + pHook->oldIPs[i]))
             return (DWORD_PTR)pHook->pTrampoline + pHook->newIPs[i];
     }
-
     return 0;
 }
 
@@ -306,8 +304,9 @@ static bool EnumerateThreads(PFROZEN_THREADS pThreads)
             } while (Thread32Next(hSnapshot, &te));
 
             if (succeeded && GetLastError() != ERROR_NO_MORE_FILES)
-                succeeded = FALSE;
-
+            {
+                succeeded = false;
+            }
             if (!succeeded && pThreads->pItems != NULL)
             {
                 HeapFree(g_hHeap, 0, pThreads->pItems);
@@ -378,8 +377,9 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
                 }
             }
             if (succeeded && res != ERROR_NO_MORE_ITEMS)
+            {
                 succeeded = false;
-
+            }
             if (!succeeded && pThreads->pItems != NULL)
             {
                 HeapFree(g_hHeap, 0, pThreads->pItems);
@@ -845,7 +845,7 @@ static MH_STATUS QueueHook(LPVOID pTarget, bool queueEnable)
             }
             else
             {
-                g_hooks.pItems[pos].queueEnable = queueEnable;    
+                g_hooks.pItems[pos].queueEnable = queueEnable;
             }
         }
     } while(0);

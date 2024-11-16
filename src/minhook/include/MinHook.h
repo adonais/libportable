@@ -35,7 +35,7 @@
 
 #include <windows.h>
 
-#if !(defined _M_IX86) && !(defined _M_X64)
+#if !(defined _M_IX86) && !(defined _M_X64) && !(defined __i386__) && !(defined __x86_64__)
     #error MinHook supports only x86 and x64 systems.
 #endif
 
@@ -79,8 +79,7 @@ typedef enum MH_STATUS
 
     // Failed to change the memory protection.
     MH_ERROR_MEMORY_PROTECT
-}
-MH_STATUS;
+} MH_STATUS;
 
 // Thread access rights for suspending/resuming threads.
 #define THREAD_ACCESS \
