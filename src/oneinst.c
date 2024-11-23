@@ -120,7 +120,7 @@ mp_check_bdmv(const wchar_t *path)
     if (path && path[0] && (temp = api_wfopen(path, L"rb")) != NULL)
     {
         char *buff = NULL;
-        if (get_file_size(temp) > (UINT64)DVD_MAXIMUM && (buff = (char *)SYS_MALLOC(BUFF_8M)) != NULL)
+        if (get_file_size(temp) > (UINT64)DVD_MAXIMUM && (buff = (char *)api_malloc(BUFF_8M)) != NULL)
         {
             SIZE_T dw_read = 0;
             const char *bd_tag = "MovieObject.bdmv";
@@ -132,23 +132,19 @@ mp_check_bdmv(const wchar_t *path)
                     break;
                 }
             }
-            SYS_FREE(buff);
+            api_free(buff);
         }
         api_fclose(temp);
     }
     return iso_bd;
 }
 
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
-// msvc 使用了memcpy优化api_wcsncpy, api_snwprintf, 但我们不需要这种优化
 // 转换直接在in内进行, 所以in_size要能容纳替换后的内容, in_size为数组长度
 static LPWSTR
 mp_wstr_replace(WCHAR *in, const size_t in_size, LPCWSTR pattern, LPCWSTR by)
 {
     const WCHAR *needle = NULL;
-    WCHAR *res = (WCHAR *)SYS_MALLOC(in_size * sizeof(WCHAR));
+    WCHAR *res = (WCHAR *)api_malloc(in_size * sizeof(WCHAR));
     if (res != NULL)
     {
         WCHAR *in_ptr = in;
@@ -163,14 +159,10 @@ mp_wstr_replace(WCHAR *in, const size_t in_size, LPCWSTR pattern, LPCWSTR by)
         }
         api_wcsncpy(res + offset, in_ptr, in_size - offset);
         api_snwprintf(in, in_size, L"%s", res);
-        SYS_FREE(res);
+        api_free(res);
     }
     return in;
 }
-
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
 
 static bool
 mp_open_ipc(HANDLE *ptr_pipe)
@@ -304,7 +296,7 @@ mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const
     {
         size = (DWORD)api_wcslen(pline) + 1 +  (use_ipc ? (DWORD)api_wcslen(IPC_STR) : 0) + (use_bd ? 32 : 0) + (playlist ? 16 : 0);
     }
-    if ((parg = (WCHAR *)SYS_MALLOC(sizeof(WCHAR) * (size + 1))) != NULL)
+    if ((parg = (WCHAR *)api_malloc(sizeof(WCHAR) * (size + 1))) != NULL)
     {
         if (*pline == 0)
         {
@@ -523,7 +515,7 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
             #endif
             if (parg)
             {
-                SYS_FREE(parg);
+                api_free(parg);
             }
         } while(0);
     }

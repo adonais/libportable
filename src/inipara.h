@@ -4,9 +4,6 @@
 #include <windows.h>
 #include "intrin_c.h"
 
-#define   SYS_MALLOC(x)		 HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x))
-#define   SYS_FREE(x)		 (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
-
 #define   VALUE_LEN 128
 #define   BUFSIZE   (MAX_PATH*2)
 #define   MAX_BUFFER 1024

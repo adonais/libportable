@@ -22,9 +22,8 @@ else
 DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
-CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
-            -ffunction-sections -fdata-sections -fomit-frame-pointer -finline-functions \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN
+CFLAGS   += $(DFLAGS) -Wall -Wno-unused -ffunction-sections -fdata-sections -finline-functions \
+            -fomit-frame-pointer -DWINVER=0x0600 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN -DNDEBUG
 
 MD       = mkdir -p
 CP       = cp
@@ -34,8 +33,8 @@ SUBMK    = $(MAKE) -C $(SUB_DIR)
 DEP      = .dep
 X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
-OBJECTS  = $(DEP)/umpv.o $(DEP)/inipara.o $(DEP)/internal_crt.o $(DEP)/chk.o \
-           $(DEP)/internal_exp.o $(DEP)/bosskey.o $(DEP)/oneinst.o $(DEP)/confpath.o
+OBJECTS  = $(DEP)/umpv.o $(DEP)/inipara.o $(DEP)/chk.o $(DEP)/internal_exp.o \
+           $(DEP)/bosskey.o $(DEP)/oneinst.o $(DEP)/confpath.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -96,17 +95,15 @@ $(OUT)                : $(OBJECTS) $(OUT1)
 $(DEP)/umpv.o         : $(SRC)/umpv.c $(SRC)/umpv.h $(SRC)/inipara.h $(SRC)/internal_crt.h $(SRC)/bosskey.h $(SRC)/oneinst.h $(SRC)/confpath.h $(SRC)/resource.rc
 	$(call EXEC)
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/internal_crt.o : $(SRC)/internal_crt.c $(SRC)/internal_crt.h
+$(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/inipara.o      : $(SRC)/inipara.c $(SRC)/inipara.h
+$(DEP)/internal_exp.o : $(SRC)/internal_exp.c $(SRC)/internal_exp.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/internal_exp.o : $(SRC)/internal_exp.c $(SRC)/internal_exp.h
+$(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
+$(DEP)/oneinst.o      : $(SRC)/oneinst.c $(SRC)/oneinst.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/oneinst.o      : $(SRC)/oneinst.c $(SRC)/oneinst.h
-	$(CC) $< $(CFLAGS) -o $@
-$(DEP)/confpath.o     : $(SRC)/confpath.c $(SRC)/confpath.h
+$(DEP)/confpath.o     : $(SRC)/confpath.c $(SRC)/confpath.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $< $(CFLAGS) -o $@
 $(DEP)/chk.o          : $(SRC)/chk.s
 	$(CC) $< $(CFLAGS) -o $@

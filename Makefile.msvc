@@ -39,9 +39,8 @@ RC       = rc.exe
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\umpv.obj $(DEP)\inipara.obj $(DEP)\bosskey.obj $(DEP)\internal_crt.obj \
-           $(DEP)\confpath.obj $(DEP)\oneinst.obj $(DEP)\internal_exp.obj
-
+OBJDLL   = $(DEP)\umpv.obj $(DEP)\inipara.obj $(DEP)\bosskey.obj $(DEP)\confpath.obj \
+           $(DEP)\oneinst.obj $(DEP)\internal_exp.obj
 
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
 LDFLAGS  = /NOLOGO /LTCG
@@ -75,20 +74,18 @@ $(OUT1)			: $(SUB_DIR)/Makefile.msvc $(SUB_DIR)/src/*.c $(SUB_DIR)/src/*.h
 	$(SUBMK)
 $(OUT)			: $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(MIN_LIB) $(CRTFLAGS) $(LDFLAGS)
-$(DEP)\umpv.obj         : $(SRC)\umpv.c $(SRC)\umpv.h
+$(DEP)\umpv.obj         : $(SRC)\umpv.c $(SRC)\umpv.h $(SRC)/inipara.h $(SRC)/internal_crt.h $(SRC)/bosskey.h $(SRC)/oneinst.h $(SRC)/confpath.h $(SRC)/resource.rc
 	$(EXEC)
 	$(CC) $(CFLAGS) /c $(SRC)\umpv.c /Fo$@
-$(DEP)\internal_crt.obj : $(SRC)\internal_crt.c $(SRC)\internal_crt.h
-	$(CC) $(CFLAGS) /c $(SRC)\internal_crt.c /Fo$@
-$(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h
+$(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
-$(DEP)\oneinst.obj     : $(SRC)\oneinst.c $(SRC)\oneinst.h
+$(DEP)\oneinst.obj     : $(SRC)\oneinst.c $(SRC)\oneinst.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\oneinst.c /Fo$@
-$(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h
+$(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@
-$(DEP)\confpath.obj     : $(SRC)\confpath.c $(SRC)\confpath.h
+$(DEP)\confpath.obj     : $(SRC)\confpath.c $(SRC)\confpath.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\confpath.c /Fo$@
-$(DEP)\internal_exp.obj : $(SRC)\internal_exp.c $(SRC)\internal_exp.h
+$(DEP)\internal_exp.obj : $(SRC)\internal_exp.c $(SRC)\internal_exp.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\internal_exp.c /Fo$@
 $(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
