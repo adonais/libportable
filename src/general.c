@@ -1274,14 +1274,15 @@ write_file(LPCWSTR appdata_path)
         PathRemoveFileSpecW(xre_profile_path);
         ret = get_localdt_path(xre_profile_local_path, MAX_BUFF);
     }
+#if (defined _M_X64) || (defined __x86_64__)
     if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
     {
     #ifdef _LOGDEBUG
         logmsg("DisableExtensionPortable return false\n", ini_portable_path);
     #endif
         write_json_file();
-        iniparser_destroy_cache(&handle);
     }
+#endif
     return ret;
 }
 
