@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-extern int  __stdcall init_exeception(void * pParam);
-extern void __stdcall jmp_exp_end(void);
+extern int  __stdcall init_exeception(void * param);
+extern void __stdcall uninit_exeception(void);
 
 #ifdef __cplusplus
 }

@@ -5,12 +5,6 @@ CFLAGS   = /nologo /W3 /WX- /O2 /GL /Gd /MD /TC /fp:precise /D "_LIB" /D "NDEBUG
            /D "WIN32_LEAN_AND_MEAN" /D "_CRT_SECURE_NO_WARNINGS" /utf-8 /Gs10000000
 AR       = lib.exe
 
-!if "$(LIBPORTABLE_STATIC)"=="1"
-CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
-!else
-CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
-!endif
-
 !if "$(TCMALLOC)"=="1"
 CFLAGS   = $(CFLAGS) /D "ENABLE_TCMALLOC" /D "VC12_CRT"
 !else

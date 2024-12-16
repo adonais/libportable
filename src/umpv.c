@@ -1,5 +1,5 @@
-#ifndef LIBPORTABLE_STATIC
-#define TETE_BUILD
+#ifndef LIBUMPV_STATIC
+#define LIBUMPV_BUILDING
 #endif
 
 #include "umpv.h"
@@ -25,7 +25,7 @@ volatile INT_PTR mpv_window_hwnd SHARED = 0;
 #pragma data_seg()
 #endif
 
-TETE_EXT_CLASS int
+int
 umpv_init_status(void)
 {
     return 0;
@@ -40,8 +40,8 @@ umpv_init_status(void)
 void WINAPI undo_it(void)
 {
     undo_bosskey();
-    jmp_ctw_end();
-    jmp_exp_end();
+    uninit_crthook();
+    uninit_exeception();
     MH_Uninitialize();
 #ifdef _LOGDEBUG
     logmsg("[libumpv] all clean\n");
@@ -75,7 +75,7 @@ void WINAPI do_it(void)
         init_bosskey();
         *(long volatile*)&lib_init_once = 1;
     }
-    if (!(init_ctw(NULL) && init_exeception(NULL)))
+    if (!(init_crthook(NULL) && init_exeception(NULL)))
     {
     #ifdef _LOGDEBUG
         logmsg("[libumpv] init_ctw failed...\n");
@@ -92,7 +92,7 @@ void WINAPI do_it(void)
 extern "C" {
 #endif
 
-#if defined(LIBPORTABLE_EXPORTS) || !defined(LIBPORTABLE_STATIC)
+#if !defined(LIBUMPV_STATIC)
 int CALLBACK _DllMainCRTStartup(HINSTANCE module, DWORD reason, LPVOID reserved)
 {
     switch(reason)
@@ -113,7 +113,7 @@ int CALLBACK _DllMainCRTStartup(HINSTANCE module, DWORD reason, LPVOID reserved)
     }
     return true;
 }
-#endif  /* LIBPORTABLE_EXPORTS */
+#endif  /* Not LIBUMPV_STATIC */
 
 #ifdef __cplusplus
 }

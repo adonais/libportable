@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-BOOL __stdcall init_ctw(void * pParam);
-void __stdcall jmp_ctw_end(void);
+BOOL __stdcall init_crthook(void * param);
+void __stdcall uninit_crthook(void);
 
 #ifdef __cplusplus
 }

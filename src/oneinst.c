@@ -543,7 +543,7 @@ mp_command_pause(const bool enable)
 }
 
 BOOL WINAPI
-init_ctw(void * pParam)
+init_crthook(void * param)
 {
     HMODULE h_shell32 = GetModuleHandleW(L"shell32.dll");
     do
@@ -555,7 +555,7 @@ init_ctw(void * pParam)
         if (!(pCommandLineToArgvW = (CommandLineToArgvWptr)GetProcAddress(h_shell32, "CommandLineToArgvW")))
         {
             break;
-        } 
+        }
         if (MH_CreateHook(pCommandLineToArgvW, mp_CommandLineToArgvW, (LPVOID*)&sCommandLineToArgvWstub) != MH_OK)
         {
             break;
@@ -573,7 +573,7 @@ init_ctw(void * pParam)
 }
 
 void WINAPI
-jmp_ctw_end(void)
+uninit_crthook(void)
 {
     if (sCommandLineToArgvWstub)
     {

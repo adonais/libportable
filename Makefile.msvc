@@ -9,7 +9,7 @@ CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /O2 /GL /Gd /TC /MD /fp:precise /D "
 LD       = link.exe /DLL
 MAKE	 = nmake
 
-LIBPORTABLE_STATIC =
+LIBUMPV_STATIC =
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
 PLATFORM = X64
@@ -45,14 +45,13 @@ OBJDLL   = $(DEP)\umpv.obj $(DEP)\inipara.obj $(DEP)\bosskey.obj $(DEP)\confpath
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
 LDFLAGS  = /NOLOGO /LTCG
 
-!if "$(LIBPORTABLE_STATIC)"=="1"
+!if "$(LIBUMPV_STATIC)"=="1"
 LD       = lib.exe
 OUT	 = $(DISTDIR)\umpv_s.lib
-CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
+CFLAGS   = $(CFLAGS) /D "LIBUMPV_STATIC"
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
 !else
-CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_EXPORTS"
 OBJDLL   = $(OBJDLL)
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /SECTION:.shrd,RWS
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
@@ -70,16 +69,16 @@ EXEC		= \
 	@if not exist $(DEP) $(MD) $(DEP) 2>NUL 1>NUL \
 
 all                     : $(OUT1) $(OUT)
-$(OUT1)			: $(SUB_DIR)/Makefile.msvc $(SUB_DIR)/src/*.c $(SUB_DIR)/src/*.h
+$(OUT1)                 : $(SUB_DIR)/Makefile.msvc $(SUB_DIR)/src/*.c $(SUB_DIR)/src/*.h
 	$(SUBMK)
-$(OUT)			: $(OBJDLL)
+$(OUT)                  : $(OBJDLL)
 	$(LD) /OUT:"$@" $(OBJS) $(MIN_LIB) $(CRTFLAGS) $(LDFLAGS)
 $(DEP)\umpv.obj         : $(SRC)\umpv.c $(SRC)\umpv.h $(SRC)/inipara.h $(SRC)/internal_crt.h $(SRC)/bosskey.h $(SRC)/oneinst.h $(SRC)/confpath.h $(SRC)/resource.rc
 	$(EXEC)
 	$(CC) $(CFLAGS) /c $(SRC)\umpv.c /Fo$@
 $(DEP)\inipara.obj      : $(SRC)\inipara.c $(SRC)\inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\inipara.c /Fo$@
-$(DEP)\oneinst.obj     : $(SRC)\oneinst.c $(SRC)\oneinst.h $(SRC)/inipara.h $(SRC)/internal_crt.h
+$(DEP)\oneinst.obj      : $(SRC)\oneinst.c $(SRC)\oneinst.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\oneinst.c /Fo$@
 $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h $(SRC)/inipara.h $(SRC)/internal_crt.h
 	$(CC) $(CFLAGS) /c $(SRC)\bosskey.c /Fo$@

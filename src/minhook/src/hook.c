@@ -323,6 +323,7 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
     bool succeeded = false;
     HPSS hsnapshot = NULL;
     HANDLE hprocess = NULL;
+#if (defined _M_X64) || (defined __x86_64__)
     if (!fn_PssCaptureSnapshot)
     {
         HMODULE hssapi = GetModuleHandleW(L"kernel32.dll");
@@ -335,6 +336,7 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
             fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)GetProcAddress(hssapi, "PssFreeSnapshot");
         }
     }
+#endif
     if (!fn_PssCaptureSnapshot || !fn_PssWalkMarkerCreate || !fn_PssWalkSnapshot || !fn_PssWalkMarkerFree || !fn_PssFreeSnapshot)
     {
         return EnumerateThreads(pThreads);

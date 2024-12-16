@@ -23,7 +23,7 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
     return SetUnhandledExceptionFilterStub(ProcessException_ice);
 }
 
-int WINAPI init_exeception(void * pParam)
+int WINAPI init_exeception(void *param)
 {
     int     ret = 0;
     HMODULE m_kernel =  GetModuleHandleW(L"kernel32.dll");
@@ -51,7 +51,7 @@ int WINAPI init_exeception(void * pParam)
     return ret;
 }
 
-void WINAPI jmp_exp_end(void)
+void WINAPI uninit_exeception(void)
 {
     if (SetUnhandledExceptionFilterStub)
     {

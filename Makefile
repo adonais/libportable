@@ -59,8 +59,8 @@ else
     endif
 endif
 
-ifeq ($(LIBPORTABLE_STATIC),1)
-CFLAGS   += -DLIBPORTABLE_STATIC
+ifeq ($(LIBUMPV_STATIC),1)
+CFLAGS   += -DLIBUMPV_STATIC
 LD       =$(AR) rcs
 OUT      = $(DISTDIR)/umpv_s.lib
 LDFLAGS  =
