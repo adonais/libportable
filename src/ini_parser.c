@@ -1800,7 +1800,7 @@ ini_foreach_string(const char *sec,
                    char (*lpdata)[LEN_STRINGS],
                    const int line,
                    const char *path,
-                    const bool isfile)
+                   const bool isfile)
 {
     bool res = false;
     ini_cache plist = iniparser_create_cache(path, false, isfile);

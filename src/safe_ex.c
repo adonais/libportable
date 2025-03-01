@@ -68,12 +68,11 @@ static bool in_whitelist(LPCWSTR lpfile)
         pname = &lpfile[1];
     }
     /* 遍历白名单一次,只需遍历一次 */
-    ret = StrStrIW(white_list[1],L"WerFault.exe") != NULL;
-    if ( !ret )
+    if ( NULL == StrStrIW(white_list[1], L"WerFault.exe") )
     {
         /* firefox目录下进程的路径 */
         int   num;
-        WCHAR temp[VALUE_LEN];
+        WCHAR temp[VALUE_LEN] = {0};
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
         wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
         wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
@@ -84,7 +83,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         }
         ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path, true);
     }
-    if ( (ret = !ret) == false )
+    if ( true )
     {
         /* 核对白名单 */
         for ( i=0; i<EXCLUDE_NUM && white_list[i][0] != L'\0' ; i++ )
@@ -117,10 +116,14 @@ process_cui(LPCWSTR lpfile)
     WCHAR   lpname[VALUE_LEN+1] = {0};
     LPCWSTR sZfile = lpfile;
     int     n;
-    if ( lpfile[0] == L'"' )
+    if (lpfile == NULL || *lpfile == L'\0' || wcslen(lpfile) >= VALUE_LEN)
+    {
+        return true;
+    }
+    if (lpfile[0] == L'"')
     {
         sZfile = &lpfile[1];
-        for ( n = 0; *sZfile != L'"'; ++n )
+        for (n = 0; *sZfile != L'"'; ++n)
         {
             lpname[n] = *sZfile;
             sZfile++;
@@ -130,9 +133,9 @@ process_cui(LPCWSTR lpfile)
     {
         wcsncpy(lpname,sZfile,VALUE_LEN);
     }
-    if ( wcslen(lpname)>3 )
+    if (wcslen(lpname)>3)
     {
-        return ( !is_gui(lpname) );
+        return (!is_gui(lpname));
     }
     return true;
 }
@@ -274,7 +277,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     else if (ini_read_int("General", "EnableWhiteList", ini_portable_path, true) > 0)
     {
         if (ProcessParameters->ImagePathName.Length > 0 &&
-             in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
+            in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
         {
         #ifdef _LOGDEBUG
             logmsg("the process %ls in whitelist\n",ProcessParameters->ImagePathName.Buffer);
