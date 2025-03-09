@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <io.h>
+#include <process.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
@@ -1155,8 +1156,8 @@ write_ini_file(ini_cache *ini)
     return false;
 }
 
-static void
-write_json_file(void)
+static unsigned WINAPI
+write_json_file(void *lparam)
 {
     if (*xre_profile_path)
     {
@@ -1179,6 +1180,7 @@ write_json_file(void)
             cJSON_Delete(json);
         }
     }
+    return 0;
 }
 
 bool WINAPI
@@ -1274,15 +1276,13 @@ write_file(LPCWSTR appdata_path)
         PathRemoveFileSpecW(xre_profile_path);
         ret = get_localdt_path(xre_profile_local_path, MAX_BUFF);
     }
-#if (defined _M_X64) || (defined __x86_64__)
     if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
     {
     #ifdef _LOGDEBUG
         logmsg("DisableExtensionPortable return false\n", ini_portable_path);
     #endif
-        write_json_file();
+        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &write_json_file, NULL, 0, NULL));
     }
-#endif
     return ret;
 }
 
