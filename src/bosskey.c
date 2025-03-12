@@ -79,7 +79,7 @@ void set_hotkey(LPWNDINFO pInfo)
             strtmp[0]='\0';
             strncpy(tmp_stor[i++],p,15);
             p = strtmp + strlen(delim);
-            strtmp = strstr( p, delim);
+            strtmp = strstr(p, delim);
             if (!strtmp)
             {
                 strncpy(tmp_stor[i],p,15);

@@ -167,7 +167,7 @@ value_repalce(cJSON *parent, const char *item, const char *sub1, const char *sub
     bool ret = false;
     const char *sub = NULL;
     cJSON *path = cJSON_GetObjectItem(parent, item);
-    if (path == NULL)
+    if (path == NULL || sub1 == NULL || by == NULL)
     {
         return false;
     }

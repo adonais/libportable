@@ -1390,7 +1390,7 @@ replace_insert(node **pnode, const char *in, const char *sub, const char *by)
     char *res = NULL, *needle = NULL;
     const char *in_ptr = in;
     size_t in_size = strlen(in) + 16;
-    if ((res = (char *)malloc(in_size)) == NULL)
+    if ((res = (char *)malloc(in_size)) == NULL || sub == NULL || by == NULL)
     {
         return;
     }
