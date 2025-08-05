@@ -29,6 +29,21 @@
 #define ALIGNED32 __declspec(align(32))
 #endif
 
+
+#if defined _MSC_VER && _MSC_VER > 1500 && !defined(__clang__)
+#pragma intrinsic(__cpuid, _xgetbv)
+#elif defined(__GNUC__)
+extern void __cpuid(int CPUInfo[4], int info_type);
+#else
+// none
+#endif
+
+#define CPUID(func, a, b, c, d) do {\
+    int regs[4];\
+    __cpuid(regs, func); \
+    *a = regs[0]; *b = regs[1];  *c = regs[2];  *d = regs[3];\
+  } while(0)
+
 #define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))
 extern LIB_INLINE bool is_wow64() {int wow64=0; return \
        IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
@@ -56,23 +71,6 @@ typedef enum
 #ifdef __cplusplus
 extern "C" {
 #endif 
-
-#if defined(_MSC_VER) && !defined(VC12_CRT)
-typedef int (__cdecl *sprintf_ptr)(char *buffer,const char *fmt, ...);
-typedef int (__cdecl *snprintf_ptr)(char *_s, size_t n, const char *fmt, ...);
-typedef int (__cdecl *sscanf_ptr)(const char *string,const char *fmt, ...);
-typedef uint64_t (__cdecl *strtoui64_ptr)(const char *_s,char **_e,int _r);
-extern sprintf_ptr crt_sprintf;
-extern snprintf_ptr crt_snprintf;
-extern sscanf_ptr crt_sscanf;
-extern strtoui64_ptr crt_strtoui64;
-extern bool WINAPI init_crt_funcs(void);
-#else
-#define crt_sprintf sprintf
-#define crt_snprintf snprintf
-#define crt_sscanf sscanf
-#define crt_strtoui64 _strtoui64
-#endif
 
 extern char ini_portable_path[MAX_PATH + 1];
 extern WCHAR xre_profile_path[MAX_BUFF];

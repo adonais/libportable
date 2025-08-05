@@ -5,7 +5,7 @@ LD       = $(CC) -o
 AR       = ar
 LDFLAGS  = -Wl,-s
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG \
-            -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
+            -finline-functions -DWINVER=0x0501 -D_WIN32_IE=0x0601 -D_UCRT
 LTO      ?=
 OUT      = libminhook$(BITS).a
 USE_GCC  =

@@ -390,6 +390,7 @@ unsigned WINAPI
 update_thread(void *lparam)
 {
     WCHAR *pos = NULL;
+    WCHAR dirs[MAX_PATH+1] = {0};
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[MAX_PATH+1] = {0};
     WCHAR wcmd[MAX_BUFF+1] = {0};
@@ -410,13 +411,13 @@ update_thread(void *lparam)
     }
     if (true)
     {
-        wcsncpy(wcmd, path, ++pos-path);
+        wcsncpy(dirs, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
         _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
     }
     if (ini_read_int("update", "be_ready", ini_portable_path, true) > 0)
     {
-        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-k %lu -e \"%s\" -s \"%s\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
+        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-k %lu -e \"%s\" -s \"%s\" -u 1", dirs, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will install!\n");
@@ -426,7 +427,7 @@ update_thread(void *lparam)
     {
         Sleep(8000);
         /* Use single threading during updates */
-        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-i auto -t 1 -k %lu -e \"%s\"", wcmd, GetCurrentProcessId(), temp);
+        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-i auto -t 1 -k %lu -e \"%s\"", dirs, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");
@@ -623,13 +624,6 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
         DisableThreadLibraryCalls(hModule);
     #ifdef _LOGDEBUG
         init_logs();
-    #endif
-    // 链接msvcrt时,先初始化几个函数,因为新版编译器不支持旧的io调用
-    #if defined(_MSC_VER) && !defined(VC12_CRT)
-        if (!init_crt_funcs())
-        {
-            break;
-        }
     #endif
         do_it();
         break;

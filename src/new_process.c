@@ -102,7 +102,7 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
             free(path);
             return -1;
         }
-        crt_snprintf(temp, (int)(lp - path), "%s", &path[1]);
+        _snprintf(temp, (lp - path), "%s", &path[1]);
         if ((lp =  strchr(lp, ' ')) != NULL)
         {
             MultiByteToWideChar(CP_UTF8, 0, lp + 1, -1, param, VALUE_LEN);

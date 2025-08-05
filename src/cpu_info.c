@@ -1,6 +1,7 @@
 #include "cpu_info.h"
 #include <stdio.h>
 #include <immintrin.h>
+#include "general.h"
 
 #define UU16(x) ( (uint8_t)x | (((uint16_t)(x)&0xff) << 8) )
 #define UU32(y) ( UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16) )
@@ -40,6 +41,24 @@ memset_less32(void *dst, int a, size_t n)
         dt += 16;
     }
     return dst;
+}
+
+bool __cdecl
+cpu_has_avx(void)
+{
+    bool has_avx = false;
+    bool has_avx_hardware = false;
+    int  eax, ebx, ecx, edx;
+    CPUID(0x1, &eax, &ebx, &ecx, &edx);
+    if ( eax >= 0x2)
+    {
+        /* check OSXSAVE flags */
+        has_avx_hardware = (ecx & 0x10000000) != 0;
+    }
+    /* check AVX feature flags and XSAVE enabled by kernel */
+    has_avx = has_avx_hardware && (ecx & 0x08000000) != 0 \
+              &&(_xgetbv(0) & 6) == 6;
+    return has_avx;
 }
 
 /* using non-temporal avx */

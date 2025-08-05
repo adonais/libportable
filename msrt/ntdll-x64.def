@@ -1,5 +1,0 @@
-LIBRARY	NTDLL.DLL
-EXPORTS
-       __chkstk
-       _aullshr
-       _fltused

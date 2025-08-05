@@ -793,7 +793,7 @@ read_lines(char *text, const int len, char **ptr)
         {
             *p = 0;
         }
-        crt_snprintf(text, len - 1, "%s", *ptr);
+        _snprintf(text, len - 1, "%s", *ptr);
         ++p;
         (*ptr) = p;
     }
@@ -964,7 +964,7 @@ list_parser(node **pphead, const char *ps, const char *pk, char **value)
             {
                 break;
             }
-            if (crt_sscanf(it->content, "[%[^]]", section) != 1)
+            if (sscanf(it->content, "[%[^]]", section) != 1)
             {
                 break;
             }
@@ -983,7 +983,7 @@ list_parser(node **pphead, const char *ps, const char *pk, char **value)
         else if (s_find)
         {
             char key[LEN_SECTION + 1] = { 0 };
-            if (crt_sscanf(it->content, "%[^=$ ]", key) == 1 && strcmp(pk, key) == 0)
+            if (sscanf(it->content, "%[^=$ ]", key) == 1 && strcmp(pk, key) == 0)
             {
                 if (!value)
                 {
@@ -994,8 +994,8 @@ list_parser(node **pphead, const char *ps, const char *pk, char **value)
                 {
                     break;
                 }
-                if (crt_sscanf(it->content, "%*[^=] = %[^\'|;|#|\r|\n]", *value) == 1 ||
-                    crt_sscanf(it->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", *value) == 1)
+                if (sscanf(it->content, "%*[^=] = %[^\'|;|#|\r|\n]", *value) == 1 ||
+                    sscanf(it->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", *value) == 1)
                 {
                     v_find = true;
                 }
@@ -1024,7 +1024,7 @@ list_section(node **pphead, char (*lpdata)[LEN_SECTION], const int line)
         char *p = NULL;
         if (it->content[0] == '[' && (p = strrchr(it->content, ']')))
         {
-            crt_sscanf(&it->content[1], "%[^]]", lpdata[i++]);
+            sscanf(&it->content[1], "%[^]]", lpdata[i++]);
         }
     }
 }
@@ -1055,8 +1055,8 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[LEN_STRINGS], i
             }
             if (!get_key)
             {
-                if (crt_sscanf(cur->content, "%*[^=] = %[^\'|;|#|\r|\n]", lpdata[i]) == 1 ||
-                    crt_sscanf(cur->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", lpdata[i]) == 1)
+                if (sscanf(cur->content, "%*[^=] = %[^\'|;|#|\r|\n]", lpdata[i]) == 1 ||
+                    sscanf(cur->content, "%*[^=] = \'%[^\'|;|#|\r|\n]", lpdata[i]) == 1)
                 {
                 #ifdef _LOGDEBUG
                     logmsg("got it.\n");
@@ -1065,7 +1065,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[LEN_STRINGS], i
             }
             else
             {
-                crt_sscanf(cur->content, "%[^\r\n]", lpdata[i]);
+                sscanf(cur->content, "%[^\r\n]", lpdata[i]);
             }
             if (*lpdata[i] == '\0')
             {
@@ -1363,7 +1363,7 @@ inicache_delete_section(const char *sec, ini_cache *ini)
     if ((pos = list_parser(&(*ini)->pd, sec, NULL, NULL)) != NULL)
     {
         char sec_name[LEN_SECTION + 1] = {0};
-        crt_snprintf(sec_name, LEN_SECTION, "[%s]", sec);
+        _snprintf(sec_name, LEN_SECTION, "[%s]", sec);
         list_delete_if(&(*ini)->pd, erase_node, sec_name);
         res = true;
     }
@@ -1437,7 +1437,7 @@ inicache_new_section(const char *value, ini_cache *ini)
     }
     else
     {
-        crt_snprintf(sec, len, "%s", ptr);
+        _snprintf(sec, len, "%s", ptr);
     }
     if (*sec != '\0' && list_find(&(*ini)->pd, sec))
     {
@@ -1496,11 +1496,11 @@ inicache_write_string(const char *sec, const char *key, const char *value, ini_c
             const char *separator = strchr(pos->content, '=');
             if (separator && *(separator - 1) == ' ')
             {
-                crt_snprintf(pos->content, LEN_CONTENT, "%s = %s", key, value);
+                _snprintf(pos->content, LEN_CONTENT, "%s = %s", key, value);
             }
             else if (separator)
             {
-                crt_snprintf(pos->content, LEN_CONTENT, "%s=%s", key, value);
+                _snprintf(pos->content, LEN_CONTENT, "%s=%s", key, value);
             }
             if ((*ini)->breaks == CHR_WIN)
             {
@@ -1524,11 +1524,11 @@ inicache_write_string(const char *sec, const char *key, const char *value, ini_c
         {
             if ((*ini)->breaks == CHR_WIN)
             {
-                crt_snprintf(new_value, len, "%s=%s\r\n", key, value);
+                _snprintf(new_value, len, "%s=%s\r\n", key, value);
             }
             else
             {
-                crt_snprintf(new_value, len, "%s=%s\n", key, value);
+                _snprintf(new_value, len, "%s=%s\n", key, value);
             }
             if (list_insert(&(*ini)->pd, pos, new_value))
             {
@@ -1845,7 +1845,7 @@ inicache_search_string(const char *key, char **buf, ini_cache *ini)
         position sec = NULL;
         list_rfind(&(*ini)->pd, pos, &sec);
         if (sec && (*buf = calloc(1, strlen(sec->content) + 1)) != NULL &&
-            crt_sscanf(sec->content, "[%[^]]", *buf) == 1)
+            sscanf(sec->content, "[%[^]]", *buf) == 1)
         {
             res = true;
         }

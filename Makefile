@@ -34,7 +34,7 @@ endif
 
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
             -Wno-unknown-pragmas -finline-functions -DINITGUID \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -mavx
+            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -D_UCRT
 
 ifeq ($(findstring clang,$(CC)),clang)
 CXX      = $(CC)++
@@ -170,7 +170,7 @@ $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) -c $< $(CFLAGS) -mavx -o $@
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h

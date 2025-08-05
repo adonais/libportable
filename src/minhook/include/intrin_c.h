@@ -17,6 +17,11 @@ typedef unsigned char _Bool;
 /*** Stack frame juggling ***/
 #define _ReturnAddress() (__builtin_return_address(0))
 #define _AddressOfReturnAddress() (&(((void **)(__builtin_frame_address(0)))[1]))
+extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
+void __nop(void)
+{
+    __asm__ __volatile__("nop");
+}
 #if defined(__AVX__)
 #include <x86intrin.h>
 #if (!defined(__clang__) && __GNUC__ < 8) || (defined(__clang_major__) && (__clang_major__ < 9))
@@ -28,11 +33,6 @@ unsigned long long _xgetbv(unsigned int __xcr_no)
     return ((unsigned long long)__edx << 32) | __eax;
 }
 #endif
-extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
-void __nop(void)
-{
-    __asm__ __volatile__("nop");
-}
 #endif
 #endif
 

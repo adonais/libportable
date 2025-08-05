@@ -18,19 +18,6 @@
 #include <stdarg.h>
 #endif
 
-#if defined _MSC_VER && _MSC_VER > 1500 && !defined(__clang__)
-#pragma intrinsic(__cpuid, _xgetbv)
-#elif defined(__GNUC__)
-extern void __cpuid(int CPUInfo[4], int info_type);
-#else
-#endif
-
-#define CPUID(func, a, b, c, d) do {\
-    int regs[4];\
-    __cpuid(regs, func); \
-    *a = regs[0]; *b = regs[1];  *c = regs[2];  *d = regs[3];\
-  } while(0)
-
 #define MAX_MESSAGE 1024
 #define MAX_ALLSECTIONS 640
 #define SECTION_NAMES 32
@@ -53,34 +40,6 @@ char ini_portable_path[MAX_PATH + 1] = {0};
 WCHAR xre_profile_path[MAX_BUFF] = {0};
 WCHAR xre_profile_local_path[MAX_BUFF] = {0};
 LoadLibraryExPtr sLoadLibraryExStub = NULL;
-
-/* we need link to the old msvcrt sometimes, so ... */
-#if defined(_MSC_VER) && !defined(VC12_CRT)
-
-sprintf_ptr   crt_sprintf   = NULL;
-snprintf_ptr  crt_snprintf  = NULL;
-sscanf_ptr    crt_sscanf    = NULL;
-strtoui64_ptr crt_strtoui64 = NULL;
-
-bool WINAPI
-init_crt_funcs(void)
-{
-    HMODULE h_crt = GetModuleHandleW(L"msvcrt.dll");
-    if (h_crt)
-    {
-        crt_sprintf = (sprintf_ptr)GetProcAddress(h_crt, "sprintf");
-        crt_snprintf = (snprintf_ptr)GetProcAddress(h_crt, "_snprintf");
-        crt_sscanf = (sscanf_ptr)GetProcAddress(h_crt, "sscanf");
-        crt_strtoui64 = (strtoui64_ptr)GetProcAddress(h_crt, "_strtoui64");
-    }
-    if (crt_sprintf&&crt_sscanf&&crt_sscanf&&crt_strtoui64)
-    {
-        return true;
-    }
-    return false;
-}
-
-#endif
 
 #ifdef _LOGDEBUG
 #define LOG_FILE L"run_hook.log"
@@ -945,7 +904,7 @@ is_flash_plugins(uintptr_t caller)
 static bool
 get_mozilla_inifile(char *in_dir, int len, const char *appdt)
 {
-    int m = crt_snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\Mozilla\\Firefox\\profiles.ini");
+    int m = _snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\Mozilla\\Firefox\\profiles.ini");
     return (m > 0 && m < len);
 }
 
@@ -963,7 +922,7 @@ get_arg_path(const ini_cache *ini, char **out_path, bool *relative)
         {
             char *var = NULL;
             char u8_arg[MAX_PATH] = {0};
-            crt_snprintf(u8_arg, MAX_PATH - 1, "Name=%s", name);
+            _snprintf(u8_arg, MAX_PATH - 1, "Name=%s", name);
             if (inicache_search_string(u8_arg, &var, (ini_cache *)ini) && inicache_read_string(var, "Path", out_path, (ini_cache *)ini))
             {
                 if (relative)
@@ -1388,24 +1347,6 @@ get_cache_size(void)
         size = (ecx >> 16) & 0xffff;
     }
     return size * 1024;
-}
-
-bool WINAPI
-cpu_has_avx(void)
-{
-    bool has_avx = false;
-    bool has_avx_hardware = false;
-    int  eax, ebx, ecx, edx;
-    CPUID(0x1, &eax, &ebx, &ecx, &edx);
-    if ( eax >= 0x2)
-    {
-        /* check OSXSAVE flags */
-        has_avx_hardware = (ecx & 0x10000000) != 0;
-    }
-    /* check AVX feature flags and XSAVE enabled by kernel */
-    has_avx = has_avx_hardware && (ecx & 0x08000000) != 0 \
-              &&(_xgetbv(0) & 6) == 6;
-    return has_avx;
 }
 
 uint32_t __stdcall
