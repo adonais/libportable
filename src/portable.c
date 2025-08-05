@@ -210,8 +210,8 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
             }
             if ( appdata_path[0] != L'\0' )
             {
-                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",appdata_path);
-                if ( num>0 && num<MAX_PATH ) ret = S_OK;
+                int	 num = _snwprintf(pszPath,MAX_PATH, L"%s",appdata_path);
+                if (num > 0 && num < MAX_PATH ) ret = S_OK;
             }
             break;
         }
@@ -224,8 +224,8 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
             }
             if (localdt_path[0] != L'\0' && wcreate_dir(localdt_path))
             {
-                int	 num = wnsprintfW(pszPath,MAX_PATH,L"%ls",localdt_path);
-                if (num>0 && num<MAX_PATH )
+                int	 num = _snwprintf(pszPath, MAX_PATH, L"%s",localdt_path);
+                if (num > 0 && num < MAX_PATH)
                     ret = S_OK;
             }
             break;
@@ -416,7 +416,7 @@ update_thread(void *lparam)
     }
     if (ini_read_int("update", "be_ready", ini_portable_path, true) > 0)
     {
-        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-k %lu -e \"%ls\" -s \"%ls\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
+        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-k %lu -e \"%s\" -s \"%s\" -u 1", wcmd, GetCurrentProcessId(), temp, path);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will install!\n");
@@ -426,7 +426,7 @@ update_thread(void *lparam)
     {
         Sleep(8000);
         /* Use single threading during updates */
-        wnsprintfW(wcmd, MAX_BUFF, L"%ls"_UPDATE L"-i auto -t 1 -k %lu -e \"%ls\"", wcmd, GetCurrentProcessId(), temp);
+        _snwprintf(wcmd, MAX_BUFF, L"%s"_UPDATE L"-i auto -t 1 -k %lu -e \"%s\"", wcmd, GetCurrentProcessId(), temp);
         CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
     #ifdef _LOGDEBUG
         logmsg("update_thread will update!\n");

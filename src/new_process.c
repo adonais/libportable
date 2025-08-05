@@ -128,7 +128,7 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
     }
     if (*wdir == L'\0')
     {
-        wnsprintfW(wdir, len, L"%ls", cmd);
+        _snwprintf(wdir, len, L"%s", cmd);
         if (!PathRemoveFileSpecW(wdir))
         {
             wdir[0] = L'\0';
@@ -210,11 +210,11 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 	}
 	if (param != NULL && wcslen(param ) > 1)
 	{
-	    wnsprintfW(process, MAX_PATH, L"%ls %ls", wcmd, param);
+	    _snwprintf(process, MAX_PATH, L"%s %s", wcmd, param);
 	}
 	else
 	{
-	    wnsprintfW(process, MAX_PATH, L"%ls", wcmd);
+	    _snwprintf(process, MAX_PATH, L"%s", wcmd);
 	}
     if (true)
     {

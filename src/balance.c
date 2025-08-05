@@ -104,7 +104,7 @@ set_cpu_balance(void *lparam)
     {
         return (0);
     }
-    wnsprintfW(m_name, 32, L"%ls_%lu",m_pref, m_windows.hPid);
+    _snwprintf(m_name, 32, L"%s_%lu", m_pref, m_windows.hPid);
     if ((m_timer = CreateWaitableTimerW(NULL, false, m_name)) == NULL)
     {
         return (0);

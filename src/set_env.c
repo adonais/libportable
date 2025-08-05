@@ -115,11 +115,11 @@ setenv_tt(void)
                 {
                     if (*xre_profile_path)
                     {
-                        wnsprintfW(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%ls", xre_profile_path);
+                        _snwprintf(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%s", xre_profile_path);
                     }
                     if (*xre_profile_local_path)
                     {
-                        wnsprintfW(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%ls", xre_profile_local_path);
+                        _snwprintf(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%s", xre_profile_local_path);
                     }
                     if (env_appdt[0])
                     {

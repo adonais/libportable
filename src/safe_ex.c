@@ -79,7 +79,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         PathRemoveFileSpecW(temp);
         for(num=2; num<i; ++num)
         {
-            wnsprintfW(white_list[num],VALUE_LEN,L"%ls\\%ls", temp, moz_processes[num]);
+            _snwprintf(white_list[num], VALUE_LEN, L"%s\\%s", temp, moz_processes[num]);
         }
         ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path, true);
     }

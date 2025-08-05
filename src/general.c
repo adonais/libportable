@@ -105,7 +105,7 @@ logmsg(const char *format, ...)
     if (wcslen(logfile_buf) > 0)
     {
         FILE *pFile = NULL;
-        int len = wvnsprintfA(buffer, MAX_MESSAGE, format, args);
+        int len = _vsnprintf(buffer, MAX_MESSAGE, format, args);
         if (len > 0 && len < MAX_MESSAGE)
         {
             buffer[len] = '\0';
@@ -223,11 +223,11 @@ get_product_name(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
         {
             if (plugin)
             {
-                wnsprintfW(dwBlock, NAMES_LEN, L"\\StringFileInfo\\%ls\\ProductName", L"040904e4");
+                _snwprintf(dwBlock, NAMES_LEN, L"\\StringFileInfo\\%s\\ProductName", L"040904e4");
             }
             else
             {
-                wnsprintfW(dwBlock,
+                _snwprintf(dwBlock,
                            NAMES_LEN,
                            L"\\StringFileInfo\\%04x%04x\\ProductName",
                            lpTranslate[i].wLanguage,
@@ -303,7 +303,7 @@ get_file_version(void)
         }
         if (pversion != NULL)
         {
-            wnsprintfW(dw_block, NAMES_LEN, L"%d%d", HIWORD(pversion->dwFileVersionMS), LOWORD(pversion->dwFileVersionMS));
+            _snwprintf(dw_block, NAMES_LEN, L"%d%d", HIWORD(pversion->dwFileVersionMS), LOWORD(pversion->dwFileVersionMS));
             ver = _wtoi(dw_block);
         }
     } while (0);
@@ -408,7 +408,7 @@ wstr_replace(LPWSTR in, const size_t in_size, LPCWSTR pattern, LPCWSTR by)
         resoffset += (int) wcslen(by);
     }
     wcscpy(res + resoffset, in);
-    wnsprintfW(in_ptr, (int) in_size, L"%ls", res);
+    _snwprintf(in_ptr, in_size, L"%s", res);
     return in_ptr;
 }
 
@@ -478,7 +478,7 @@ try_write(LPCWSTR dir)
     HANDLE pfile = INVALID_HANDLE_VALUE;
     WCHAR dist_path[MAX_PATH] = {0};
     WCHAR temp[LEN_NAME + 1] = {0};
-    wnsprintfW(dist_path,MAX_PATH,L"%ls\\%ls", dir, rand_str(temp, LEN_NAME));
+    _snwprintf(dist_path, MAX_PATH, L"%s\\%s", dir, rand_str(temp, LEN_NAME));
     pfile = CreateFileW(dist_path, GENERIC_READ |
             GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_TEMPORARY |
             FILE_FLAG_DELETE_ON_CLOSE, NULL);
@@ -614,12 +614,12 @@ path_to_absolute(LPWSTR path, int len)
         {
             return false;
         }
-        wnsprintfW(lpfile, MAX_PATH, L"%ls", &path[1]);
+        _snwprintf(lpfile, MAX_PATH, L"%s", &path[1]);
         lpfile[wcslen(lpfile) - 1] = L'\0';
     }
     else
     {
-        wnsprintfW(lpfile, MAX_PATH, L"%ls", path);
+        _snwprintf(lpfile, MAX_PATH, L"%s", path);
     }
     wchr_replace(lpfile);
     if (lpfile[0] == L'%')
@@ -634,7 +634,7 @@ path_to_absolute(LPWSTR path, int len)
         }
         if (n < len)
         {
-            wnsprintfW(buf_env, n + 1, L"%ls", lpfile);
+            _snwprintf(buf_env, n + 1, L"%s", lpfile);
         }
         if (wcslen(buf_env) > 1 && ExpandEnvironmentStringsW(buf_env, buf_env, VALUE_LEN) > 0)
         {
@@ -1126,11 +1126,11 @@ write_section_header(ini_cache *ini, const int num)
     char data[VALUE_LEN + 1] = {0};
     if (is_ff_official() == MOZ_DEV)
     {
-        wnsprintfA(data, VALUE_LEN, "[Profile%d]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", num);
+        _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", num);
     }
     else
     {
-        wnsprintfA(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", num);
+        _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", num);
         
     }
     return inicache_new_section(data, ini);
@@ -1164,7 +1164,7 @@ write_json_file(void *lparam)
         cJSON *json = NULL;
         char path[MAX_BUFF+1] = {0};
         WCHAR url[MAX_BUFF+1] = {0};
-        wnsprintfW(url, MAX_BUFF, L"%ls\\addonStartup.json.lz4", xre_profile_path);
+        _snwprintf(url, MAX_BUFF, L"%s\\addonStartup.json.lz4", xre_profile_path);
         if (wexist_file((LPCWSTR)url))
         {
             if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url) && get_process_directory(path, MAX_BUFF))
@@ -1272,7 +1272,7 @@ write_file(LPCWSTR appdata_path)
     }
     if (true)
     {
-        wnsprintfW(xre_profile_path, MAX_BUFF, L"%ls", appdata_path);
+        _snwprintf(xre_profile_path, MAX_BUFF, L"%s", appdata_path);
         PathRemoveFileSpecW(xre_profile_path);
         ret = get_localdt_path(xre_profile_local_path, MAX_BUFF);
     }
@@ -1306,7 +1306,7 @@ get_appdt_path(WCHAR *path, int len)
     #ifdef _LOGDEBUG
         logmsg("(PortableDataPath be set default path!\n");
     #endif
-        wnsprintfW(path, len, L"%ls", L"../Profiles");
+        _snwprintf(path, len, L"%s", L"../Profiles");
     }
     else
     {
@@ -1338,7 +1338,7 @@ get_localdt_path(WCHAR *path, int len)
     if (ini_read_string("Env", "TmpDataPath", &buf, ini_portable_path, true));
     else if (!ini_read_string("General", "PortableDataPath", &buf, ini_portable_path, true))
     {
-        wnsprintfW(path, len, L"%ls", L"../Profiles");
+        _snwprintf(path, len, L"%s", L"../Profiles");
     }
     if (buf)
     {
@@ -1369,7 +1369,7 @@ get_os_version(void)
     #define VER_NUM 5
         WCHAR pszOS[VER_NUM] = { 0 };
         fnRtlGetNtVersionNumbers(&dwMajorVer, &dwMinorVer,&dwBuildNumber);
-        wnsprintfW(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
+        _snwprintf(pszOS, VER_NUM, L"%lu%d%lu", dwMajorVer, 0, dwMinorVer);
         ver = wcstol(pszOS, NULL, 10);
     #undef VER_NUM
     }

@@ -80,7 +80,7 @@ fie2url(char *str)
         }
         else
         {
-            wnsprintfA(result + j, 3 * m_size - j, "%%%02X", (unsigned char) ch);
+            _snprintf(result + j, 3 * m_size - j, "%%%02X", (unsigned char) ch);
             j += 3;
         }
     }
@@ -509,8 +509,8 @@ json_parser(void *json, const WCHAR *profile_dir, const char *app_dir)
     char profile[MAX_PATH + 1] = {0};
     wchar_t u_file[MAX_PATH + 1] = {0};
     wchar_t u_save[MAX_PATH + 1] = {0};
-    wnsprintfW(u_file, MAX_PATH, L"%ls\\%ls", profile_dir, L"addonStartup.json.lz4");
-    wnsprintfW(u_save, MAX_PATH, L"%ls\\%ls", profile_dir, L"addonStartup.json.lz4.new");
+    _snwprintf(u_file, MAX_PATH, L"%s\\%s", profile_dir, L"addonStartup.json.lz4");
+    _snwprintf(u_save, MAX_PATH, L"%s\\%s", profile_dir, L"addonStartup.json.lz4.new");
     if (json_replaces((cJSON *)json, u_file, u_save, my_make_u8(profile_dir, profile, MAX_PATH), app_dir) != 0)
     {
     #ifdef _LOGDEBUG
