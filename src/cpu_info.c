@@ -1,12 +1,9 @@
 #include "cpu_info.h"
-#include <stdio.h>
-#include <immintrin.h>
-#include "general.h"
 
 #define UU16(x) ( (uint8_t)x | (((uint16_t)(x)&0xff) << 8) )
 #define UU32(y) ( UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16) )
 
-static LIB_INLINE void*
+static void*
 memset_less32(void *dst, int a, size_t n)
 {
     uint8_t *dt = (uint8_t *)dst;

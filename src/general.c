@@ -13,6 +13,7 @@
 #include "lz4.h"
 #include "cjson.h"
 #include "json_paser.h"
+#include "cpu_info.h"
 
 #ifdef _MSC_VER
 #include <stdarg.h>
@@ -1078,7 +1079,7 @@ get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *hand
     return true;
 }
 
- 
+
 static bool
 write_section_header(ini_cache *ini, const int num)
 {
@@ -1090,7 +1091,7 @@ write_section_header(ini_cache *ini, const int num)
     else
     {
         _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", num);
-        
+
     }
     return inicache_new_section(data, ini);
 }
@@ -1347,6 +1348,34 @@ get_cache_size(void)
         size = (ecx >> 16) & 0xffff;
     }
     return size * 1024;
+}
+
+static bool
+get_process_name(LPWSTR name, DWORD wlen)
+{
+    int   i = 0;
+    WCHAR fullpath[MAX_PATH+1]= {0};
+    if (GetModuleFileNameW(NULL, fullpath, MAX_PATH) >0)
+    {
+        for(i = (int)wcslen(fullpath); i > 0; i--)
+        {
+            if (fullpath[i] == L'\\')
+                break;
+        }
+        if ( i > 0 )
+        {
+            i = _snwprintf(name, wlen, L"%s", fullpath + i + 1);
+        }
+    }
+    return (i > 0 && i < (int)wlen);
+}
+
+bool WINAPI
+is_specialapp(LPCWSTR appname)
+{
+    WCHAR process_name[VALUE_LEN+1];
+    get_process_name(process_name, VALUE_LEN);
+    return (_wcsicmp(process_name, appname) == 0);
 }
 
 uint32_t __stdcall

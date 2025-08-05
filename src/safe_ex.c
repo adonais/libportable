@@ -48,6 +48,7 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"WSEnable.exe",
                               L"uninstall\\helper.exe",
                               L"crashreporter.exe",
+                              L"crashhelper.exe",
                               L"CommandExecuteHandler.exe",
                               L"maintenanceservice.exe",
                               L"maintenanceservice_installer.exe",
@@ -375,7 +376,6 @@ HookCreateProcessInternalW(HANDLE hToken,
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
     else if (process_cui(lpfile))
     {
-
         {
         #ifdef _LOGDEBUG
             logmsg("%ls process, disabled-runes\n",lpfile);

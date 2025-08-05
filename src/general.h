@@ -29,21 +29,6 @@
 #define ALIGNED32 __declspec(align(32))
 #endif
 
-
-#if defined _MSC_VER && _MSC_VER > 1500 && !defined(__clang__)
-#pragma intrinsic(__cpuid, _xgetbv)
-#elif defined(__GNUC__)
-extern void __cpuid(int CPUInfo[4], int info_type);
-#else
-// none
-#endif
-
-#define CPUID(func, a, b, c, d) do {\
-    int regs[4];\
-    __cpuid(regs, func); \
-    *a = regs[0]; *b = regs[1];  *c = regs[2];  *d = regs[3];\
-  } while(0)
-
 #define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))
 extern LIB_INLINE bool is_wow64() {int wow64=0; return \
        IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
@@ -105,9 +90,9 @@ extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
 extern uint32_t WINAPI get_level_size(void);
-extern bool     WINAPI cpu_has_avx(void);
 extern bool     WINAPI cmd_has_setup(void);
 extern bool     WINAPI cmd_has_profile(char *pout, const int size);
+extern bool     WINAPI is_specialapp(LPCWSTR appname);
 
 #ifdef __cplusplus
 }
