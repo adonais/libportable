@@ -14,7 +14,7 @@
 
 /* Shared data segments(data lock),the running process acquired the lock */
 #ifdef _MSC_VER
-#pragma data_seg(".shrd")
+#pragma data_seg(".shmpv")
 #endif
 volatile DWORD lib_pid SHARED = 0;
 volatile long lib_init_once SHARED = 0;

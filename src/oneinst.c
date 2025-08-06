@@ -9,7 +9,7 @@
 #include "MinHook.h"
 
 #define BUFF_8M  1024 * 1024 * 8
-#define DVD_MAXIMUM 10737418240
+#define DVD_MAXIMUM 8000000000
 #define PL_STR    (L"--playlist=\"%s\"")
 #define BD_STR    (L"bd:// --bluray-device=\"%s\"")
 #define IPC_STR   (L" --input-ipc-server=libumpv")
@@ -248,9 +248,9 @@ mp_read_ipc(const HANDLE hpipe)
     }
 }
 
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize("", off)
+//#endif
 
 static void
 mp_path_replace(const WCHAR *format, const WCHAR *path, WCHAR *parg)
@@ -279,9 +279,9 @@ mp_path_replace(const WCHAR *format, const WCHAR *path, WCHAR *parg)
     }
 }
 
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize("", on)
+//#endif
 
 static LPWSTR
 mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const WCHAR *playlist, const WCHAR *iso_path, const bool use_ipc, const bool use_bd)
