@@ -34,7 +34,7 @@ endif
 
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
             -Wno-unknown-pragmas -finline-functions -DINITGUID \
-            -DWINVER=0x0501 -D_WIN32_IE=0x0601 -D_UCRT
+            -DWINVER=0x0600 -D_WIN32_IE=0x0601 -D_UCRT
 
 ifeq ($(findstring clang,$(CC)),clang)
 CXX      = $(CC)++

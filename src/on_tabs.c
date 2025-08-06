@@ -6,8 +6,7 @@
 #include "ini_parser.h"
 #include <stdio.h>
 #include <process.h>
-#include <windows.h>
-#include "win_automation.h"
+#include <uiautomation.h>
 
 #define WAIT_TIMES 9000
 
@@ -311,7 +310,7 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
             if (botton != NULL)
             {
                 RECT rc;
-                hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, (tagRECT *)&rc);
+                hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
                 if (SUCCEEDED(hr) && PtInRect(&rc, *pt))
                 {
                     *active = ON_BUTTON_FLAGS;
@@ -351,7 +350,7 @@ mouse_on_tab(RECT *pr, POINT *pt, int *active)
             if (SUCCEEDED(hr))
             {
                 RECT rc;
-                hr = IUIAutomationElement_get_CurrentBoundingRectangle(tmp, (tagRECT *)&rc);
+                hr = IUIAutomationElement_get_CurrentBoundingRectangle(tmp, &rc);
                 if (SUCCEEDED(hr) && PtInRect(&rc, *pt))
                 {
                     res = true;
