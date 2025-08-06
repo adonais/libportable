@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-extern int  __stdcall init_exeception(void * param);
+extern int  __stdcall init_exeception(void);
 extern void __stdcall uninit_exeception(void);
 
 #ifdef __cplusplus

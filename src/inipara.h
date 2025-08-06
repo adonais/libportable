@@ -1,8 +1,8 @@
 #ifndef _INI_PARA_H_
 #  define _INI_PARA_H_
 
+#include <stdbool.h>
 #include <windows.h>
-#include "intrin_c.h"
 
 #define   VALUE_LEN 128
 #define   BUFSIZE   (MAX_PATH*2)

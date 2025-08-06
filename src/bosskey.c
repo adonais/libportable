@@ -142,7 +142,7 @@ regster_hotkey(LPWNDINFO pinfo)
 {
     WCHAR atom[8+1];
     api_snwprintf(atom, 8, L"%u", pinfo->pid);
-    pinfo->atom_str = GlobalAddAtomW(atom)-0xC000;
+    pinfo->atom_str = GlobalAddAtomW(atom) - 0xC000;
     set_hotkey(pinfo);
     if (!RegisterHotKey(NULL, pinfo->atom_str, pinfo->key_mod, pinfo->key_vk))
     {
@@ -194,8 +194,9 @@ bosskey_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 static DWORD WINAPI
-bosskey_thread(void * lparam)
+bosskey_thread(void *lparam)
 {
+    (void *)lparam;
     if (get_moz_hwnd(&mph) && read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && regster_hotkey(&mph))
     {   /* 重定向主窗口循环, 主要是让bosskey_thread正常退出 */
         if ((boss_wnd = (WNDPROC) SetWindowLongPtrW(mph.h, GWLP_WNDPROC, (LONG_PTR) bosskey_proc)))
@@ -222,7 +223,13 @@ undo_bosskey(void)
     if (boss_t)
     {
         UnregisterHotKey(NULL, mph.atom_str);
-        GlobalDeleteAtom(mph.atom_str);
+    #ifdef _LOGDEBUG
+        SetLastError(ERROR_SUCCESS);
+    #endif
+        GlobalDeleteAtom((ATOM)(mph.atom_str + 0xC000));
+    #ifdef _LOGDEBUG
+        logmsg("[bosskey_thread] GlobalDeleteAtom return %lu\n", GetLastError());
+    #endif
         _InterlockedExchange(&boss_t, 0);
         boss_wnd = NULL;
     }

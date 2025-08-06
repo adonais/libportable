@@ -75,7 +75,7 @@ void WINAPI do_it(void)
         init_bosskey();
         *(long volatile*)&lib_init_once = 1;
     }
-    if (!(init_crthook(NULL) && init_exeception(NULL)))
+    if (!(init_crthook() && init_exeception()))
     {
     #ifdef _LOGDEBUG
         logmsg("[libumpv] init_ctw failed...\n");
@@ -95,6 +95,7 @@ extern "C" {
 #if !defined(LIBUMPV_STATIC)
 int CALLBACK _DllMainCRTStartup(HINSTANCE module, DWORD reason, LPVOID reserved)
 {
+    (void *)reserved;
     switch(reason)
     {
     case DLL_PROCESS_ATTACH:

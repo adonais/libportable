@@ -525,7 +525,6 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
 void
 mp_command_pause(const bool enable)
 {
-    bool ret = false;
     HANDLE hpipe = INVALID_HANDLE_VALUE;
     if (mp_open_ipc(&hpipe))
     {
@@ -543,7 +542,7 @@ mp_command_pause(const bool enable)
 }
 
 BOOL WINAPI
-init_crthook(void * param)
+init_crthook(void)
 {
     HMODULE h_shell32 = GetModuleHandleW(L"shell32.dll");
     do
@@ -556,11 +555,11 @@ init_crthook(void * param)
         {
             break;
         }
-        if (MH_CreateHook(pCommandLineToArgvW, mp_CommandLineToArgvW, (LPVOID*)&sCommandLineToArgvWstub) != MH_OK)
+        if (MH_CreateHook((LPVOID)pCommandLineToArgvW, (LPVOID)mp_CommandLineToArgvW, (LPVOID *)&sCommandLineToArgvWstub) != MH_OK)
         {
             break;
         }
-        if (MH_EnableHook(pCommandLineToArgvW) != MH_OK)
+        if (MH_EnableHook((LPVOID)pCommandLineToArgvW) != MH_OK)
         {
         #ifdef _LOGDEBUG
             logmsg("[hook_command] MH_EnableHook() fail!\n");
@@ -577,7 +576,7 @@ uninit_crthook(void)
 {
     if (sCommandLineToArgvWstub)
     {
-        MH_DisableHook(pCommandLineToArgvW);
+        MH_DisableHook((LPVOID)pCommandLineToArgvW);
     }
 }
 

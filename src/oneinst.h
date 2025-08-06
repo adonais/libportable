@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-BOOL __stdcall init_crthook(void * param);
+BOOL __stdcall init_crthook(void);
 void __stdcall uninit_crthook(void);
 
 #ifdef __cplusplus

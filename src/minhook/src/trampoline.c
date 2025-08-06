@@ -26,7 +26,7 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "intrin_c.h"
+#include <intrin.h>
 #include <windows.h>
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -266,7 +266,7 @@ BOOL CreateTrampolineFunction(PTRAMPOLINE ct)
         ct->nIP++;
 
         __movsb((LPBYTE)ct->pTrampoline + newPos, (LPBYTE)pCopySrc, copySize);
-        newPos += copySize;
+        newPos += (UINT8)copySize;
         oldPos += hs.len;
     }
     while (!finished);

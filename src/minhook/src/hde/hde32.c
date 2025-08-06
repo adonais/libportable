@@ -1,20 +1,24 @@
-/*
+﻿/*
  * Hacker Disassembler Engine 32 C
  * Copyright (c) 2008-2009, Vyacheslav Patkov.
  * All rights reserved.
  *
  */
-#include <windows.h>
+
+#if defined(_M_IX86) || defined(__i386__)
+
+#include <string.h>
+#include <intrin.h>
 #include "hde32.h"
 #include "table32.h"
-#include "intrin_c.h"
 
 unsigned int hde32_disasm(const void *code, hde32s *hs)
 {
-    uint8_t x, c, *p = (uint8_t *)code, cflags, opcode, pref = 0;
+    uint8_t c = 0;
+    uint8_t x, *p = (uint8_t *)code, cflags, opcode, pref = 0;
     uint8_t *ht = hde32_table, m_mod, m_reg, m_rm, disp_size = 0;
 
-    __stosb((LPBYTE)hs, 0, sizeof(hde32s));
+    __stosb((unsigned char *)hs, 0, sizeof(hde32s));
 
     for (x = 16; x; x--)
         switch (c = *p++) {
@@ -318,3 +322,5 @@ unsigned int hde32_disasm(const void *code, hde32s *hs)
 
     return (unsigned int)hs->len;
 }
+
+#endif // defined(_M_IX86) || defined(__i386__)

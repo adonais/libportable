@@ -29,9 +29,10 @@
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
-#include <tlhelp32.h>
+#include <stdbool.h>
 #include <limits.h>
-#include <intrin_c.h>
+#include <intrin.h>
+#include <tlhelp32.h>
 #include <processsnapshot.h>
 
 // Initial capacity of the HOOK_ENTRY buffer.
@@ -482,7 +483,7 @@ static MH_STATUS EnableHookLL(UINT pos, bool enable)
         {
             PJMP_REL_SHORT pShortJmp = (PJMP_REL_SHORT)pHook->pTarget;
             pShortJmp->opcode = 0xEB;
-            pShortJmp->operand = (UINT8)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
+            pShortJmp->operand = (UINT8)(LONG_PTR)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
         }
     }
     else
@@ -564,7 +565,7 @@ static __inline VOID LeaveSpinLock(VOID)
 {
     // No need to generate a memory barrier here, since InterlockedExchange()
     // generates a full memory barrier itself.
-    _InterlockedExchange(&g_isLocked, FALSE);
+    _InterlockedExchange(&g_isLocked, 0);
 }
 
 //-------------------------------------------------------------------------
@@ -699,7 +700,7 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
         pHook->pDetour     = ct.pDetour;
 #endif
         pHook->pTrampoline = ct.pTrampoline;
-        pHook->patchAbove  = ct.patchAbove;
+        pHook->patchAbove  = (UINT8)ct.patchAbove;
         pHook->isEnabled   = false;
         pHook->queueEnable = false;
         pHook->nIP         = ct.nIP;

@@ -46,7 +46,7 @@ typedef struct _MEMORY_SLOT
     {
         struct _MEMORY_SLOT *pNext;
         UINT8 buffer[MEMORY_SLOT_SIZE];
-    };
+    } u2;
 } MEMORY_SLOT, *PMEMORY_SLOT;
 
 // Memory block info. Placed at the head of each block.
@@ -62,7 +62,7 @@ typedef struct _MEMORY_BLOCK
 //-------------------------------------------------------------------------
 
 // First element of the memory block list.
-PMEMORY_BLOCK g_pMemoryBlocks;
+static PMEMORY_BLOCK g_pMemoryBlocks;
 
 //-------------------------------------------------------------------------
 VOID InitializeBuffer(VOID)
@@ -221,6 +221,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
     }
 #else
     // In x86 mode, a memory block can be placed anywhere.
+    (void *)pOrigin;
     pBlock = (PMEMORY_BLOCK)VirtualAlloc(
         NULL, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 #endif
@@ -233,7 +234,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
         pBlock->usedCount = 0;
         do
         {
-            pSlot->pNext = pBlock->pFree;
+            pSlot->u2.pNext = pBlock->pFree;
             pBlock->pFree = pSlot;
             pSlot++;
         } while ((ULONG_PTR)pSlot - (ULONG_PTR)pBlock <= MEMORY_BLOCK_SIZE - MEMORY_SLOT_SIZE);
@@ -255,7 +256,7 @@ LPVOID AllocateBuffer(LPVOID pOrigin)
 
     // Remove an unused slot from the list.
     pSlot = pBlock->pFree;
-    pBlock->pFree = pSlot->pNext;
+    pBlock->pFree = pSlot->u2.pNext;
     pBlock->usedCount++;
 #ifdef _DEBUG
     // Fill the slot with INT3 for debugging.
@@ -281,7 +282,7 @@ VOID FreeBuffer(LPVOID pBuffer)
             __stosb((LPBYTE)pSlot, 0x00, sizeof(MEMORY_SLOT));
 #endif
             // Restore the released slot to the list.
-            pSlot->pNext = pBlock->pFree;
+            pSlot->u2.pNext = pBlock->pFree;
             pBlock->pFree = pSlot;
             pBlock->usedCount--;
 
