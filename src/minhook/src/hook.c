@@ -29,9 +29,10 @@
 #include "MinHook.h"
 #include "buffer.h"
 #include "trampoline.h"
-#include <tlhelp32.h>
+#include <stdbool.h>
 #include <limits.h>
-#include <intrin_c.h>
+#include <intrin.h>
+#include <tlhelp32.h>
 #include <processsnapshot.h>
 
 // Initial capacity of the HOOK_ENTRY buffer.
@@ -75,7 +76,7 @@ typedef struct _global_hooks
 } global_hooks;
 
 //-------------------------------------------------------------------------
-// win 8.x function:
+// Windows 8.x functions:
 //-------------------------------------------------------------------------
 
 typedef DWORD (*ptr_PssCaptureSnapshot)(HANDLE ProcessHandle, PSS_CAPTURE_FLAGS CaptureFlags, DWORD ThreadContextFlags, HPSS *SnapshotHandle);
@@ -135,7 +136,6 @@ static PHOOK_ENTRY AddHookEntry()
         g_hooks.capacity *= 2;
         g_hooks.pItems = p;
     }
-
     return &g_hooks.pItems[g_hooks.size++];
 }
 
@@ -190,7 +190,6 @@ static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
         if (ip == ((DWORD_PTR)pHook->pTarget + pHook->oldIPs[i]))
             return (DWORD_PTR)pHook->pTrampoline + pHook->newIPs[i];
     }
-
     return 0;
 }
 
@@ -329,13 +328,13 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
     if (!fn_PssCaptureSnapshot)
     {
         HMODULE hssapi = GetModuleHandleW(L"kernel32.dll");
-        fn_PssCaptureSnapshot = hssapi ? (ptr_PssCaptureSnapshot)GetProcAddress(hssapi, "PssCaptureSnapshot") : NULL;
+        fn_PssCaptureSnapshot = hssapi ? (ptr_PssCaptureSnapshot)(void *)GetProcAddress(hssapi, "PssCaptureSnapshot") : NULL;
         if (fn_PssCaptureSnapshot)
         {
-            fn_PssWalkMarkerCreate = (ptr_PssWalkMarkerCreate)GetProcAddress(hssapi, "PssWalkMarkerCreate");
-            fn_PssWalkSnapshot = (ptr_PssWalkSnapshot)GetProcAddress(hssapi, "PssWalkSnapshot");
-            fn_PssWalkMarkerFree = (ptr_PssWalkMarkerFree)GetProcAddress(hssapi, "PssWalkMarkerFree");
-            fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)GetProcAddress(hssapi, "PssFreeSnapshot");
+            fn_PssWalkMarkerCreate = (ptr_PssWalkMarkerCreate)(void *)GetProcAddress(hssapi, "PssWalkMarkerCreate");
+            fn_PssWalkSnapshot = (ptr_PssWalkSnapshot)(void *)GetProcAddress(hssapi, "PssWalkSnapshot");
+            fn_PssWalkMarkerFree = (ptr_PssWalkMarkerFree)(void *)GetProcAddress(hssapi, "PssWalkMarkerFree");
+            fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)(void *)GetProcAddress(hssapi, "PssFreeSnapshot");
         }
     }
 #endif
@@ -484,7 +483,7 @@ static MH_STATUS EnableHookLL(UINT pos, bool enable)
         {
             PJMP_REL_SHORT pShortJmp = (PJMP_REL_SHORT)pHook->pTarget;
             pShortJmp->opcode = 0xEB;
-            pShortJmp->operand = (UINT8)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
+            pShortJmp->operand = (UINT8)(LONG_PTR)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
         }
     }
     else
@@ -566,7 +565,7 @@ static __inline VOID LeaveSpinLock(VOID)
 {
     // No need to generate a memory barrier here, since InterlockedExchange()
     // generates a full memory barrier itself.
-    _InterlockedExchange(&g_isLocked, FALSE);
+    _InterlockedExchange(&g_isLocked, 0L);
 }
 
 //-------------------------------------------------------------------------
@@ -701,7 +700,7 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
         pHook->pDetour     = ct.pDetour;
 #endif
         pHook->pTrampoline = ct.pTrampoline;
-        pHook->patchAbove  = ct.patchAbove;
+        pHook->patchAbove  = (UINT8)ct.patchAbove;
         pHook->isEnabled   = false;
         pHook->queueEnable = false;
         pHook->nIP         = ct.nIP;
@@ -849,7 +848,7 @@ static MH_STATUS QueueHook(LPVOID pTarget, bool queueEnable)
             }
             else
             {
-                g_hooks.pItems[pos].queueEnable = queueEnable;    
+                g_hooks.pItems[pos].queueEnable = queueEnable;
             }
         }
     } while(0);

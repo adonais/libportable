@@ -177,7 +177,7 @@ $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h $(SRC)/win_automation.h
+$(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h
 	$(CC) -c $< $(CFLAGS) -o $@	
 $(DEP)/json_paser.o   : $(SRC)/json_paser.c $(SRC)/json_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@

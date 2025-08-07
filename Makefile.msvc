@@ -5,7 +5,7 @@ CXX      = cl
 MSVC_CRT =
 MY_DEBUG = 
 MSVC_CRT =
-CFLAGS   = /nologo /W3 /WX- /wd4996 /wd4819 /Gd /fp:precise /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W3 /WX /Gd /fp:precise /D "_UNICODE" /D "UNICODE" \
            /D "_CRT_SECURE_NO_WARNINGS" /D "CJSON_HIDE_SYMBOLS"
 LDFLAGS  = /NOLOGO
        

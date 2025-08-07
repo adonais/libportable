@@ -1,9 +1,10 @@
 #ifndef _INI_PARA_H_
 #  define _INI_PARA_H_
 
-#include <windows.h>
 #include <stdint.h>
-#include "intrin_c.h"
+#include <stdbool.h>
+#include <windows.h>
+#include <intrin.h>
 
 #define   SYS_MALLOC(x) (HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)))
 #define   SYS_FREE(x)   (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
@@ -27,6 +28,22 @@
 #define SHARED
 #define USERED extern
 #define ALIGNED32 __declspec(align(32))
+#endif
+
+#if defined(_MSC_VER) && (_MSC_VER >= 1600)
+#pragma intrinsic(_InterlockedCompareExchange, _InterlockedExchange, \
+                  __stosb, _ReturnAddress, strlen, wcslen, \
+                  wcscmp, memcpy, memset)
+#elif defined(__GNUC__)
+#define _ReturnAddress() (__builtin_return_address(0))
+#define _AddressOfReturnAddress() (&(((void **)(__builtin_frame_address(0)))[1]))
+extern __inline__ __attribute__((__gnu_inline__, __always_inline__, __artificial__)) 
+void __nop(void)
+{
+    __asm__ __volatile__("nop");
+}
+#else
+#error Unsupported compiler
 #endif
 
 #define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))

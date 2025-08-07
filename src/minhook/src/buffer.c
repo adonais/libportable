@@ -1,6 +1,6 @@
 /*
  *  MinHook - The Minimalistic API Hooking Library for x64/x86
- *  Copyright (C) 2009-2014 Tsuda Kageyu.
+ *  Copyright (C) 2009-2017 Tsuda Kageyu.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ typedef struct _MEMORY_SLOT
     {
         struct _MEMORY_SLOT *pNext;
         UINT8 buffer[MEMORY_SLOT_SIZE];
-    };
+    } u2;
 } MEMORY_SLOT, *PMEMORY_SLOT;
 
 // Memory block info. Placed at the head of each block.
@@ -62,7 +62,7 @@ typedef struct _MEMORY_BLOCK
 //-------------------------------------------------------------------------
 
 // First element of the memory block list.
-PMEMORY_BLOCK g_pMemoryBlocks;
+static PMEMORY_BLOCK g_pMemoryBlocks;
 
 //-------------------------------------------------------------------------
 VOID InitializeBuffer(VOID)
@@ -99,7 +99,7 @@ static LPVOID FindPrevFreeRegion(LPVOID pAddress, LPVOID pMinAddr, DWORD dwAlloc
     while (tryAddr >= (ULONG_PTR)pMinAddr)
     {
         MEMORY_BASIC_INFORMATION mbi;
-        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(mbi)) == 0)
+        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) == 0)
             break;
 
         if (mbi.State == MEM_FREE)
@@ -130,7 +130,7 @@ static LPVOID FindNextFreeRegion(LPVOID pAddress, LPVOID pMaxAddr, DWORD dwAlloc
     while (tryAddr <= (ULONG_PTR)pMaxAddr)
     {
         MEMORY_BASIC_INFORMATION mbi;
-        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(mbi)) == 0)
+        if (VirtualQuery((LPVOID)tryAddr, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) == 0)
             break;
 
         if (mbi.State == MEM_FREE)
@@ -221,6 +221,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
     }
 #else
     // In x86 mode, a memory block can be placed anywhere.
+    UNREFERENCED_PARAMETER(pOrigin);
     pBlock = (PMEMORY_BLOCK)VirtualAlloc(
         NULL, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 #endif
@@ -233,7 +234,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
         pBlock->usedCount = 0;
         do
         {
-            pSlot->pNext = pBlock->pFree;
+            pSlot->u2.pNext = pBlock->pFree;
             pBlock->pFree = pSlot;
             pSlot++;
         } while ((ULONG_PTR)pSlot - (ULONG_PTR)pBlock <= MEMORY_BLOCK_SIZE - MEMORY_SLOT_SIZE);
@@ -255,7 +256,7 @@ LPVOID AllocateBuffer(LPVOID pOrigin)
 
     // Remove an unused slot from the list.
     pSlot = pBlock->pFree;
-    pBlock->pFree = pSlot->pNext;
+    pBlock->pFree = pSlot->u2.pNext;
     pBlock->usedCount++;
 #ifdef _DEBUG
     // Fill the slot with INT3 for debugging.
@@ -281,7 +282,7 @@ VOID FreeBuffer(LPVOID pBuffer)
             memset(pSlot, 0x00, sizeof(MEMORY_SLOT));
 #endif
             // Restore the released slot to the list.
-            pSlot->pNext = pBlock->pFree;
+            pSlot->u2.pNext = pBlock->pFree;
             pBlock->pFree = pSlot;
             pBlock->usedCount--;
 
@@ -308,7 +309,7 @@ VOID FreeBuffer(LPVOID pBuffer)
 BOOL IsExecutableAddress(LPVOID pAddress)
 {
     MEMORY_BASIC_INFORMATION mi;
-    VirtualQuery(pAddress, &mi, sizeof(mi));
+    VirtualQuery(pAddress, &mi, sizeof(MEMORY_BASIC_INFORMATION));
 
     return (mi.State == MEM_COMMIT && (mi.Protect & PAGE_EXECUTE_FLAGS));
 }

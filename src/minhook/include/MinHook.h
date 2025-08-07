@@ -29,15 +29,11 @@
 #ifndef _MIN_HOOK_H_
 #  define _MIN_HOOK_H_
 
-#ifndef WINVER         /* Define WINVER to fix building on MinGW */
-#  define WINVER 0x0501
-#endif
-
-#include <windows.h>
-
 #if !(defined _M_IX86) && !(defined _M_X64) && !(defined __i386__) && !(defined __x86_64__)
     #error MinHook supports only x86 and x64 systems.
 #endif
+
+#include <windows.h>
 
 // MinHook Error Codes.
 typedef enum MH_STATUS
@@ -109,7 +105,7 @@ extern "C" {
     // ONCE at the end of your program.
     extern MH_STATUS WINAPI MH_Uninitialize(VOID);
 
-    // Creates a Hook for the specified target function, in disabled state.
+    // Creates a hook for the specified target function, in disabled state.
     // Parameters:
     //   pTarget    [in]  A pointer to the target function, which will be
     //                    overridden by the detour function.
