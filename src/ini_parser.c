@@ -1044,7 +1044,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[LEN_STRINGS], i
         for (node *cur = pos; cur && i < line;)
         {
             cur = cur->next;
-            if (*cur->content == '[')
+            if (!cur || *cur->content == '[')
             {
                 break;
             }
