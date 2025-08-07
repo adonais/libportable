@@ -106,7 +106,6 @@ extern bool     WINAPI print_process_module(DWORD pid);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);
 extern DWORD    WINAPI get_os_version(void);
-extern uint32_t WINAPI get_level_size(void);
 extern bool     WINAPI cmd_has_setup(void);
 extern bool     WINAPI cmd_has_profile(char *pout, const int size);
 extern bool     WINAPI is_specialapp(LPCWSTR appname);

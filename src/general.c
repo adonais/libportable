@@ -1336,20 +1336,6 @@ get_os_version(void)
     return ver;
 }
 
-static LIB_INLINE uint32_t
-get_cache_size(void)
-{
-    int eax, ebx, ecx, edx;
-    int size = 0;
-    CPUID(0x80000000, &eax, &ebx, &ecx, &edx);
-    if ((uint32_t)eax >= 0x80000006)
-    {
-        CPUID(0x80000006, &eax, &ebx, &ecx, &edx);
-        size = (ecx >> 16) & 0xffff;
-    }
-    return size * 1024;
-}
-
 static bool
 get_process_name(LPWSTR name, DWORD wlen)
 {
@@ -1376,12 +1362,6 @@ is_specialapp(LPCWSTR appname)
     WCHAR process_name[VALUE_LEN+1];
     get_process_name(process_name, VALUE_LEN);
     return (_wcsicmp(process_name, appname) == 0);
-}
-
-uint32_t __stdcall
-get_level_size(void)
-{
-    return cpu_has_avx() ? get_cache_size() : 0;
 }
 
 bool WINAPI

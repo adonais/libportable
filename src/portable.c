@@ -78,7 +78,7 @@ typedef struct _dyn_link_desc
 }dyn_link_desc;
 
 /* AVX memset with non-temporal instructions */
-TETE_EXT_CLASS void * __cdecl
+void * __cdecl
 memset_nontemporal_tt (void *dest, int c, size_t count)
 {
     if (!cpu_has_avx())
@@ -88,21 +88,27 @@ memset_nontemporal_tt (void *dest, int c, size_t count)
     return memset_avx(dest, c, count);
 }
 
+uint32_t
+x86_cpu_features(void)
+{
+    return cpu_features();
+}
+
 /* Get the second level cache size */
-TETE_EXT_CLASS uint32_t
+uint32_t
 GetNonTemporalDataSizeMin_tt(void)
 {
-    return get_level_size();
+    return cpu_has_avx() ? cpu_level_l2() : 0;
 }
 
 /* Never used,to be compatible with tete's patch */
-TETE_EXT_CLASS int
+int
 GetCpuFeature_tt(void)
 {
     return 0;
 }
 
-TETE_EXT_CLASS intptr_t
+intptr_t
 GetAppDirHash_tt(void)
 {
     return 0;
