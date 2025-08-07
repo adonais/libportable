@@ -221,7 +221,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
     }
 #else
     // In x86 mode, a memory block can be placed anywhere.
-    (void *)pOrigin;
+    UNREFERENCED_PARAMETER(pOrigin);
     pBlock = (PMEMORY_BLOCK)VirtualAlloc(
         NULL, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 #endif

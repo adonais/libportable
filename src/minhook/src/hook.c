@@ -328,13 +328,13 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
     if (!fn_PssCaptureSnapshot)
     {
         HMODULE hssapi = GetModuleHandleW(L"kernel32.dll");
-        fn_PssCaptureSnapshot = hssapi ? (ptr_PssCaptureSnapshot)GetProcAddress(hssapi, "PssCaptureSnapshot") : NULL;
+        fn_PssCaptureSnapshot = hssapi ? (ptr_PssCaptureSnapshot)(void *)GetProcAddress(hssapi, "PssCaptureSnapshot") : NULL;
         if (fn_PssCaptureSnapshot)
         {
-            fn_PssWalkMarkerCreate = (ptr_PssWalkMarkerCreate)GetProcAddress(hssapi, "PssWalkMarkerCreate");
-            fn_PssWalkSnapshot = (ptr_PssWalkSnapshot)GetProcAddress(hssapi, "PssWalkSnapshot");
-            fn_PssWalkMarkerFree = (ptr_PssWalkMarkerFree)GetProcAddress(hssapi, "PssWalkMarkerFree");
-            fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)GetProcAddress(hssapi, "PssFreeSnapshot");
+            fn_PssWalkMarkerCreate = (ptr_PssWalkMarkerCreate)(void *)GetProcAddress(hssapi, "PssWalkMarkerCreate");
+            fn_PssWalkSnapshot = (ptr_PssWalkSnapshot)(void *)GetProcAddress(hssapi, "PssWalkSnapshot");
+            fn_PssWalkMarkerFree = (ptr_PssWalkMarkerFree)(void *)GetProcAddress(hssapi, "PssWalkMarkerFree");
+            fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)(void *)GetProcAddress(hssapi, "PssFreeSnapshot");
         }
     }
 #endif
