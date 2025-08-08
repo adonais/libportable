@@ -63,6 +63,8 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
 
 HMODULE dll_module = NULL;
 static  uintptr_t m_target[EXCLUDE_NUM];
+/* 在 DLL 加载时缓存一次 CPU 能力，避免每次调用执行 CPUID/XGETBV */
+static int g_has_avx = -1; /* -1: 未初始化；0: 不支持；1: 支持 */
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
 static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
@@ -81,11 +83,25 @@ typedef struct _dyn_link_desc
 void * __cdecl
 memset_nontemporal_tt (void *dest, int c, size_t count)
 {
-    if (!cpu_has_avx())
+    /* 避免在很小的填充上使用非时序写，减小额外开销；仅在 AVX 支持且大小达阈值时走 AVX 路径。
+       通过缓存 AVX 支持结果，减少每次调用的 CPUID 开销。*/
+    const size_t nonTemporalThresholdBytes = 2048; /* 经验阈值，可按需微调 */
+    if (count >= nonTemporalThresholdBytes)
     {
-        return memset(dest, c, count);
+        int has_avx = g_has_avx;
+        if (has_avx < 0)
+        {
+            /* 兜底：异常情况下仍可懒计算一次 */
+            has_avx = cpu_has_avx() ? 1 : 0;
+            g_has_avx = has_avx;
+        }
+        if (has_avx)
+        {
+            return memset_avx(dest, c, count);
+        }
     }
-    return memset_avx(dest, c, count);
+    /* 小块或不支持 AVX 时统一回退到标准 memset（单一调用路径） */
+    return memset(dest, c, count);
 }
 
 /* Get the second level cache size */
@@ -447,13 +463,7 @@ init_hook_data(void)
     #endif
         return false;
     }
-    if (MH_Initialize() != MH_OK)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("MH_Initialize false!!!!\n");
-    #endif
-        return false;
-    }
+    /* 将 MinHook 初始化延后到确需安装钩子时，减少启动开销 */
     if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
     {
         write_file(appdt);
@@ -476,6 +486,13 @@ init_hook_data(void)
     }
     if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
     {
+        if (MH_Initialize() != MH_OK)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("MH_Initialize false!!!!\n");
+        #endif
+            return false;
+        }
         init_portable();
         init_safed();
     }
@@ -607,6 +624,14 @@ do_it(void)
     }
 }
 
+/* Background initialization thread wrapper to avoid heavy work in DllMain */
+static unsigned __stdcall libportable_init_thread(void *param)
+{
+    (void)param;
+    do_it();
+    return 0;
+}
+
 /* This is standard DllMain function. */
 #ifdef __cplusplus
 extern "C" {
@@ -624,7 +649,15 @@ _DllMainCRTStartup(HINSTANCE hModule, DWORD dwReason, LPVOID lpvReserved)
     #ifdef _LOGDEBUG
         init_logs();
     #endif
-        do_it();
+        /* 在加载阶段快速缓存 CPU 能力，避免后续频繁检测 */
+        g_has_avx = cpu_has_avx() ? 1 : 0;
+        /* Schedule initialization outside loader lock to improve startup robustness */
+        {
+            uintptr_t th = _beginthreadex(NULL, 0, &libportable_init_thread, NULL, 0, NULL);
+            if (th != 0) {
+                CloseHandle((HANDLE)th);
+            }
+        }
         break;
     case DLL_PROCESS_DETACH:
         undo_it();
