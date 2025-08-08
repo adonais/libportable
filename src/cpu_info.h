@@ -6,10 +6,6 @@
 #include <stdint.h>
 #include <intrin.h>
 
-#if defined _MSC_VER && _MSC_VER > 1500
-#pragma intrinsic(__cpuid, _xgetbv)
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -5,84 +5,89 @@
 
 static int g_atom = 0;
 
-bool init_bosskey(LPWNDINFO pInfo)
+bool
+init_bosskey(LPWNDINFO pinfo)
 {
-    WCHAR atom[8+1] = {0};
-    if ( !get_moz_hwnd(pInfo) )
+    WCHAR atom[8 + 1] = {0};
+    if (!get_moz_hwnd(pinfo))
     {
         return false;
     }
-    _ui64tow(pInfo->hPid,atom,10);
-    pInfo->atom_str = GlobalAddAtomW(atom)-0xC000;
-    return RegisterHotKey(NULL, pInfo->atom_str, pInfo->key_mod, pInfo->key_vk);
+    _ui64tow(pinfo->hPid, atom, 10);
+    pinfo->atom_str = GlobalAddAtomW(atom) - 0xC000;
+    return RegisterHotKey(NULL, pinfo->atom_str, pinfo->key_mod, pinfo->key_vk);
 }
 
-bool is_mozclass(HWND hwnd)
+bool
+is_mozclass(HWND hwnd)
 {
-    WCHAR m_temp[VALUE_LEN+1] = {0};
-    GetClassNameW(hwnd,m_temp,VALUE_LEN);
-    return ( _wcsnicmp(m_temp,L"MozillaWindowClass",VALUE_LEN) ==0 ||
-             _wcsnicmp(m_temp,L"MozillaDialogClass",VALUE_LEN) ==0 ) ;
+    WCHAR m_temp[VALUE_LEN + 1] = {0};
+    GetClassNameW(hwnd, m_temp, VALUE_LEN);
+    return (_wcsnicmp(m_temp, L"MozillaWindowClass", VALUE_LEN) == 0 ||
+            _wcsnicmp(m_temp, L"MozillaDialogClass", VALUE_LEN) == 0) ;
 }
 
-int CALLBACK find_chwnd(HWND hwnd, LPARAM lParam)
+int CALLBACK
+find_chwnd(HWND hwnd, LPARAM lParam)
 {
-    LPWNDINFO pInfo = (LPWNDINFO)lParam;
+    LPWNDINFO pinfo = (LPWNDINFO)lParam;
     DWORD dwPid = 0;
     GetWindowThreadProcessId(hwnd, &dwPid);
-    if ( (dwPid == pInfo->hPid) && dwPid && IsWindowVisible(hwnd) )
+    if ((dwPid == pinfo->hPid) && dwPid && IsWindowVisible(hwnd))
     {
-        if ( is_mozclass(hwnd) )
+        if (is_mozclass(hwnd))
         {
-            ShowWindow(hwnd,SW_HIDE);
+            ShowWindow(hwnd, SW_HIDE);
         }
     }
-    else if ( (dwPid == pInfo->hPid) && dwPid && !IsWindowVisible(hwnd) )
+    else if ((dwPid == pinfo->hPid) && dwPid && !IsWindowVisible(hwnd))
     {
-        if ( is_mozclass(hwnd) )
+        if (is_mozclass(hwnd))
         {
             SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, 3);
-            ShowWindow(hwnd,SW_SHOW);
-            if ( IsIconic(hwnd) )
+            ShowWindow(hwnd, SW_SHOW);
+            if (IsIconic(hwnd))
             {
-                ShowWindow(hwnd,SW_RESTORE);
+                ShowWindow(hwnd, SW_RESTORE);
             }
         }
     }
     return true;
 }
 
-bool is_modkey(int n)
+bool
+is_modkey(int n)
 {
-    return ( n == MOD_ALT ||
-             n == MOD_CONTROL ||
-             n == MOD_SHIFT ||
-             n == MOD_WIN ) ;
+    return (n == MOD_ALT ||
+            n == MOD_CONTROL ||
+            n == MOD_SHIFT ||
+            n == MOD_WIN) ;
 }
 
-void set_hotkey(LPWNDINFO pInfo)
+void
+set_hotkey(LPWNDINFO pinfo)
 {
     char *lpstr = NULL;
     const char *delim = "+";
     char  tmp_stor[3][16] = { {0,0} };
-    pInfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
-    pInfo->key_vk = 0xc0;           /* ~键  */
-    if (ini_read_string("attach","Hotkey",&lpstr,ini_portable_path, true))
+    pinfo->key_mod = 0x06;          /* CONTROL+SHIFT 键 */
+    pinfo->key_vk = 0xc0;           /* ~键  */
+    if (ini_read_string("attach", "Hotkey", &lpstr, ini_portable_path, true))
     {
         int	i = 0;
         char *p = lpstr;
         int	tmp[3] = {0};
         int	num;
         char *strtmp = strstr(lpstr, delim);
-        while( strtmp != NULL && i < 3 )
+        while(strtmp != NULL && i < 3)
         {
             strtmp[0]='\0';
-            strncpy(tmp_stor[i++],p,15);
+            strncpy(tmp_stor[i++], p, 15);
             p = strtmp + strlen(delim);
             strtmp = strstr(p, delim);
             if (!strtmp)
             {
-                strncpy(tmp_stor[i],p,15);
+                strncpy(tmp_stor[i], p, 15);
             }
         }
         for (num = 0 ; num <= i ; num++)
@@ -91,31 +96,33 @@ void set_hotkey(LPWNDINFO pInfo)
         }
         if (is_modkey(tmp[0]))
         {
-            if ((i==2) && is_modkey(tmp[1]) && !is_modkey(tmp[2]))
+            if ((i == 2) && is_modkey(tmp[1]) && !is_modkey(tmp[2]))
             {
-                pInfo->key_mod = tmp[0]|tmp[1];
-                pInfo->key_vk = tmp[2];
+                pinfo->key_mod = tmp[0]|tmp[1];
+                pinfo->key_vk = tmp[2];
             }
-            else if ( i==1 && tmp[1]>0x2f )
+            else if (i == 1 && tmp[1] > 0x2f )
             {
-                pInfo->key_mod = tmp[0];
-                pInfo->key_vk = tmp[1];
+                pinfo->key_mod = tmp[0];
+                pinfo->key_vk = tmp[1];
             }
         }
     }
 }
 
-void WINAPI uninstall_bosskey(void)
+void WINAPI
+uninstall_bosskey(void)
 {
     if (g_atom)
     {
         UnregisterHotKey(NULL, g_atom);
-        GlobalDeleteAtom(g_atom);
+        GlobalDeleteAtom((ATOM)(g_atom + 0xC000));
         g_atom = 0;
     }
 }
 
-unsigned WINAPI bosskey_thread(void *lparam)
+unsigned WINAPI
+bosskey_thread(void *lparam)
 {
     WNDINFO  ff_info = { 0 };
     ff_info.hPid = GetCurrentProcessId();

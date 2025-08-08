@@ -75,8 +75,8 @@ X86FLAG  = -D_WIN32 -m32
 X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/general.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
-           $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o $(DEP)/on_tabs.o \
-           $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/json_paser.o $(DEP)/ini_parser.o
+           $(DEP)/cpu_avx.o $(DEP)/cpu_avx512.o $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o \
+           $(DEP)/on_tabs.o $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/json_paser.o $(DEP)/ini_parser.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -fvisibility=hidden -DCJSON_HIDE_SYMBOLS -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -169,8 +169,12 @@ $(DEP)/bosskey.o      : $(SRC)/bosskey.c $(SRC)/bosskey.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/new_process.o  : $(SRC)/new_process.c $(SRC)/new_process.h
 	$(CC) -c $< $(CFLAGS) -o $@
-$(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
+$(DEP)/cpu_avx.o      : $(SRC)/cpu_avx.c $(SRC)/cpu_avx.h
 	$(CC) -c $< $(CFLAGS) -mavx -o $@
+$(DEP)/cpu_avx512.o   : $(SRC)/cpu_avx512.c $(SRC)/cpu_avx512.h
+	$(CC) -c $< $(CFLAGS) -mavx512f -o $@
+$(DEP)/cpu_info.o     : $(SRC)/cpu_info.c $(SRC)/cpu_info.h
+	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/balance.o      : $(SRC)/balance.c $(SRC)/balance.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h

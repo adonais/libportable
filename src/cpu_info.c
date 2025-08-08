@@ -1,11 +1,21 @@
 #include "cpu_info.h"
+#include "cpu_avx512.h"
+#include "cpu_avx.h"
 
-#define XMM_STATE (1u << 1)
-#define YMM_STATE (1u << 2)
-#define AVX_STATE (XMM_STATE | YMM_STATE)
+#define XMM_STATE      (1u << 1)
+#define YMM_STATE      (1u << 2)
+#define XCR0_OPMASK    (1u << 5)
+#define XCR0_ZMM_HI256 (1u << 6)
+#define XCR0_HI16_ZMM  (1u << 7)
+#define AVX_STATE      (XMM_STATE | YMM_STATE)
 
 #define UU16(x) ((uint8_t)x | (((uint16_t)(x)&0xff) << 8))
 #define UU32(y) (UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16))
+#define UU64(z) (UU32(z) | (((uint64_t)(UU32(z))&0xffffffff) << 32))
+
+#if defined _MSC_VER && _MSC_VER > 1500
+#pragma intrinsic(__cpuid)
+#endif
 
 typedef enum _cpuid_register
 {
@@ -16,7 +26,7 @@ typedef enum _cpuid_register
 }cpuid_register;
 
 static void*
-memset_less32(void *dst, int a, size_t n)
+memset_less_align(void *dst, int a, size_t n)
 {
     uint8_t *dt = (uint8_t *)dst;
     if (n & 0x01)
@@ -48,6 +58,19 @@ memset_less32(void *dst, int a, size_t n)
         _mm_stream_si32((int *)dt+2, c);
         _mm_stream_si32((int *)dt+3, c);
         dt += 16;
+    }
+    if (n & 0x20)
+    {
+        uint64_t c = UU64(a);
+        _mm_stream_si32((int *)dt+0, c);
+        _mm_stream_si32((int *)dt+1, c);
+        _mm_stream_si32((int *)dt+2, c);
+        _mm_stream_si32((int *)dt+3, c);
+        _mm_stream_si32((int *)dt+4, c);
+        _mm_stream_si32((int *)dt+5, c);
+        _mm_stream_si32((int *)dt+6, c);
+        _mm_stream_si32((int *)dt+7, c);
+        dt += 32;
     }
     return dst;
 }
@@ -91,13 +114,22 @@ cpu_has_avx512f(void)
 {
     if (cpu_has_avx() && has_cpuid_bits(7u, ebx, (1u << 16)))
     {
-        const unsigned XCR0_OPMASK = 1u << 5;
-        const unsigned XCR0_ZMM_HI256 = 1u << 6;
-        const unsigned XCR0_HI16_ZMM = 1u << 7;
-        const unsigned XCRO_STATE = XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM | AVX_STATE;
-        return (_xgetbv(0) & XCRO_STATE) == XCRO_STATE;
+        return xgetbv_mask_as(XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM | AVX_STATE);
     }
     return false;
+}
+
+static void
+memset_avx_as(uint8_t **pdst, int c, size_t *psize, const bool avx512)
+{
+    if (!avx512)
+    {
+        memset_avx256_as(pdst, c, psize);
+    }
+    else
+    {
+        memset_avx512_as(pdst, c, psize);
+    }
 }
 
 bool
@@ -108,7 +140,7 @@ cpu_has_avx(void)
     const unsigned XSAVE = 1u << 26;
     return has_cpuid_bits(1u, ecx, AVX | OSXSAVE | XSAVE) &&
            // ensure the OS supports XSAVE of YMM registers
-           (_xgetbv(0) & AVX_STATE) == AVX_STATE;
+           xgetbv_mask_as(AVX_STATE);
 }
 
 int
@@ -156,36 +188,22 @@ cpu_features(void)
 void*
 memset_avx(void* dst, int c, size_t size)
 {
-    __m256i   vals;
     uint8_t   *buffer = (uint8_t *)dst;
-    const uint8_t non_aligned = (uintptr_t)buffer % 32;
-     /* memory address not 32-byte aligned */
-    if ( non_aligned )
-    {
-        /* fill head */
-        uintptr_t head = 32 - non_aligned;
-        memset_less32(buffer, c, head);
+    const bool avx512 = cpu_has_avx512f();
+    const int align = avx512 ? 64 : 32;
+    const uint8_t non_aligned = (uintptr_t)buffer % align;
+     /* memory address not aligned */
+    if (non_aligned)
+    {   /* fill head */
+        uintptr_t head = align - non_aligned;
+        memset_less_align(buffer, c, head);
         buffer += head;
         size -= head;
     }
-    if ( c )
-    {
-        vals = _mm256_set1_epi8(c);
-    }
-    else
-    {
-        vals = _mm256_setzero_si256();
-    }
-    while (size >= 32)
-    {
-        _mm256_stream_si256((__m256i*)buffer, vals);
-        buffer += 32;
-        size -= 32;
-    }
-    if ( size > 0 )
-    {
-        /* fill tail */
-        memset_less32(buffer, c, size);
+    memset_avx_as(&buffer, c, &size, avx512);
+    if (size > 0)
+    {   /* fill tail */
+        memset_less_align(buffer, c, size);
     }
     return dst;
 }

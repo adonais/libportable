@@ -116,7 +116,7 @@ static UINT FindHookEntry(LPVOID pTarget)
 }
 
 //-------------------------------------------------------------------------
-static PHOOK_ENTRY AddHookEntry()
+static PHOOK_ENTRY AddHookEntry(VOID)
 {
     if (g_hooks.pItems == NULL)
     {
@@ -140,7 +140,7 @@ static PHOOK_ENTRY AddHookEntry()
 }
 
 //-------------------------------------------------------------------------
-static VOID DeleteHookEntry(UINT pos)
+static VOID DeleteHookEntry(const UINT pos)
 {
     if (pos < g_hooks.size - 1)
         g_hooks.pItems[pos] = g_hooks.pItems[g_hooks.size - 1];
@@ -160,7 +160,7 @@ static VOID DeleteHookEntry(UINT pos)
 }
 
 //-------------------------------------------------------------------------
-static DWORD_PTR FindOldIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
+static DWORD_PTR FindOldIP(PHOOK_ENTRY pHook, const DWORD_PTR ip)
 {
     UINT i;
 
@@ -182,7 +182,7 @@ static DWORD_PTR FindOldIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
 }
 
 //-------------------------------------------------------------------------
-static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
+static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, const DWORD_PTR ip)
 {
     UINT i;
     for (i = 0; i < pHook->nIP; ++i)
@@ -194,7 +194,7 @@ static DWORD_PTR FindNewIP(PHOOK_ENTRY pHook, DWORD_PTR ip)
 }
 
 //-------------------------------------------------------------------------
-static VOID ProcessThreadIPs(HANDLE hThread, UINT pos, UINT action)
+static VOID ProcessThreadIPs(HANDLE hThread, UINT pos, const UINT action)
 {
     // If the thread suspended in the overwritten area,
     // move IP to the proper address.
@@ -396,7 +396,7 @@ static bool SnapThreads(PFROZEN_THREADS pThreads)
 }
 
 //-------------------------------------------------------------------------
-static MH_STATUS Freeze(PFROZEN_THREADS pThreads, UINT pos, UINT action)
+static MH_STATUS Freeze(PFROZEN_THREADS pThreads, UINT pos, const UINT action)
 {
     MH_STATUS status = MH_OK;
     pThreads->pItems   = NULL;
@@ -457,7 +457,7 @@ static VOID Unfreeze(PFROZEN_THREADS pThreads)
 }
 
 //-------------------------------------------------------------------------
-static MH_STATUS EnableHookLL(UINT pos, bool enable)
+static MH_STATUS EnableHookLL(const UINT pos, const bool enable)
 {
     PHOOK_ENTRY pHook = &g_hooks.pItems[pos];
     DWORD  oldProtect;
@@ -504,7 +504,7 @@ static MH_STATUS EnableHookLL(UINT pos, bool enable)
 }
 
 //-------------------------------------------------------------------------
-static MH_STATUS EnableAllHooksLL(bool enable)
+static MH_STATUS EnableAllHooksLL(const bool enable)
 {
     MH_STATUS status = MH_OK;
     UINT i, first = INVALID_HOOK_POS;
@@ -766,7 +766,7 @@ MH_STATUS WINAPI MH_RemoveHook(LPVOID pTarget)
 }
 
 //-------------------------------------------------------------------------
-static MH_STATUS EnableHook(LPVOID pTarget, bool enable)
+static MH_STATUS EnableHook(LPVOID pTarget, const bool enable)
 {
     MH_STATUS status = MH_OK;
     EnterSpinLock();
@@ -821,7 +821,7 @@ MH_STATUS WINAPI MH_DisableHook(LPVOID pTarget)
 }
 
 //-------------------------------------------------------------------------
-static MH_STATUS QueueHook(LPVOID pTarget, bool queueEnable)
+static MH_STATUS QueueHook(LPVOID pTarget, const bool queueEnable)
 {
     MH_STATUS status = MH_OK;
     EnterSpinLock();
