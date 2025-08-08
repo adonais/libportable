@@ -17,6 +17,8 @@
 #pragma intrinsic(__cpuid)
 #endif
 
+bool g_has_avx512 = false;
+
 typedef enum _cpuid_register
 {
     eax = 0,
@@ -109,16 +111,6 @@ cpu_has_avx2(void)
     return cpu_has_avx() && has_cpuid_bits(7u, ebx, (1u << 5));
 }
 
-static inline bool
-cpu_has_avx512f(void)
-{
-    if (cpu_has_avx() && has_cpuid_bits(7u, ebx, (1u << 16)))
-    {
-        return xgetbv_mask_as(XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM | AVX_STATE);
-    }
-    return false;
-}
-
 static void
 memset_avx_as(uint8_t **pdst, int c, size_t *psize, const bool avx512)
 {
@@ -133,6 +125,16 @@ memset_avx_as(uint8_t **pdst, int c, size_t *psize, const bool avx512)
 }
 
 bool
+cpu_has_avx512f(const bool mavx)
+{
+    if ((!mavx ? cpu_has_avx() : true) && has_cpuid_bits(7u, ebx, (1u << 16)))
+    {
+        return xgetbv_mask_as(XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM | AVX_STATE);
+    }
+    return false;
+}
+
+bool
 cpu_has_avx(void)
 {
     const unsigned AVX = 1u << 28;
@@ -144,24 +146,10 @@ cpu_has_avx(void)
 }
 
 uint32_t
-cpu_level_l2(void)
-{
-    int regs[4];
-    uint32_t size = 0;
-    __cpuid(regs, 0x80000000u);
-    if (regs[0] >= 0x80000006u)
-    {
-        __cpuid(regs, 0x80000006u);
-        size = (regs[2] >> 16) & 0xffff;
-    }
-    return size * 1024;
-}
-
-uint32_t
 cpu_features(void)
 {
     uint32_t mask = 0;
-    if (cpu_has_avx512f())
+    if (cpu_has_avx512f(false))
     {
         mask |= 0xF8;
     }
@@ -188,9 +176,8 @@ cpu_features(void)
 void*
 memset_avx(void* dst, int c, size_t size)
 {
-    uint8_t   *buffer = (uint8_t *)dst;
-    const bool avx512 = cpu_has_avx512f();
-    const int align = avx512 ? 64 : 32;
+    uint8_t *buffer = (uint8_t *)dst;
+    const int align = g_has_avx512 ? 64 : 32;
     const uint8_t non_aligned = (uintptr_t)buffer % align;
      /* memory address not aligned */
     if (non_aligned)
@@ -200,7 +187,7 @@ memset_avx(void* dst, int c, size_t size)
         buffer += head;
         size -= head;
     }
-    memset_avx_as(&buffer, c, &size, avx512);
+    memset_avx_as(&buffer, c, &size, g_has_avx512);
     if (size > 0)
     {   /* fill tail */
         memset_less_align(buffer, c, size);

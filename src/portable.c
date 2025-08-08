@@ -35,6 +35,7 @@
 #endif
 
 #define _UPDATE L"upcheck.exe "
+#define NONTEMPORAL_16K 0x4000u
 
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 
@@ -62,12 +63,13 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
         PWSTR            *ppszPath);
 
 HMODULE dll_module = NULL;
-static  uintptr_t m_target[EXCLUDE_NUM];
-static  SHGetFolderPathWPtr           sSHGetFolderPathWStub;
-static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub;
-static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub;
-static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub;
-static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub;
+static  bool g_has_avx = false;
+static  uintptr_t m_target[EXCLUDE_NUM] = {0};
+static  SHGetFolderPathWPtr           sSHGetFolderPathWStub = NULL;
+static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub = NULL;
+static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub = NULL;
+static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub = NULL;
+static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub = NULL;
 
 typedef void (*pointer_to_handler)();
 typedef struct _dyn_link_desc
@@ -77,22 +79,21 @@ typedef struct _dyn_link_desc
     pointer_to_handler* original;
 }dyn_link_desc;
 
+uint32_t
+GetNonTemporalDataSizeMin_tt(void)
+{
+    return NONTEMPORAL_16K;
+}
+
 /* AVX memset with non-temporal instructions */
 void * __cdecl
-memset_nontemporal_tt (void *dest, int c, size_t count)
+memset_nontemporal_tt(void *dest, int c, size_t count)
 {
-    if (!cpu_has_avx())
+    if (!g_has_avx || count < (size_t)NONTEMPORAL_16K)
     {
         return memset(dest, c, count);
     }
     return memset_avx(dest, c, count);
-}
-
-/* Get the second level cache size */
-uint32_t
-GetNonTemporalDataSizeMin_tt(void)
-{
-    return cpu_level_l2();
 }
 
 uint32_t
@@ -110,9 +111,9 @@ GetAppDirHash_tt(void)
 bool
 creator_hook(void *target, void *func, void **original)
 {
-    if ( NULL != target && MH_CreateHook(target, func, original) == MH_OK )
+    if (NULL != target && MH_CreateHook(target, func, original) == MH_OK)
     {
-        return ( MH_EnableHook(target) == MH_OK );
+        return (MH_EnableHook(target) == MH_OK);
     }
     return false;
 }
@@ -120,7 +121,7 @@ creator_hook(void *target, void *func, void **original)
 bool
 remove_hook(void **target)
 {
-    if ( NULL != target && MH_RemoveHook(*target) == MH_OK )
+    if (NULL != target && MH_RemoveHook(*target) == MH_OK)
     {
         *target = NULL;
         return true;
@@ -335,11 +336,11 @@ init_portable(void)
     }
     if (!m_target[0])
     {
-        for (i = 0 ; i<func_num; i++)
+        for (i = 0 ; i < func_num; i++)
         {
             m_target[i] = (uintptr_t)GetProcAddress(h_shell32, api_tables[i].name);
         }
-        for (i = 0 ; m_target[i]!=0&&i<func_num; i++)
+        for (i = 0 ; m_target[i] != 0 && i < func_num; i++)
         {
             creator_hook((void*)m_target[i], api_tables[i].hook, (void **)api_tables[i].original);
         }
@@ -594,6 +595,10 @@ child_proces_if(void)
 void WINAPI
 do_it(void)
 {
+    if ((g_has_avx = cpu_has_avx()))
+    {
+        g_has_avx512 = cpu_has_avx512f(true);
+    }
     if (!child_proces_if())
     {
         if (!init_hook_data())
