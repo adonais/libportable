@@ -10,10 +10,10 @@
 extern "C" {
 #endif
 
-extern void* memset_avx(void *, int, size_t);
 extern uint32_t cpu_features(void);
+extern uint32_t cpu_level_l2(void);
 extern bool cpu_has_avx(void);
-extern int cpu_level_l2(void);
+extern void *memset_avx(void *, int, size_t);
 
 #ifdef __cplusplus
 }

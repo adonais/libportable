@@ -88,24 +88,17 @@ memset_nontemporal_tt (void *dest, int c, size_t count)
     return memset_avx(dest, c, count);
 }
 
-uint32_t
-x86_cpu_features(void)
-{
-    return cpu_features();
-}
-
 /* Get the second level cache size */
 uint32_t
 GetNonTemporalDataSizeMin_tt(void)
 {
-    return cpu_has_avx() ? cpu_level_l2() : 0;
+    return cpu_level_l2();
 }
 
-/* Never used,to be compatible with tete's patch */
-int
+uint32_t
 GetCpuFeature_tt(void)
 {
-    return 0;
+    return cpu_features();
 }
 
 intptr_t

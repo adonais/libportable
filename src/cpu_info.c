@@ -143,11 +143,11 @@ cpu_has_avx(void)
            xgetbv_mask_as(AVX_STATE);
 }
 
-int
+uint32_t
 cpu_level_l2(void)
 {
     int regs[4];
-    int size = 0;
+    uint32_t size = 0;
     __cpuid(regs, 0x80000000u);
     if (regs[0] >= 0x80000006u)
     {
