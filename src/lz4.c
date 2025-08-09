@@ -186,6 +186,7 @@
 # define LZ4_ALIGN_TEST 1
 #endif
 
+extern void * __cdecl memset_nontemporal_tt(void *dest, int c, size_t count);
 
 /*-************************************
 *  Memory routines
@@ -231,7 +232,7 @@ void  LZ4_free(void* p);
 #  include <string.h>   /* memset, memcpy */
 #endif
 #if !defined(LZ4_memset)
-#  define LZ4_memset(p,v,s) memset((p),(v),(s))
+#  define LZ4_memset(p,v,s) memset_nontemporal_tt((p),(v),(s))
 #endif
 #define MEM_INIT(p,v,s)   LZ4_memset((p),(v),(s))
 

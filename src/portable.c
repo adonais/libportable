@@ -63,13 +63,17 @@ typedef HRESULT (WINAPI *SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
         PWSTR            *ppszPath);
 
 HMODULE dll_module = NULL;
-static  bool g_has_avx = false;
-static  uintptr_t m_target[EXCLUDE_NUM] = {0};
-static  SHGetFolderPathWPtr           sSHGetFolderPathWStub = NULL;
+
 static  SHGetSpecialFolderLocationPtr sSHGetSpecialFolderLocationStub = NULL;
 static  SHGetSpecialFolderPathWPtr    sSHGetSpecialFolderPathWStub = NULL;
 static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub = NULL;
 static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub = NULL;
+static  SHGetFolderPathWPtr           sSHGetFolderPathWStub = NULL;
+static  uintptr_t                     m_target[EXCLUDE_NUM] = {0};
+static  bool                          g_has_avx = false;
+
+typedef void *(__cdecl *memset_ptr)(void *dest, int c, size_t count);
+static  memset_ptr stub_memset = NULL;
 
 typedef void (*pointer_to_handler)();
 typedef struct _dyn_link_desc
@@ -91,7 +95,7 @@ memset_nontemporal_tt(void *dest, int c, size_t count)
 {
     if (!g_has_avx || count < (size_t)NONTEMPORAL_16K)
     {
-        return memset(dest, c, count);
+        return (stub_memset ? stub_memset(dest, c, count) : memset(dest, c, count));
     }
     return memset_avx(dest, c, count);
 }
@@ -133,7 +137,7 @@ HRESULT WINAPI
 HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
 {
     int folder = nFolder & 0xff;
-    if ( CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder )
+    if (CSIDL_APPDATA == folder || CSIDL_LOCAL_APPDATA == folder)
     {
         LPITEMIDLIST pidlnew = NULL;
         HRESULT result = E_FAIL;
@@ -146,7 +150,7 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
                 {
                     return result;
                 }
-                if ( appdata_path[0] != L'\0' )
+                if (appdata_path[0] != L'\0')
                 {
                     result = SHILCreateFromPath(appdata_path, &pidlnew, NULL);
                 }
@@ -159,14 +163,16 @@ HookSHGetSpecialFolderLocation(HWND hwndOwner, int nFolder, LPITEMIDLIST *ppidl)
                 {
                     break;
                 }
-                if ( localdt_path[0] != L'\0' && wcreate_dir(localdt_path) )
+                if (localdt_path[0] != L'\0' && wcreate_dir(localdt_path))
                 {
                     result = SHILCreateFromPath(localdt_path, &pidlnew, NULL);
                 }
                 break;
             }
             default:
+            {
                 break;
+            }
         }
         if (result == S_OK)
         {
@@ -190,9 +196,9 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
     GetModuleFileNameW(dll_module, dllname, VALUE_LEN);
 #endif
     dwCaller = (uintptr_t)_ReturnAddress();
-    dwFf = is_specialdll(dwCaller, L"*\\xul.dll")                 ||
+    dwFf = is_specialdll(dwCaller, L"*\\xul.dll")  ||
         #ifndef LIBPORTABLE_STATIC
-           is_specialdll(dwCaller, dllname)                       ||
+           is_specialdll(dwCaller, dllname)        ||
         #endif
            is_flash_plugins(dwCaller);
     if ( !dwFf )
@@ -231,9 +237,10 @@ HookSHGetFolderPathW(HWND hwndOwner,int nFolder,HANDLE hToken,
             break;
         }
         default:
+        {
             break;
+        }
     }
-
     if (S_OK != ret)
     {
         ret = sSHGetFolderPathWStub(hwndOwner, nFolder, hToken, dwFlags, pszPath);
@@ -262,11 +269,11 @@ HookSHGetSpecialFolderPathW(HWND hwndOwner,LPWSTR lpszPath,int csidl,bool fCreat
 HRESULT WINAPI
 HookSHGetKnownFolderIDList(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PIDLIST_ABSOLUTE *ppidl)
 {
-    if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
+    if (IsEqualGUID(rfid, &FOLDERID_RoamingAppData))
     {
         return HookSHGetSpecialFolderLocation(NULL, CSIDL_APPDATA, ppidl);
     }
-    else if ( IsEqualGUID(rfid, &FOLDERID_LocalAppData) )
+    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData))
     {
         return HookSHGetSpecialFolderLocation(NULL, CSIDL_LOCAL_APPDATA, ppidl);
     }
@@ -277,7 +284,7 @@ HRESULT WINAPI
 HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR *ppszPath)
 {
     *ppszPath = NULL;
-    if ( IsEqualGUID(rfid, &FOLDERID_RoamingAppData) )
+    if (IsEqualGUID(rfid, &FOLDERID_RoamingAppData))
     {
         WCHAR appdata_path[MAX_PATH+1] = {0};
         if (!get_appdt_path(appdata_path, MAX_PATH))
@@ -296,7 +303,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
-    else if ( IsEqualGUID(rfid, &FOLDERID_LocalAppData) )
+    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData))
     {
         WCHAR localdt_path[MAX_PATH+1] = {0};
         if (!get_localdt_path(localdt_path, MAX_PATH))
@@ -320,7 +327,7 @@ init_portable(void)
 {
 #define DLD(s,h) {#s, (void*)(Hook##s), (pointer_to_handler*)(void*)(&h)}
     int i;
-    HMODULE h_shell32;
+    HMODULE shell32;
     const dyn_link_desc api_tables[] =
     {
           DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
@@ -330,7 +337,7 @@ init_portable(void)
         , DLD(SHGetKnownFolderPath, sSHGetKnownFolderPathStub)
     };
     int func_num = sizeof(api_tables)/sizeof(api_tables[0]);
-    if ((h_shell32 = GetModuleHandleW(L"shell32.dll")) == NULL)
+    if ((shell32 = GetModuleHandleW(L"shell32.dll")) == NULL)
     {
         return;
     }
@@ -338,7 +345,7 @@ init_portable(void)
     {
         for (i = 0 ; i < func_num; i++)
         {
-            m_target[i] = (uintptr_t)GetProcAddress(h_shell32, api_tables[i].name);
+            m_target[i] = (uintptr_t)GetProcAddress(shell32, api_tables[i].name);
         }
         for (i = 0 ; m_target[i] != 0 && i < func_num; i++)
         {
@@ -346,6 +353,25 @@ init_portable(void)
         }
     }
 #undef DLD
+}
+
+static void
+init_crt_hook(void)
+{
+    if (_wgetenv(L"MOZ_CRT_HOOK"))
+    {
+        HMODULE hcrt = NULL;
+        memset_ptr fn_memset = NULL;
+        if ((hcrt = GetModuleHandleW(L"vcruntime140.dll")) && (fn_memset = (memset_ptr)GetProcAddress(hcrt , "memset")) != NULL)
+        {
+            if (creator_hook(fn_memset, memset_nontemporal_tt, (LPVOID*)&stub_memset))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("we hook memset\n");
+            #endif
+            }
+        }
+    }
 }
 
 static bool
@@ -478,6 +504,7 @@ init_hook_data(void)
     if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
     {
         init_portable();
+        init_crt_hook();
         init_safed();
     }
     if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||

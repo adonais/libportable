@@ -1075,7 +1075,7 @@ ini_foreach_entry(node **pphead, const char *sec, char (*lpdata)[LEN_STRINGS], i
         }
         if (i < line)
         {
-            memset(lpdata[i], 0, sizeof(lpdata[i]));
+            fzero(lpdata[i], sizeof(lpdata[i]));
         }
         res = true;
     }
@@ -1396,7 +1396,7 @@ replace_insert(node **pnode, const char *in, const char *sub, const char *by)
     }
     while ((needle = strstr(in_ptr, sub)) != NULL)
     {
-        memset(res, 0, in_size);
+        fzero(res, in_size);
         if (needle - in_ptr > 0)
         {
             strncpy(res, in_ptr, needle - in_ptr);

@@ -44,6 +44,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include <float.h>
+#include <intrin.h>
 
 #ifdef ENABLE_LOCALES
 #include <locale.h>
@@ -84,6 +85,8 @@
 #define NAN 0.0/0.0
 #endif
 #endif
+
+extern void * __cdecl memset_nontemporal_tt(void *dest, int c, size_t count);
 
 typedef struct {
     const unsigned char *json;
@@ -243,7 +246,7 @@ static cJSON *cJSON_New_Item(const internal_hooks * const hooks)
     cJSON* node = (cJSON*)hooks->allocate(sizeof(cJSON));
     if (node)
     {
-        memset(node, '\0', sizeof(cJSON));
+        memset_nontemporal_tt(node, 0, sizeof(cJSON));
     }
 
     return node;
@@ -1199,7 +1202,7 @@ static unsigned char *print(const cJSON * const item, cJSON_bool format, const i
     printbuffer buffer[1];
     unsigned char *printed = NULL;
 
-    memset(buffer, 0, sizeof(buffer));
+    memset_nontemporal_tt(buffer, 0, sizeof(buffer));
 
     /* create buffer */
     buffer->buffer = (unsigned char*) hooks->allocate(default_buffer_size);

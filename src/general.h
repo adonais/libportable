@@ -16,7 +16,7 @@
 #define   LOCK_SPIN_COUNT 1500
 #define   SIZE_OF_NT_SIGNATURE  sizeof (DWORD)
 #define   NAMES_LEN             64
-#define   goodHandle(m_handle) ( (m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE) )
+#define   goodHandle(m_handle) ((m_handle != NULL) && (m_handle != INVALID_HANDLE_VALUE))
 
 #if defined(__GNUC__)
 #define LIB_INLINE inline __attribute__((__gnu_inline__))
@@ -30,7 +30,7 @@
 #define ALIGNED32 __declspec(align(32))
 #endif
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1600)
+#if defined(_MSC_VER) && (_MSC_VER >= 1500)
 #pragma intrinsic(_InterlockedCompareExchange, _InterlockedExchange, \
                   __stosb, _ReturnAddress, strlen, wcslen, \
                   wcscmp, memcpy, memset)
@@ -46,9 +46,11 @@ void __nop(void)
 #error Unsupported compiler
 #endif
 
-#define fzero(b,len)  (memset((LPBYTE)(b), '\0', (len)))
-extern LIB_INLINE bool is_wow64() {int wow64=0; return \
-       IsWow64Process(GetCurrentProcess(),&wow64)?(wow64==1?true:false):false;}
+#define fzero(b, len) (__stosb((LPBYTE)(b), '\0', (len)))
+
+extern LIB_INLINE bool is_wow64() { \
+       int wow64 = 0; return IsWow64Process(GetCurrentProcess(), &wow64) ? (wow64 == 1 ? true : false) : false; \
+}
 
 typedef HMODULE (WINAPI *LoadLibraryExPtr)(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags);
 typedef struct tagWNDINFO

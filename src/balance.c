@@ -98,7 +98,7 @@ set_cpu_balance(void *lparam)
     int     m_cpu = 0;
     LARGE_INTEGER m_duetime;
     int value = ini_read_int("attach", "CpuUse", ini_portable_path, true);
-    memset(&m_windows, 0, sizeof(WNDINFO));
+    fzero(&m_windows, sizeof(WNDINFO));
     m_windows.hPid = GetCurrentProcessId();
     if (!get_moz_hwnd(&m_windows))
     {

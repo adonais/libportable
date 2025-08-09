@@ -12,6 +12,10 @@
 #include "hde64.h"
 #include "table64.h"
 
+#if defined(_MSC_VER) && (_MSC_VER >= 1500)
+#pragma intrinsic(__stosb)
+#endif
+
 unsigned int hde64_disasm(const void *code, hde64s *hs)
 {
     uint8_t c = 0;
@@ -19,7 +23,7 @@ unsigned int hde64_disasm(const void *code, hde64s *hs)
     uint8_t *ht = hde64_table, m_mod, m_reg, m_rm, disp_size = 0;
     uint8_t op64 = 0;
 
-    memset(hs, 0, sizeof(hde64s));
+    __stosb((unsigned char *)hs, 0, sizeof(hde64s));
 
     for (x = 16; x; x--)
         switch (c = *p++) {

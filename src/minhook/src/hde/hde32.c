@@ -12,13 +12,17 @@
 #include "hde32.h"
 #include "table32.h"
 
+#if defined(_MSC_VER) && (_MSC_VER >= 1500)
+#pragma intrinsic(__stosb)
+#endif
+
 unsigned int hde32_disasm(const void *code, hde32s *hs)
 {
     uint8_t c = 0;
     uint8_t x, *p = (uint8_t *)code, cflags, opcode, pref = 0;
     uint8_t *ht = hde32_table, m_mod, m_reg, m_rm, disp_size = 0;
 
-    memset(hs, 0, sizeof(hde32s));
+    __stosb((unsigned char *)hs, 0, sizeof(hde32s));
 
     for (x = 16; x; x--)
         switch (c = *p++) {

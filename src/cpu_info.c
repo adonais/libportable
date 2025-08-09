@@ -13,6 +13,8 @@
 #define UU32(y) (UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16))
 #define UU64(z) (UU32(z) | (((uint64_t)(UU32(z))&0xffffffff) << 32))
 
+#define ALIGN_DOWN(_s, _a) (((_a) - (size_t)_s & ((_a) - 1)) & ((_a) - 1))
+
 #if defined _MSC_VER && _MSC_VER > 1500
 #pragma intrinsic(__cpuid)
 #endif
@@ -178,11 +180,9 @@ memset_avx(void* dst, int c, size_t size)
 {
     uint8_t *buffer = (uint8_t *)dst;
     const int align = g_has_avx512 ? 64 : 32;
-    const uint8_t non_aligned = (uintptr_t)buffer % align;
-     /* memory address not aligned */
-    if (non_aligned)
-    {   /* fill head */
-        uintptr_t head = align - non_aligned;
+    size_t head = ALIGN_DOWN(buffer, align);
+    if (head > 0)
+    {   /* memory address not aligned, fill head */
         memset_less_align(buffer, c, head);
         buffer += head;
         size -= head;
