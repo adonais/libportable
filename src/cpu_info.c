@@ -65,7 +65,14 @@ memset_less_align(void *dst, int a, size_t n)
     }
     if (n & 0x20)
     {
+    #if defined(_M_X64) || defined(__x86_64__)
         uint64_t c = UU64(a);
+        _mm_stream_si64((int64_t *)dt+0, c);
+        _mm_stream_si64((int64_t *)dt+1, c);
+        _mm_stream_si64((int64_t *)dt+2, c);
+        _mm_stream_si64((int64_t *)dt+3, c);
+    #elif defined(_M_IX86) || defined(__i386__)
+        uint32_t c = UU32(a);
         _mm_stream_si32((int *)dt+0, c);
         _mm_stream_si32((int *)dt+1, c);
         _mm_stream_si32((int *)dt+2, c);
@@ -74,6 +81,9 @@ memset_less_align(void *dst, int a, size_t n)
         _mm_stream_si32((int *)dt+5, c);
         _mm_stream_si32((int *)dt+6, c);
         _mm_stream_si32((int *)dt+7, c);
+    #else
+        #error Unsupported compilers
+    #endif
         dt += 32;
     }
     return dst;
