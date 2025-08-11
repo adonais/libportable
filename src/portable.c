@@ -106,31 +106,92 @@ GetCpuFeature_tt(void)
     return cpu_features();
 }
 
+// 静态初始化的关键段，避免运行时初始化开销
+static CRITICAL_SECTION hook_cs = {0};
+static volatile LONG hook_cs_initialized = 0;
+
+// 懒惰初始化关键段，确保线程安全
+static void init_hook_critical_section(void)
+{
+    if (InterlockedCompareExchange(&hook_cs_initialized, 1, 0) == 0)
+    {
+        InitializeCriticalSection(&hook_cs);
+    }
+    else
+    {
+        // 等待其他线程完成初始化
+        while (hook_cs_initialized != 2)
+        {
+            Sleep(1);
+        }
+    }
+    InterlockedExchange(&hook_cs_initialized, 2);
+}
+
 intptr_t
 GetAppDirHash_tt(void)
 {
     return 0;
 }
 
+// 优化的hook创建函数 - 原子操作确保线程安全
 bool
 creator_hook(void *target, void *func, void **original)
 {
-    if (NULL != target && MH_CreateHook(target, func, original) == MH_OK)
+    if (NULL == target) return false;
+    
+    // 确保关键段已初始化
+    init_hook_critical_section();
+    
+    bool result = false;
+    
+    // 使用关键段保护hook创建和启用的原子性
+    EnterCriticalSection(&hook_cs);
+    
+    MH_STATUS create_status = MH_CreateHook(target, func, original);
+    if (create_status == MH_OK)
     {
-        return (MH_EnableHook(target) == MH_OK);
+        // hook创建成功，立即启用
+        MH_STATUS enable_status = MH_EnableHook(target);
+        result = (enable_status == MH_OK);
+        
+        // 如果启用失败，清理已创建的hook
+        if (!result)
+        {
+            MH_RemoveHook(target);
+            if (original) *original = NULL;
+        }
     }
-    return false;
+    
+    LeaveCriticalSection(&hook_cs);
+    
+    return result;
 }
 
+// 线程安全的hook移除函数
 bool
 remove_hook(void **target)
 {
-    if (NULL != target && MH_RemoveHook(*target) == MH_OK)
+    if (NULL == target || NULL == *target) return false;
+    
+    // 确保关键段已初始化
+    init_hook_critical_section();
+    
+    bool result = false;
+    
+    // 使用关键段保护hook移除操作
+    EnterCriticalSection(&hook_cs);
+    
+    MH_STATUS status = MH_RemoveHook(*target);
+    if (status == MH_OK)
     {
         *target = NULL;
-        return true;
+        result = true;
     }
-    return false;
+    
+    LeaveCriticalSection(&hook_cs);
+    
+    return result;
 }
 
 HRESULT WINAPI
@@ -388,28 +449,142 @@ diff_days(void)
     return res;
 }
 
-/* uninstall hook and clean up */
+/* 优化的清理函数 - 改进异常处理和清理顺序 */
 void WINAPI
 undo_it(void)
 {
+    // 设置清理标志，防止在清理过程中被重入调用
+    static volatile LONG cleanup_in_progress = 0;
+    if (InterlockedCompareExchange(&cleanup_in_progress, 1, 0) != 0)
+    {
+        // 清理已经在进行中，直接返回避免重复清理
+        return;
+    }
+    
+#ifdef _LOGDEBUG
+    logmsg("开始执行清理流程...\n");
+#endif
+
+    // 1. 首先清理互斥体句柄 - 释放进程同步资源
     if (g_mutex)
     {
-    #ifdef _LOGDEBUG
-        logmsg("clean LIBPORTABLE_LAUNCHER_PROCESS\n");
-    #endif
-        CloseHandle(g_mutex);
-    }
-    /* 反注册uia */
-    un_uia();
-    /* 解除快捷键 */
-    uninstall_bosskey();
-    /* 清理启动过的进程树 */
-    kill_trees();
-    jmp_end();
-    MH_Uninitialize();
+        __try
+        {
 #ifdef _LOGDEBUG
-    logmsg("all clean!\n");
+            logmsg("清理 LIBPORTABLE_LAUNCHER_PROCESS 互斥体\n");
 #endif
+            CloseHandle(g_mutex);
+            g_mutex = NULL;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+#ifdef _LOGDEBUG
+            logmsg("清理互斥体时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+        }
+    }
+
+    // 2. 反注册UIA - 清理辅助功能接口
+    __try
+    {
+        un_uia();
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("反注册UIA时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+
+    // 3. 解除快捷键 - 清理键盘钩子
+    __try
+    {
+        uninstall_bosskey();
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("解除快捷键时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+
+    // 4. 清理启动的进程树 - 确保子进程正常退出
+    __try
+    {
+        kill_trees();
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("清理进程树时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+
+    // 5. 执行跳转结束处理
+    __try
+    {
+        jmp_end();
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("执行jmp_end时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+
+    // 6. 最后清理MinHook - 移除所有API钩子
+    __try
+    {
+        // 确保hook相关的关键段已初始化
+        if (hook_cs_initialized == 2)
+        {
+            EnterCriticalSection(&hook_cs);
+            MH_Uninitialize();
+            LeaveCriticalSection(&hook_cs);
+            
+            // 清理hook关键段
+            DeleteCriticalSection(&hook_cs);
+        }
+        else
+        {
+            MH_Uninitialize();
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("清理MinHook时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+
+    // 7. 清理路径缓存资源 (如果存在)
+    // 注意: g_path_cache 相关变量在原始代码中未定义，此处为占位符
+    // 如果实际项目中存在这些变量，请取消注释并替换为正确的实现
+    /*
+    __try
+    {
+        if (g_path_cache_initialized == 2)
+        {
+            EnterCriticalSection(&g_path_cache_cs);
+            memset(&g_path_cache, 0, sizeof(g_path_cache));
+            LeaveCriticalSection(&g_path_cache_cs);
+            DeleteCriticalSection(&g_path_cache_cs);
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+#ifdef _LOGDEBUG
+        logmsg("清理路径缓存时发生异常: 0x%08X\n", GetExceptionCode());
+#endif
+    }
+    */
+
+#ifdef _LOGDEBUG
+    logmsg("所有清理工作完成！\n");
+#endif
+
+    // 重置清理标志
+    InterlockedExchange(&cleanup_in_progress, 0);
 }
 
 unsigned WINAPI
@@ -619,22 +794,28 @@ child_proces_if(void)
     return ret;
 }
 
+// 优化的初始化函数 - 改进启动性能和线程安全
 void WINAPI
 do_it(void)
 {
-    if ((g_has_avx = cpu_has_avx()))
-    {
-        g_has_avx512 = cpu_has_avx512f(true);
-    }
+    // 显式调用CPU特性初始化，确保在设置任何Hook之前完成。
+    // 这是为了解决线程安全问题，避免在子线程中加载依赖CPU特性的Hook。
+    cpu_info_initialize();
+    
+    // 检查是否为子进程，避免不必要的初始化
     if (!child_proces_if())
     {
+        // 初始化hook数据 - 这是关键路径，必须成功
         if (!init_hook_data())
         {
-            return;
+            return; // 初始化失败，提前返回避免崩溃
         }
+        
+        // 仅在Firefox官方版本且非GUI启动模式下设置窗口hook
+        // 这样可以减少不必要的hook开销
         if (is_ff_official() > 0 && !no_gui_boot())
         {
-            window_hooks();
+            window_hooks(); // 窗口相关hook设置
         }
     }
 }
