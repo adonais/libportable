@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <shlwapi.h>
 #include <windows.h>
 #include <intrin.h>
@@ -153,7 +154,7 @@ static inline int api_fprintf(HANDLE fp, const char *s, ...)
 
 static inline void api_fclose(HANDLE f)
 {
-    CloseHandle(f);
+    if (0 < (intptr_t)f) CloseHandle(f);
 }
 
 static inline HANDLE api_wfopen(const WCHAR *path, const WCHAR *attrs)
@@ -181,6 +182,18 @@ static inline size_t api_fread(void *buffer, size_t size, size_t count, HANDLE h
         return bw / size;
     }
     return (0);
+}
+
+static inline int64_t api_fseek(HANDLE f, int64_t offset, DWORD origin)
+{
+    LARGE_INTEGER li;
+    li.QuadPart = offset;
+    li.LowPart = SetFilePointer(f, li.LowPart, &li.HighPart, origin);
+    if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR)
+    {
+        li.QuadPart = -1;
+    }
+    return li.QuadPart;
 }
 
 static inline char *api_strncpy(char *dest, const char *src, size_t n)
