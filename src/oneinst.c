@@ -9,6 +9,7 @@
 #include "MinHook.h"
 
 #define SECTOR_SIZE 2048
+#define TAG_7Z    "\x37\x7A\xBC\xAF\x27\x1C"
 #define DVD_17G   0x440000000
 #define PL_STR    (L"--playlist=\"%s\"")
 #define BD_STR    (L"bd:// --bluray-device=\"%s\"")
@@ -208,6 +209,32 @@ mp_check_bdmv(const wchar_t *path)
     }
     api_fclose(f);
     return iso_bd;
+}
+
+static bool
+detect_type_7z(const wchar_t *path)
+{
+    HANDLE f = NULL;
+    bool ret = false;
+    if (path && path[0] && (f = api_wfopen(path, L"rb")) != NULL)
+    {
+        unsigned char header[6];
+        if (api_fread(header, 1, sizeof(header), f) == sizeof(header))
+        {
+            if (api_memcmp(header, TAG_7Z, 6) == 0)
+            {
+                ret = true;
+            }
+        }
+        api_fclose(f);
+    }
+    return ret;
+}
+
+static bool
+mp_fake_7z(const wchar_t *path)
+{
+    return (!detect_type_7z(path) && mp_check_bdmv(path));
 }
 
 // 转换直接在in内进行, 所以in_size要能容纳替换后的内容, in_size为数组长度
@@ -486,7 +513,8 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                     {
                         list_path = szlist[i];
                     }
-                    else if ((p = api_wcsrchr(szlist[i], L'.')) != NULL && api_wcsicmp(p, L".iso") == 0)
+                    else if ((p = api_wcsrchr(szlist[i], L'.')) != NULL && (api_wcsicmp(p, L".iso") == 0 || 
+                            (api_wcsicmp(p, L".7z") == 0 && mp_fake_7z(szlist[i]))))
                     {
                         iso_path = (const WCHAR *)szlist[i];
                     }
@@ -652,4 +680,3 @@ uninit_crthook(void)
         MH_DisableHook((LPVOID)pCommandLineToArgvW);
     }
 }
-
