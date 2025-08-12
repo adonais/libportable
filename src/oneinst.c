@@ -8,8 +8,8 @@
 #include "internal_crt.h"
 #include "MinHook.h"
 
-#define BUFF_8M  1024 * 1024 * 8
-#define DVD_MAXIMUM 8000000000
+#define SECTOR_SIZE 2048
+#define DVD_17G   0x440000000
 #define PL_STR    (L"--playlist=\"%s\"")
 #define BD_STR    (L"bd:// --bluray-device=\"%s\"")
 #define IPC_STR   (L" --input-ipc-server=libumpv")
@@ -28,6 +28,26 @@ extern WCHAR ini_path[MAX_PATH+1];
 // 字符数组赋初值时gcc自动调用memset优化,
 // 但我们不链接crt, 导致链接器找不到memeset, 这里实现memeset骗过链接器
 // extern void *memset(void *dst, int val, SIZE_T size){return NULL;}
+
+static int
+mp_argument_cmp(LPCWSTR s1, LPCWSTR s2)
+{
+    WCHAR *p = (WCHAR *)s1;
+    size_t n = s1 != NULL && s2 != NULL ? api_wcslen(s2) : 0;
+    if (!n || api_wcslen(s1) < 2 || s1[0] != L'-')
+    {
+        return -1;
+    }
+    if (s1[1] == L'-')
+    {
+        p += 2;
+    }
+    else
+    {
+        ++p;
+    }
+    return api_wcsncmp(p, s2, n);
+}
 
 static bool
 mp_exist_file(LPCWSTR path)
@@ -57,16 +77,22 @@ mp_exist_protocols(LPCWSTR purl)
 }
 
 static inline bool
+mp_file_rlt(LPCWSTR purl)
+{
+    return (api_wcslen(purl) > 7 && api_wcsncmp(purl, L"file://", 7) == 0 && purl[7] != L'/');
+}
+
+static inline bool
 mp_exist_listplay(LPCWSTR purl)
 {
-    return (purl && api_wcsncmp(purl, L"--playlist", 10) == 0);
+    return (purl && mp_argument_cmp(purl, L"playlist") == 0);
 }
 
 static bool
 mp_exist_listfile(LPCWSTR purl)
 {
     const WCHAR *sep = NULL;
-    const WCHAR *exts[] = {L".m3u", L".m3u8", L".ini", L".pls", L".txt", NULL};
+    const WCHAR *exts[] = {L".ini", L".pls", L".txt", NULL};
     if ((sep = api_wcsrchr(purl, L'.')) != NULL)
     {
         for (int n = 0; exts[n]; n++)
@@ -113,29 +139,74 @@ get_file_size(const HANDLE hfile)
 }
 
 static bool
+detect_media_dvd(const HANDLE fp, bool *udf)
+{
+    // DVD主描述符, 16扇区
+    const int dvd_primary_sector = 16;
+    unsigned char dvd_header[6];
+    api_fseek(fp, dvd_primary_sector * SECTOR_SIZE, 0);
+    if (api_fread(dvd_header, 1, sizeof(dvd_header), fp) == sizeof(dvd_header))
+    {
+        // 是否udf格式
+        if (dvd_header[0] == 0x0 && api_memcmp(dvd_header + 1, "BEA01", 5) == 0)
+        {
+            *udf = true;
+        }
+        // DVD标识: 首字节为0x01且后续5字节为"CD001"
+        else if (dvd_header[0] == 0x01 && api_memcmp(dvd_header + 1, "CD001", 5) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+detect_media_utf2(const HANDLE fp)
+{
+    // (位置: 17扇区)
+    const int sector = 17;
+    unsigned char vudf[6];
+    api_fseek(fp, sector * SECTOR_SIZE, 0);
+    if (api_fread(vudf, 1, sizeof(vudf), fp) == sizeof(vudf))
+    {
+        // NSR03, udf 2.x 版本
+        if (vudf[0] == 0x0 && api_memcmp(vudf + 1, "NSR03", 5) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
 mp_check_bdmv(const wchar_t *path)
 {
-    HANDLE temp = NULL;
+    HANDLE f = NULL;
     bool iso_bd = false;
-    if (path && path[0] && (temp = api_wfopen(path, L"rb")) != NULL)
+    while (path && path[0] && (f = api_wfopen(path, L"rb")) != NULL)
     {
-        char *buff = NULL;
-        if (get_file_size(temp) > (UINT64)DVD_MAXIMUM && (buff = (char *)api_malloc(BUFF_8M)) != NULL)
-        {
-            SIZE_T dw_read = 0;
-            const char *bd_tag = "MovieObject.bdmv";
-            while ((dw_read = api_fread(buff, 1, BUFF_8M, temp)) > 0)
-            {
-                if (mp_memstr(buff, BUFF_8M, bd_tag) != NULL)
-                {
-                    iso_bd = true;
-                    break;
-                }
-            }
-            api_free(buff);
+        bool udf = false;
+        UINT64 s = get_file_size(f);
+        if (s <= 256 * SECTOR_SIZE + 16)
+        {   // 过小, 不是蓝光
+            break;
         }
-        api_fclose(temp);
+        if (detect_media_dvd(f, &udf))
+        {
+            break;
+        }
+        if (s > (UINT64)DVD_17G)
+        {
+            iso_bd = true;
+        }
+        else if (udf && detect_media_utf2(f))
+        {
+            iso_bd = true;
+        }
+        break;
     }
+    api_fclose(f);
     return iso_bd;
 }
 
@@ -192,11 +263,13 @@ mp_write_ipc(const HANDLE hpipe, LPWSTR pfile)
     DWORD dw;
     char data[MAX_BUFFER];
     WCHAR pbuf[MAX_BUFFER];
-    if (api_wcslen(pfile) > 1 && pfile[1] != L':' && !mp_exist_url(pfile))
-    {   // 当用命令打开相对目录时没有标准路径
+    // file://向对路径
+    const bool relative = mp_file_rlt(pfile);
+    if (relative || (api_wcslen(pfile) > 1 && pfile[1] != L':' && !mp_exist_protocols(pfile)))
+    {   // 命令行打开相对目录时没有标准路径
         GetCurrentDirectoryW(MAX_BUFFER - 1, pbuf);
         api_wcsncat(pbuf, L"\\", MAX_BUFFER - 1);
-        api_wcsncat(pbuf, pfile, MAX_BUFFER - 1);
+        api_wcsncat(pbuf, relative ? &pfile[7] : pfile, MAX_BUFFER - 1);
         api_snwprintf(pfile, MAX_BUFFER - 1, L"%s", pbuf);
     }
     mp_wstr_replace(pfile, MAX_BUFFER - 1, L"\\", L"\\\\");
@@ -378,11 +451,11 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
         const WCHAR *list_path = NULL;
         for (int i = 1; i < *numargs; ++i)
         {
-            if (api_wcsncmp(szlist[i], L"--input-ipc-server", 18) == 0)
+            if (mp_argument_cmp(szlist[i], L"input-ipc-server") == 0)
             {
                 use_ipc = false;
             }
-            if (api_wcsncmp(szlist[i], L"--playlist", 10) == 0)
+            if (mp_argument_cmp(szlist[i], L"playlist") == 0)
             {
                 mp_url = false;
                 mp_pts = false;
@@ -544,14 +617,14 @@ mp_command_pause(const bool enable)
 BOOL WINAPI
 init_crthook(void)
 {
-    HMODULE h_shell32 = GetModuleHandleW(L"shell32.dll");
+    HMODULE shell32 = GetModuleHandleW(L"shell32.dll");
     do
     {
-        if (!h_shell32)
+        if (!shell32)
         {
             break;
         }
-        if (!(pCommandLineToArgvW = (CommandLineToArgvWptr)GetProcAddress(h_shell32, "CommandLineToArgvW")))
+        if (!(pCommandLineToArgvW = (CommandLineToArgvWptr)GetProcAddress(shell32, "CommandLineToArgvW")))
         {
             break;
         }
