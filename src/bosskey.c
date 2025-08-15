@@ -124,19 +124,22 @@ uninstall_bosskey(void)
 unsigned WINAPI
 bosskey_thread(void *lparam)
 {
-    WNDINFO  ff_info = { 0 };
-    ff_info.hPid = GetCurrentProcessId();
-    set_hotkey(&ff_info);
-    if ( init_bosskey(&ff_info) )
+    if (is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe"))
     {
-        MSG msg;
-        g_atom = ff_info.atom_str;
-        while (GetMessageW(&msg, NULL, 0, 0) > 0)
+        WNDINFO  ff_info = {0};
+        ff_info.hPid = GetCurrentProcessId();
+        set_hotkey(&ff_info);
+        if (init_bosskey(&ff_info))
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-            EnumWindows(find_chwnd, (LPARAM)&ff_info);
+            MSG msg;
+            g_atom = ff_info.atom_str;
+            while (GetMessageW(&msg, NULL, 0, 0) > 0)
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+                EnumWindows(find_chwnd, (LPARAM)&ff_info);
+            }
         }
     }
-    return (1);
+    return 0;
 }

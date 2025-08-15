@@ -76,21 +76,25 @@ HookSetUnhandledExceptionFilter(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelException
 
 unsigned WINAPI init_exeception(void * pParam)
 {
-    HMODULE  m_kernel;
-    m_dbg = sLoadLibraryExStub?sLoadLibraryExStub(L"dbghelp.dll",NULL,0):LoadLibraryExW(L"dbghelp.dll",NULL,0);
-    m_kernel =  GetModuleHandleW(L"kernel32.dll");
-    if ( m_dbg == NULL || m_kernel == NULL ||
-        (sMiniDumpWriteDumpStub = (MiniDumpWriteDumpPtr)GetProcAddress(m_dbg, "MiniDumpWriteDump")) == NULL)
+    if (is_specialapp(L"Iceweasel.exe"))
     {
-        return (0);
+        HMODULE  m_kernel;
+        m_dbg = sLoadLibraryExStub ? sLoadLibraryExStub(L"dbghelp.dll", NULL, 0) : LoadLibraryExW(L"dbghelp.dll",NULL,0);
+        m_kernel =  GetModuleHandleW(L"kernel32.dll");
+        if (m_dbg == NULL || m_kernel == NULL ||
+           (sMiniDumpWriteDumpStub = (MiniDumpWriteDumpPtr)GetProcAddress(m_dbg, "MiniDumpWriteDump")) == NULL)
+        {
+            return 0;
+        }
+        pSetUnhandledExceptionFilter = (SetUnhandledExceptionFilterPtr)GetProcAddress(m_kernel, "SetUnhandledExceptionFilter");
+        return creator_hook(pSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, (LPVOID*)&sSetUnhandledExceptionFilterStub);
     }
-    pSetUnhandledExceptionFilter = (SetUnhandledExceptionFilterPtr)GetProcAddress(m_kernel, "SetUnhandledExceptionFilter");
-    return creator_hook(pSetUnhandledExceptionFilter, HookSetUnhandledExceptionFilter, (LPVOID*)&sSetUnhandledExceptionFilterStub);
+    return 0;
 }
 
 void WINAPI jmp_end(void)
 {
-    if ( m_dbg )
+    if (m_dbg)
     {
         FreeLibrary(m_dbg);
     }

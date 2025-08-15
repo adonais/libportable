@@ -1336,7 +1336,7 @@ get_os_version(void)
     return ver;
 }
 
-static bool
+bool WINAPI
 get_process_name(LPWSTR name, DWORD wlen)
 {
     int   i = 0;
@@ -1359,7 +1359,7 @@ get_process_name(LPWSTR name, DWORD wlen)
 bool WINAPI
 is_specialapp(LPCWSTR appname)
 {
-    WCHAR process_name[VALUE_LEN+1];
+    WCHAR process_name[VALUE_LEN+1] = {0};
     get_process_name(process_name, VALUE_LEN);
     return (_wcsicmp(process_name, appname) == 0);
 }

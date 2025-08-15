@@ -79,7 +79,7 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
     char *lp = NULL;
     int  pathlen = 0;
     int  ret = -1;
-    char temp[VALUE_LEN+1] = {0};
+    char temp[MAX_PATH+1] = {0};
     if (!ini_read_string("attach","ExPath",&path,ini_portable_path, true))
     {
         return -1;
@@ -105,9 +105,9 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
         _snprintf(temp, (lp - path), "%s", &path[1]);
         if ((lp =  strchr(lp, ' ')) != NULL)
         {
-            MultiByteToWideChar(CP_UTF8, 0, lp + 1, -1, param, VALUE_LEN);
+            MultiByteToWideChar(CP_UTF8, 0, lp + 1, -1, param, MAX_PATH);
         }
-        MultiByteToWideChar(CP_UTF8, 0, temp, -1, cmd, VALUE_LEN);
+        MultiByteToWideChar(CP_UTF8, 0, temp, -1, cmd, MAX_PATH);
         if (!wget_process_directory(wdir,len))
         {
             wdir[0] = L'\0';
@@ -118,13 +118,13 @@ get_parameters(LPWSTR cmd, LPWSTR param, LPWSTR wdir, int len)
         if ((lp =  strchr(path, ' ')) != NULL)
         {
             path[lp-path] = L'\0';
-            MultiByteToWideChar(CP_UTF8, 0, lp + 1, -1, param, VALUE_LEN);
+            MultiByteToWideChar(CP_UTF8, 0, lp + 1, -1, param, MAX_PATH);
         }
-        MultiByteToWideChar(CP_UTF8, 0, path, -1, cmd, VALUE_LEN);
+        MultiByteToWideChar(CP_UTF8, 0, path, -1, cmd, MAX_PATH);
     }
     if (cmd[0] == L'.' || cmd[0] == L'%')
     {
-        path_to_absolute(cmd, VALUE_LEN);
+        path_to_absolute(cmd, MAX_PATH);
     }
     if (*wdir == L'\0')
     {
@@ -263,33 +263,36 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 unsigned WINAPI
 run_process(void * lparam)
 {
-    WCHAR wcmd[VALUE_LEN+1] = {0};
-    WCHAR pcd[VALUE_LEN+1] = {0};
-    WCHAR param[VALUE_LEN+1] = {0};
-    int flags = get_parameters(wcmd, param, pcd, VALUE_LEN);
-    if (flags<0)
+    if (is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe"))
     {
-        return (0);
-    }
-    /* 如果是无界面启动,直接返回 */
-    if (no_gui_boot())
-    {
-        return (0);
-    }
-#ifdef _LOGDEBUG
-    logmsg("wcmd[%ls], param[%ls], pcd[%ls]\n", wcmd, param, pcd);
-#endif
-    /* 重启外部进程需要延迟一下 */
-    Sleep(500);
-    if (wcslen(wcmd)>0 && !search_process(wcmd,0))
-    {
-        DWORD pid = 0;
-        g_handle[0] = create_new(wcmd, param, pcd, flags, &pid);
-        if (g_handle[0] != NULL && (SleepEx(3000,false) == 0))
+        WCHAR wcmd[MAX_PATH+1] = {0};
+        WCHAR pcd[MAX_PATH+1] = {0};
+        WCHAR param[MAX_PATH+1] = {0};
+        int flags = get_parameters(wcmd, param, pcd, MAX_PATH);
+        if (flags < 0)
         {
-            /* 延迟,因为有可能进程还没创建,无法结束进程树 */
-            search_process(NULL, pid);
+            return (0);
+        }
+        /* 如果是无界面启动,直接返回 */
+        if (no_gui_boot())
+        {
+            return (0);
+        }
+    #ifdef _LOGDEBUG
+        logmsg("wcmd[%ls], param[%ls], pcd[%ls]\n", wcmd, param, pcd);
+    #endif
+        /* 重启外部进程需要延迟一下 */
+        Sleep(500);
+        if (wcslen(wcmd)>0 && !search_process(wcmd,0))
+        {
+            DWORD pid = 0;
+            g_handle[0] = create_new(wcmd, param, pcd, flags, &pid);
+            if (g_handle[0] != NULL && (SleepEx(3000, false) == 0))
+            {
+                /* 延迟,因为有可能进程还没创建,无法结束进程树 */
+                search_process(NULL, pid);
+            }
         }
     }
-    return (1);
+    return 0;
 }

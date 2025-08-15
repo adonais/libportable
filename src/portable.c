@@ -552,9 +552,9 @@ window_hooks(void)
         // 调用Iceweasel的自动更新进程.
         CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
     }
-    if (inicache_read_int("General", "CreateCrashDump", &plist) != 0)
+    if (inicache_read_int("General", "CreateCrashDump", &plist) >= 0)
     {
-        init_exeception(NULL);
+        CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
     }
     if (_wgetenv(L"LIBPORTABLE_ONTABS_DEFINED"))
     {

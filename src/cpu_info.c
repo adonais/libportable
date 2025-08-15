@@ -13,7 +13,7 @@
 #define UU32(y) (UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16))
 #define UU64(z) (UU32(z) | (((uint64_t)(UU32(z))&0xffffffff) << 32))
 
-#define ALIGN_DOWN(_s, _a) (((_a) - (size_t)_s & ((_a) - 1)) & ((_a) - 1))
+#define ALIGN_DOWN(_s, _a) ((((size_t)(_a) - (size_t)(_s)) & ((_a) - 1)) & ((_a) - 1))
 
 #if defined _MSC_VER && _MSC_VER > 1500
 #pragma intrinsic(__cpuid)
