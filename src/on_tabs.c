@@ -17,6 +17,7 @@ static uint32_t mouse_time;
 static bool tab_event;
 static bool double_click;
 static bool mouse_close;
+static bool left_click;
 static bool right_click;
 static bool left_new;
 static bool button_new;
@@ -135,10 +136,19 @@ send_click(int mouse)
     else
     {
         uint32_t m_rec = GetTickCount();
-        if (m_rec - pre_rec > (uint32_t) GetDoubleClickTime())
+        if (!left_click && m_rec - pre_rec > (uint32_t) GetDoubleClickTime())
         {
             pre_rec = m_rec;
             send_key_click(MOUSEEVENTF_MIDDLEDOWN);
+        }
+        else if (left_click)
+        {
+            static uint32_t pre_left = 0;
+            if (m_rec - pre_left > (uint32_t) GetDoubleClickTime())
+            {
+                pre_left = m_rec;
+                send_key_click(MOUSEEVENTF_MIDDLEDOWN);
+            }
         }
     }
 }
@@ -714,6 +724,10 @@ init_uia(void)
     if (inicache_read_int("tabs", "double_click_close", &plist) > 0)
     {
         double_click = true;
+    }
+    if (tab_event && double_click && inicache_read_int("tabs", "left_click_close", &plist) > 0)
+    {
+        left_click = true;
     }
     if (inicache_read_int("tabs", "right_click_close", &plist) > 0)
     {
