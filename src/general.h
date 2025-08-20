@@ -82,6 +82,7 @@ extern WCHAR xre_profile_local_path[MAX_BUFF];
 extern LoadLibraryExPtr sLoadLibraryExStub;
 extern HMODULE          dll_module;
 extern bool creator_hook(void *target, void *func, void **original);
+extern bool disable_hook(void **target);
 extern bool remove_hook(void **target);
 
 #ifdef _LOGDEBUG
@@ -93,6 +94,7 @@ extern int      WINAPI get_file_version(void);
 extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
 extern bool     WINAPI wget_process_directory(LPWSTR lpstrName, DWORD len);
 extern bool     WINAPI wcreate_dir(LPCWSTR dir);
+extern bool     WINAPI wexist_file(LPCWSTR path);
 extern bool     WINAPI exists_dir(const char *path, int mode);
 extern bool     WINAPI exists_file(const char *path, int mode);
 extern bool     WINAPI create_dir(const char *dir);

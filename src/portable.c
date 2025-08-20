@@ -123,6 +123,16 @@ creator_hook(void *target, void *func, void **original)
 }
 
 bool
+disable_hook(void **target)
+{
+    if (NULL != target)
+    {
+        return MH_DisableHook(*target) == MH_OK;
+    }
+    return false;
+}
+
+bool
 remove_hook(void **target)
 {
     if (NULL != target && MH_RemoveHook(*target) == MH_OK)

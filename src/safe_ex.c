@@ -6,6 +6,7 @@
 #include "winapis.h"
 #include "inject.h"
 #include "ini_parser.h"
+#include "new_process.h"
 #include "safe_ex.h"
 #include <process.h>
 #include <tlhelp32.h>
@@ -14,19 +15,9 @@
 
 #define LEN_PARAM 1024
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+HANDLE g_mutex = NULL;
+LoadLibraryExPtr pLoadLibraryEx = NULL;
 
-#if defined(_MSC_VER) && !defined(__clang__) && !defined(VC12_CRT)
-const int _fltused = 0;
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
-LoadLibraryExPtr               pLoadLibraryEx = NULL;
 static _NtCreateUserProcess    sNtCreateUserProcess;
 static _NtCreateUserProcess    pNtCreateUserProcess;
 static _NtWriteVirtualMemory   sNtWriteVirtualMemory;
@@ -34,7 +25,8 @@ static _NtWriteVirtualMemory   pNtWriteVirtualMemory;
 static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
 static _CreateProcessInternalW pCreateProcessInternalW;
 static _CreateProcessInternalW sCreateProcessInternalW;
-HANDLE g_mutex = NULL;
+
+static volatile long upgrade_ok = 0;
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -246,6 +238,21 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
     }
 }
 
+static void
+dll_update(void)
+{
+    WCHAR upcheck[MAX_PATH+1] = {0};
+    if (upgrade_ok && wget_process_directory(upcheck, MAX_PATH))
+    {
+        wcsncat(upcheck, L"\\upcheck.exe", MAX_PATH);
+        if (wexist_file(upcheck))
+        {
+            wcsncat(upcheck, L" -dll2", MAX_PATH);
+            CloseHandle(create_new(upcheck, NULL, NULL, 0, NULL));
+        }
+    }
+}
+
 static NTSTATUS WINAPI
 HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
                         ACCESS_MASK ProcessDesiredAccess,
@@ -262,6 +269,18 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     bool      tohook = false;
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
     trace_command(ProcessParameters->ImagePathName.Buffer, ProcessParameters->CommandLine.Buffer);
+    if (is_specialapp(L"updater.exe") &&
+       ((ProcessParameters->ImagePathName.Buffer && wcsstr(ProcessParameters->ImagePathName.Buffer, L"/PostUpdate")) ||
+       (ProcessParameters->CommandLine.Buffer &&  wcsstr(ProcessParameters->CommandLine.Buffer, L"/PostUpdate"))) &&
+       !_InterlockedCompareExchange(&upgrade_ok, 1, 0))
+    {
+        disable_hook((void **)&pNtCreateUserProcess);
+        dll_update();
+    #ifdef _LOGDEBUG
+        logmsg("ExitProcess ...\n");
+    #endif
+        ExitProcess(255);
+    }
     if (!ini_read_int("General", "SafeEx", ini_portable_path, true))
     {
         return sNtCreateUserProcess(ProcessHandle, ThreadHandle,
@@ -292,7 +311,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
             ProcessParameters = &myProcessParameters;
         }
     }
-    else if (!is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer))
+    else if (!(in_whitelist((LPCWSTR)ProcessParameters->ImagePathName.Buffer) || is_gui((LPCWSTR)ProcessParameters->ImagePathName.Buffer)))
     {
         ProcessParameters = &myProcessParameters;
     }
@@ -374,15 +393,13 @@ HookCreateProcessInternalW(HANDLE hToken,
         }
     }
     /* 如果不存在于白名单,则自动阻止命令行程序启动 */
-    else if (process_cui(lpfile))
+    else if (!(in_whitelist((LPCWSTR)lpfile) || is_gui(lpfile)))
     {
-        {
-        #ifdef _LOGDEBUG
-            logmsg("%ls process, disabled-runes\n",lpfile);
-        #endif
-            SetLastError(pRtlNtStatusToDosError(STATUS_ERROR));
-            return ret;
-        }
+    #ifdef _LOGDEBUG
+        logmsg("%ls process, disabled-runes\n",lpfile);
+    #endif
+        SetLastError(pRtlNtStatusToDosError(STATUS_ERROR));
+        return ret;
     }
     ret = sCreateProcessInternalW(hToken,lpApplicationName,lpCommandLine,lpProcessAttributes,
                                   lpThreadAttributes,bInheritHandles,dwCreationFlags,
