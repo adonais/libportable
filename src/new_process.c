@@ -21,41 +21,41 @@ search_process(LPCWSTR lpstr, DWORD m_parent)
     HANDLE m_handle = NULL;
     volatile int    i = 1;
     static   int    h_num = 1;
-    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
-    if( hSnapshot == INVALID_HANDLE_VALUE )
+    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if(hSnapshot == INVALID_HANDLE_VALUE)
     {
     #ifdef _LOGDEBUG
-        logmsg("CreateToolhelp32Snapshot (of processes) error %lu\n",GetLastError() );
+        logmsg("CreateToolhelp32Snapshot (of processes) error %lu\n", GetLastError());
     #endif
         return m_handle;
     }
     chi_pid[0] = m_parent;
-    pe32.dwSize=sizeof(pe32);
-    b_more = Process32FirstW(hSnapshot,&pe32);
+    pe32.dwSize = sizeof(pe32);
+    b_more = Process32FirstW(hSnapshot, &pe32);
     while (b_more)
     {
-        if ( m_parent == pe32.th32ParentProcessID )
+        if (m_parent == pe32.th32ParentProcessID)
         {
             chi_pid[i++] = pe32.th32ProcessID;
-            if (i>=PROCESS_NUM)
+            if (i >= PROCESS_NUM)
             {
                 break;
             }
         }
-        if ( lpstr && pe32.th32ParentProcessID>4 && StrStrIW((LPWSTR)lpstr,(LPCWSTR)pe32.szExeFile) )
+        if (lpstr && pe32.th32ParentProcessID > 4 && StrStrIW((LPWSTR)lpstr, (LPCWSTR)pe32.szExeFile))
         {
             m_handle = (HANDLE)(uintptr_t)pe32.th32ProcessID;
             break;
         }
-        b_more = Process32NextW(hSnapshot,&pe32);
+        b_more = Process32NextW(hSnapshot, &pe32);
     }
     CloseHandle(hSnapshot);
-    if ( !m_handle && chi_pid[0] )
+    if (!m_handle && chi_pid[0])
     {
-        for ( i=1 ; i<PROCESS_NUM&&h_num<PROCESS_NUM; ++i )
+        for (i = 1 ; i < PROCESS_NUM && h_num < PROCESS_NUM; ++i)
         {
             HANDLE tmp = OpenProcess(PROCESS_TERMINATE, false, chi_pid[i]);
-            if ( NULL != tmp )
+            if (NULL != tmp)
             {
                 g_handle[h_num++] = tmp;
                 search_process(NULL, chi_pid[i]);
@@ -145,13 +145,13 @@ no_gui_boot(void)
     int     m_arg = 0;
     bool    ret = false;
     args = CommandLineToArgvW(GetCommandLineW(), &m_arg);
-    if ( NULL != args )
+    if (NULL != args)
     {
         int i;
         for (i = 1; i < m_arg; ++i)
         {
-            if ( StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") ||
-                 StrStrIW(args[i],L"headless") || StrStrIW(args[i],L"screenshot") )
+            if (StrStrIW(args[i],L"preferences") || StrStrIW(args[i],L"silent") ||
+                StrStrIW(args[i],L"headless") || StrStrIW(args[i],L"screenshot"))
             {
                 ret = true;
                 break;
@@ -183,10 +183,10 @@ refresh_tray(void)
 void WINAPI
 kill_trees(void)
 {
-    if (g_handle[0]>0)
+    if (g_handle[0] > 0)
     {
         int i;
-        for ( i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i )
+        for (i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i)
         {
             TerminateProcess(g_handle[i], (DWORD)-1);
             CloseHandle(g_handle[i]);
@@ -202,20 +202,20 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
     PROCESS_INFORMATION pi;
     STARTUPINFOW si;
     DWORD dwCreat = 0;
-	LPCWSTR lp_dir = NULL;
-	WCHAR process[MAX_PATH+1] = {0};
-	if (pcd != NULL && wcslen(pcd) > 1)
-	{
-		lp_dir = pcd;
-	}
-	if (param != NULL && wcslen(param ) > 1)
-	{
-	    _snwprintf(process, MAX_PATH, L"%s %s", wcmd, param);
-	}
-	else
-	{
-	    _snwprintf(process, MAX_PATH, L"%s", wcmd);
-	}
+    LPCWSTR lp_dir = NULL;
+    WCHAR process[MAX_PATH+1] = {0};
+    if (pcd != NULL && wcslen(pcd) > 1)
+    {
+        lp_dir = pcd;
+    }
+    if (param != NULL && wcslen(param ) > 1)
+    {
+        _snwprintf(process, MAX_PATH, L"%s %s", wcmd, param);
+    }
+    else
+    {
+        _snwprintf(process, MAX_PATH, L"%s", wcmd);
+    }
     if (true)
     {
         fzero(&si,sizeof(si));
@@ -283,7 +283,7 @@ run_process(void * lparam)
     #endif
         /* 重启外部进程需要延迟一下 */
         Sleep(500);
-        if (wcslen(wcmd)>0 && !search_process(wcmd,0))
+        if (wcslen(wcmd) > 0 && !search_process(wcmd, 0))
         {
             DWORD pid = 0;
             g_handle[0] = create_new(wcmd, param, pcd, flags, &pid);

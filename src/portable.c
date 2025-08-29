@@ -313,7 +313,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
-    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData))
+    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData) || IsEqualGUID(rfid, &FOLDERID_ProgramData))
     {
         WCHAR localdt_path[MAX_PATH+1] = {0};
         if (!get_localdt_path(localdt_path, MAX_PATH))
