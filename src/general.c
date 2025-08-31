@@ -623,24 +623,24 @@ HWND WINAPI
 get_moz_hwnd(LPWNDINFO pInfo)
 {
     HWND hwnd = NULL;
-    int i = 10;
+    int i = 40;
     while (!pInfo->hFF && i--)
     {
-        bool m_loop = false;
-        DWORD dwProcessId = 0;
-        hwnd = FindWindowExW(NULL, hwnd, L"MozillaWindowClass", NULL);
-        GetWindowThreadProcessId(hwnd, &dwProcessId);
-        m_loop = (dwProcessId > 0 && dwProcessId == pInfo->hPid);
-        if (!m_loop)
+        DWORD process_id = 0;
+        if ((hwnd = FindWindowExW(NULL, hwnd, L"MozillaWindowClass", NULL)) != NULL)
+        {
+            GetWindowThreadProcessId(hwnd, &process_id);
+        }
+        if (!(process_id > 0 && process_id == pInfo->hPid))
         {
             pInfo->hFF = NULL;
         }
-        if (NULL != hwnd && m_loop)
+        else
         {
             pInfo->hFF = hwnd;
             break;
         }
-        SleepEx(800, false);
+        SleepEx(200, FALSE);
     }
     return (hwnd != NULL ? hwnd : pInfo->hFF);
 }

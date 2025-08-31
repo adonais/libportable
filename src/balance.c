@@ -119,7 +119,7 @@ set_cpu_balance(void *lparam)
     {
         value = 25;                 /* default cpu usage 25% */
     }
-    while (SleepEx(INFINITE,true))
+    while (SleepEx(INFINITE, TRUE))
     {
     #ifdef _LOGDEBUG
         logmsg("CpuUse: %d%%\n", m_cpu);

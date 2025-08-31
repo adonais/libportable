@@ -186,9 +186,9 @@ kill_trees(void)
     if (g_handle[0] > 0)
     {
         int i;
-        for (i =0 ; i<PROCESS_NUM && g_handle[i]>0 ; ++i)
+        for (i = 0 ; i < PROCESS_NUM && g_handle[i] > 0 ; ++i)
         {
-            TerminateProcess(g_handle[i], (DWORD)-1);
+            TerminateProcess(g_handle[i], (DWORD) - 1);
             CloseHandle(g_handle[i]);
         }
         refresh_tray();

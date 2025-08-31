@@ -518,7 +518,7 @@ init_hook_data(void)
         init_safed();
     }
     if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||
-       (mutex = OpenFileMappingW(PAGE_READONLY, false, L"LIBPORTABLE_LAUNCHER_PROCESS=1")) != NULL)
+       (mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK)) != NULL)
     {
     #ifdef _LOGDEBUG
         logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
@@ -534,90 +534,20 @@ init_hook_data(void)
     return true;
 }
 
-static void
-window_hooks(void)
-{
-    int up = 0;
-    ini_cache plist = NULL;
-    DWORD ver = get_os_version();
-    plist = iniparser_create_cache(ini_portable_path, false, true);
-    if (!plist)
-    {
-        return;
-    }
-    up = inicache_read_int("General", "Update", &plist);
-    if (_wgetenv(L"LIBPORTABLE_UPCHECK_DEFINED"))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_UPCHECK_DEFINED!\n");
-    #endif
-    }
-    else if (is_ff_official() > MOZ_ICEWEASEL)
-    {   // 支持官方版本更新开关的禁止与启用.
-        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
-        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
-    }
-    else if (ver > 503 && up && inicache_read_int("General", "Portable", &plist) > 0)
-    {
-        // 调用Iceweasel的自动更新进程.
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
-    }
-    if (inicache_read_int("General", "CreateCrashDump", &plist) >= 0)
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
-    }
-    if (_wgetenv(L"LIBPORTABLE_ONTABS_DEFINED"))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_ONTABS_DEFINED!\n");
-    #endif
-    }
-    else if (inicache_read_int("General", "OnTabs", &plist) > 0)
-    {
-        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");
-        threads_on_tabs();
-    }
-    if (inicache_read_int("General", "DisableScan", &plist) > 0)
-    {
-        init_winreg(NULL);
-    }
-    if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL));
-    }
-    if (inicache_read_int("General", "Bosskey", &plist) > 0)
-    {
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
-    }
-    if (_wgetenv(L"LIBPORTABLE_NEWPROCESS_DEFINED"))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_NEWPROCESS_DEFINED!\n");
-    #endif
-    }
-    else if (inicache_read_int("General", "ProxyExe", &plist) > 0)
-    {
-        _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=1");
-        CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
-    }
-    iniparser_destroy_cache(&plist);
-}
-
 static bool
-child_proces_if(void)
+child_proces_if(const m_family e)
 {
-    LPWSTR  *args = NULL;
-    int     count = 0;
-    bool    ret = false;
-    if (is_ff_official() > 0)
+    
+    bool ret = false;
+    if (e > MOZ_UNKOWN)
     {
-        args = CommandLineToArgvW(GetCommandLineW(), &count);
-        if ( NULL != args )
+        int    count = 0;
+        LPWSTR *args = CommandLineToArgvW(GetCommandLineW(), &count);
+        if (NULL != args && count > 1)
         {
-            int i;
-            for (i = 0; i < count; ++i)
+            for (int i = count - 1; i > 1; --i)
             {
-                if ( (_wcsicmp(args[i], L"-greomni") == 0) )
+                if (_wcsicmp(args[i], L"-parentPid") == 0)
                 {
                     ret = true;
                     break;
@@ -629,22 +559,85 @@ child_proces_if(void)
     return ret;
 }
 
+static void
+window_hooks(const m_family e)
+{
+    const DWORD ver = get_os_version();
+    ini_cache plist = iniparser_create_cache(ini_portable_path, false, true);
+    if (plist)
+    {
+        int up = inicache_read_int("General", "Update", &plist);
+        if (_wgetenv(L"LIBPORTABLE_UPCHECK_DEFINED"))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_UPCHECK_DEFINED!\n");
+        #endif
+        }
+        else if (e > MOZ_ICEWEASEL)
+        {   // 支持官方版本更新开关的禁止与启用.
+            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
+            _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
+        }
+        else if (ver > 503 && up && inicache_read_int("General", "Portable", &plist) > 0)
+        {
+            // 调用Iceweasel的自动更新进程.
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
+        }
+        if (inicache_read_int("General", "CreateCrashDump", &plist) > 0)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
+        }
+        if (_wgetenv(L"LIBPORTABLE_ONTABS_DEFINED"))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_ONTABS_DEFINED!\n");
+        #endif
+        }
+        else if (inicache_read_int("General", "OnTabs", &plist) > 0)
+        {
+            _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");
+            threads_on_tabs();
+        }
+        if (inicache_read_int("General", "DisableScan", &plist) > 0)
+        {
+            init_winreg(NULL);
+        }
+        if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL));
+        }
+        if (inicache_read_int("General", "Bosskey", &plist) > 0)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
+        }
+        if (_wgetenv(L"LIBPORTABLE_NEWPROCESS_DEFINED"))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_NEWPROCESS_DEFINED!\n");
+        #endif
+        }
+        else if (inicache_read_int("General", "ProxyExe", &plist) > 0)
+        {
+            _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=1");
+            CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+        }
+        iniparser_destroy_cache(&plist);
+    }
+}
+
 void WINAPI
 do_it(void)
 {
+    const m_family e = is_ff_official();
     if ((g_has_avx = cpu_has_avx()))
     {
         g_has_avx512 = cpu_has_avx512f(true);
     }
-    if (!child_proces_if())
+    if (!child_proces_if(e) && init_hook_data())
     {
-        if (!init_hook_data())
+        if (e > MOZ_UNKOWN && !no_gui_boot())
         {
-            return;
-        }
-        if (is_ff_official() > 0 && !no_gui_boot())
-        {
-            window_hooks();
+            window_hooks(e);
         }
     }
 }

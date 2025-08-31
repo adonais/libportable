@@ -766,19 +766,19 @@ init_uia(void)
 static unsigned WINAPI
 threads_on_win10(void *lparam)
 {
-    WNDINFO  ff_info = { 0 };
+    WNDINFO  ff_info = {0};
     ff_info.hPid = GetCurrentProcessId();
-    if (!get_moz_hwnd(&ff_info))
+    if (get_moz_hwnd(&ff_info) && init_uia())
     {
-        return 0;
+        //
     }
-    if (!init_uia())
+#ifdef _LOGDEBUG
+    else
     {
-    #ifdef _LOGDEBUG
         logmsg("win10 uia error!\n");
-    #endif
     }
-    return (1);
+#endif
+    return 0;
 }
 
 void WINAPI

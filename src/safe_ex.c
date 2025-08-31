@@ -205,15 +205,23 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
 {
     bool    var = false;
     WCHAR   m_line[LEN_PARAM + 1] = {0};
-    LPCWSTR lpfile = cmd_path?cmd_path:image_path;
+    size_t  len = 0;
+    LPCWSTR lpfile = cmd_path ? cmd_path : image_path;
     wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
-    if (!skip_double_quote(m_line, LEN_PARAM))
+    if ((len = wcslen(m_line)) > 0)
     {
-    #ifdef _LOGDEBUG
-        logmsg("skip_double_quote failed\n");
-    #endif
+        if (m_line[len - 1] == 0x20)
+        {
+            m_line[len - 1] = 0;
+        }
+        if (*lpfile != L'"' && !skip_double_quote(m_line, LEN_PARAM))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("skip_double_quote failed\n");
+        #endif
+        }
+        var = wcscmp(m_line, lpfile) == 0;
     }
-    var = wcscmp(m_line, lpfile) == 0;
     if (!var)
     {
         if (NULL != cmd_path)
