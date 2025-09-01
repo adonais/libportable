@@ -70,9 +70,7 @@ static  SHGetKnownFolderIDListPtr     sSHGetKnownFolderIDListStub = NULL;
 static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub = NULL;
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub = NULL;
 static  uintptr_t                     m_target[EXCLUDE_NUM] = {0};
-static  bool                          g_has_avx = false;
 
-typedef void *(__cdecl *memset_ptr)(void *dest, int c, size_t count);
 static  memset_ptr stub_memset = NULL;
 
 typedef void (*pointer_to_handler)();
@@ -93,11 +91,9 @@ GetNonTemporalDataSizeMin_tt(void)
 void * __cdecl
 memset_nontemporal_tt(void *dest, int c, size_t count)
 {
-    if (!g_has_avx || count < (size_t)NONTEMPORAL_16K)
-    {
-        return (stub_memset ? stub_memset(dest, c, count) : memset(dest, c, count));
-    }
-    return memset_avx(dest, c, count);
+    return (count < (size_t)NONTEMPORAL_16K ?
+           (stub_memset ? stub_memset(dest, c, count) : memset(dest, c, count)) :
+           optimize_memset(dest, c, count));
 }
 
 uint32_t
@@ -629,11 +625,7 @@ void WINAPI
 do_it(void)
 {
     const m_family e = is_ff_official();
-    if ((g_has_avx = cpu_has_avx()))
-    {
-        g_has_avx512 = cpu_has_avx512f(true);
-    }
-    if (!child_proces_if(e) && init_hook_data())
+    if (initialize_memset() && !child_proces_if(e) && init_hook_data())
     {
         if (e > MOZ_UNKOWN && !no_gui_boot())
         {

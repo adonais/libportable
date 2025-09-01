@@ -1,21 +1,39 @@
-#include "cpu_avx512.h"
+#include "cpu_info.h"
 
-void
-memset_avx512_as(uint8_t **pdst, int c, size_t *psize)
+/* using non-temporal avx 512f */
+void *__cdecl
+memset_avx512(void* dst, int c, size_t size)
 {
-    __m512i vals;
-    if (c)
-    {
-        vals = _mm512_set1_epi8(c);
+    uint8_t *buffer = (uint8_t *)dst;
+    size_t head = ALIGN_DOWN(buffer, 64);
+    if (head > 0)
+    {   /* memory address not aligned, fill head */
+        memset_less_align(buffer, c, head);
+        buffer += head;
+        size -= head;
     }
-    else
+    if (size >= 64)
     {
-        vals = _mm512_setzero_si512();
+        __m512i vals;
+        if (c)
+        {
+            vals = _mm512_set1_epi8(c);
+        }
+        else
+        {
+            vals = _mm512_setzero_si512();
+        }
+        while (size >= 64)
+        {
+            _mm512_stream_si512((__m512i *)buffer, vals);
+            buffer += 64;
+            size -= 64;
+        }
+        _mm_sfence();
     }
-    while (*psize >= 64)
-    {
-        _mm512_stream_si512((__m512i*)(*pdst), vals);
-        *pdst += 64;
-        *psize -= 64;
+    if (size > 0)
+    {   /* fill tail */
+        memset_less_align(buffer, c, size);
     }
+    return dst;
 }

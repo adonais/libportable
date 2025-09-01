@@ -11,15 +11,12 @@
 
 #define UU16(x) ((uint8_t)x | (((uint16_t)(x)&0xff) << 8))
 #define UU32(y) (UU16(y) | (((uint32_t)(UU16(y))&0xffff) << 16))
-#define UU64(z) (UU32(z) | (((uint64_t)(UU32(z))&0xffffffff) << 32))
-
-#define ALIGN_DOWN(_s, _a) ((((size_t)(_a) - (size_t)(_s)) & ((_a) - 1)) & ((_a) - 1))
 
 #if defined _MSC_VER && _MSC_VER > 1500
 #pragma intrinsic(__cpuid)
 #endif
 
-bool g_has_avx512 = false;
+memset_ptr optimize_memset = NULL;
 
 typedef enum _cpuid_register
 {
@@ -28,66 +25,6 @@ typedef enum _cpuid_register
     ecx = 2,
     edx = 3
 }cpuid_register;
-
-static void*
-memset_less_align(void *dst, int a, size_t n)
-{
-    uint8_t *dt = (uint8_t *)dst;
-    if (n & 0x01)
-    {
-        *dt++ = (uint8_t)a;
-    }
-    if (n & 0x02)
-    {
-        *(uint16_t *)dt = UU16(a);
-        dt += 2;
-    }
-    if (n & 0x04)
-    {
-        _mm_stream_si32((int *)dt, UU32(a));
-        dt += 4;
-    }
-    if (n & 0x08)
-    {
-        uint32_t c = UU32(a);
-        _mm_stream_si32((int *)dt+0, c);
-        _mm_stream_si32((int *)dt+1, c);
-        dt += 8;
-    }
-    if (n & 0x10)
-    {
-        uint32_t c = UU32(a);
-        _mm_stream_si32((int *)dt+0, c);
-        _mm_stream_si32((int *)dt+1, c);
-        _mm_stream_si32((int *)dt+2, c);
-        _mm_stream_si32((int *)dt+3, c);
-        dt += 16;
-    }
-    if (n & 0x20)
-    {
-    #if defined(_M_X64) || defined(__x86_64__)
-        uint64_t c = UU64(a);
-        _mm_stream_si64((int64_t *)dt+0, c);
-        _mm_stream_si64((int64_t *)dt+1, c);
-        _mm_stream_si64((int64_t *)dt+2, c);
-        _mm_stream_si64((int64_t *)dt+3, c);
-    #elif defined(_M_IX86) || defined(__i386__)
-        uint32_t c = UU32(a);
-        _mm_stream_si32((int *)dt+0, c);
-        _mm_stream_si32((int *)dt+1, c);
-        _mm_stream_si32((int *)dt+2, c);
-        _mm_stream_si32((int *)dt+3, c);
-        _mm_stream_si32((int *)dt+4, c);
-        _mm_stream_si32((int *)dt+5, c);
-        _mm_stream_si32((int *)dt+6, c);
-        _mm_stream_si32((int *)dt+7, c);
-    #else
-        #error Unsupported compilers
-    #endif
-        dt += 32;
-    }
-    return dst;
-}
 
 static inline bool
 has_cpuid_bits(unsigned int level, cpuid_register reg, unsigned int bits)
@@ -118,25 +55,23 @@ cpu_has_sse4_2(void)
 }
 
 static inline bool
+cpu_has_avx(void)
+{
+    const unsigned AVX = 1u << 28;
+    const unsigned OSXSAVE = 1u << 27;
+    const unsigned XSAVE = 1u << 26;
+    return has_cpuid_bits(1u, ecx, AVX | OSXSAVE | XSAVE) &&
+           // ensure the OS supports XSAVE of YMM registers
+           xgetbv_mask_as(AVX_STATE);
+}
+
+static inline bool
 cpu_has_avx2(void)
 {
     return cpu_has_avx() && has_cpuid_bits(7u, ebx, (1u << 5));
 }
 
-static void
-memset_avx_as(uint8_t **pdst, int c, size_t *psize, const bool avx512)
-{
-    if (!avx512)
-    {
-        memset_avx256_as(pdst, c, psize);
-    }
-    else
-    {
-        memset_avx512_as(pdst, c, psize);
-    }
-}
-
-bool
+static inline bool
 cpu_has_avx512f(const bool mavx)
 {
     if ((!mavx ? cpu_has_avx() : true) && has_cpuid_bits(7u, ebx, (1u << 16)))
@@ -146,15 +81,105 @@ cpu_has_avx512f(const bool mavx)
     return false;
 }
 
-bool
-cpu_has_avx(void)
+void *
+memset_less_align(void *dst, const int a, const size_t n)
 {
-    const unsigned AVX = 1u << 28;
-    const unsigned OSXSAVE = 1u << 27;
-    const unsigned XSAVE = 1u << 26;
-    return has_cpuid_bits(1u, ecx, AVX | OSXSAVE | XSAVE) &&
-           // ensure the OS supports XSAVE of YMM registers
-           xgetbv_mask_as(AVX_STATE);
+    uint8_t *dt = (uint8_t *)dst;
+    if (n & 0x01)
+    {
+        *dt++ = (uint8_t)a;
+    }
+    if (n & 0x02)
+    {
+        *(uint16_t *)dt = UU16(a);
+        dt += 2;
+    }
+    if (n & 0x04)
+    {
+        *(uint32_t *)dt = UU32(a);
+        dt += 4;
+    }
+    if (n & 0x08)
+    {
+        _mm_storeu_si64((__m128i *)dt, _mm_set1_epi8((char)a));
+        dt += 8;
+    }
+    if (n & 0x10)
+    {
+        _mm_storeu_si128((__m128i *)dt, _mm_set1_epi8((char)a));
+        dt += 16;
+    }
+    if (n & 0x20)
+    {
+        __m128i c = _mm_set1_epi8((char)a);
+        _mm_storeu_si128((__m128i *)dt, c);
+        _mm_storeu_si128((__m128i *)dt + 1, c);
+        dt += 32;
+    }
+    return dst;
+}
+
+static void *__cdecl
+memset_sse(void* dst, int c, size_t size)
+{
+    uint8_t *buffer = (uint8_t *)dst;
+    size_t head = ALIGN_DOWN(buffer, 16);
+    if (head > 0)
+    {
+        memset_less_align(buffer, (const uint8_t)c, head);
+        buffer += head;
+        size -= head;
+    }
+    if (size >= 16)
+    {
+        __m128i vals;
+        // 使用SSE指令进行快速填充
+        if (c)
+        {
+            vals = _mm_set1_epi8(c);
+        }
+        else
+        {
+            vals = _mm_setzero_si128();
+        }
+        while (size >= 16)
+        {
+            _mm_stream_si128((__m128i *)(buffer), vals);
+            buffer += 16;
+            size -= 16;
+        }
+        _mm_sfence(); // 确保非时态写入完成
+    }
+    if (size > 0)
+    {
+        memset_less_align(buffer, (const uint8_t)c, size);
+    }
+    return dst;
+}
+
+/**********************************************************
+ * DLL初始化时检测cpu指令集, 函数指针指向将要调用的memset
+ * 减少运行时的分支选择, 此项优化是 xunxun1982 提议
+ **********************************************************/
+bool
+initialize_memset(void)
+{
+    if (cpu_has_avx())
+    {
+        if (cpu_has_avx512f(true))
+        {
+            optimize_memset = &memset_avx512;
+        }
+        else
+        {
+            optimize_memset = &memset_avx256;
+        }
+    }
+    else
+    {
+        optimize_memset = &memset_sse;
+    }
+    return (NULL != optimize_memset);
 }
 
 uint32_t
@@ -182,25 +207,4 @@ cpu_features(void)
         mask |= 0x8;
     }
     return mask;
-}
-
-/* using non-temporal avx */
-void*
-memset_avx(void* dst, int c, size_t size)
-{
-    uint8_t *buffer = (uint8_t *)dst;
-    const int align = g_has_avx512 ? 64 : 32;
-    size_t head = ALIGN_DOWN(buffer, align);
-    if (head > 0)
-    {   /* memory address not aligned, fill head */
-        memset_less_align(buffer, c, head);
-        buffer += head;
-        size -= head;
-    }
-    memset_avx_as(&buffer, c, &size, g_has_avx512);
-    if (size > 0)
-    {   /* fill tail */
-        memset_less_align(buffer, c, size);
-    }
-    return dst;
 }
