@@ -122,94 +122,117 @@ ini_path_init(void)
 static HMODULE
 init_verinfo(void) /* 初始化version.dll里面的三个函数 */
 {
-    HMODULE h_ver = LoadLibraryW(L"version.dll");
-    if (h_ver != NULL)
+    HMODULE hver = LoadLibraryW(L"version.dll");
+    if (hver != NULL)
     {
-        pfnGetFileVersionInfoSizeW = (PFNGFVSW) GetProcAddress(h_ver, "GetFileVersionInfoSizeW");
-        pfnGetFileVersionInfoW = (PFNGFVIW) GetProcAddress(h_ver, "GetFileVersionInfoW");
-        pfnVerQueryValueW = (PFNVQVW) GetProcAddress(h_ver, "VerQueryValueW");
+        pfnGetFileVersionInfoSizeW = (PFNGFVSW) GetProcAddress(hver, "GetFileVersionInfoSizeW");
+        pfnGetFileVersionInfoW = (PFNGFVIW) GetProcAddress(hver, "GetFileVersionInfoW");
+        pfnVerQueryValueW = (PFNVQVW) GetProcAddress(hver, "VerQueryValueW");
         if (!(pfnGetFileVersionInfoSizeW && pfnGetFileVersionInfoW && pfnVerQueryValueW))
         {
-            FreeLibrary(h_ver);
-            h_ver = NULL;
+            FreeLibrary(hver);
+            hver = NULL;
         }
     }
-    return h_ver;
+    return hver;
 }
 
 static bool
-get_product_name(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
+get_product_name(LPCWSTR filepath, LPWSTR out_string, size_t len, int *pver, const bool plugin)
 {
-    HMODULE h_ver = NULL;
     bool ret = false;
-    DWORD dwHandle = 0;
-    DWORD dwSize = 0;
-    uint16_t i;
-    uint32_t cbTranslate = 0;
-    LPWSTR pBuffer = NULL;
-    PVOID pTmp = NULL;
-    WCHAR dwBlock[NAMES_LEN + 1] = { 0 };
-    LANGANDCODEPAGE *lpTranslate = NULL;
+    HMODULE hver = NULL;
+    LPWSTR buffer = NULL;
     do
     {
-        if ((h_ver = init_verinfo()) == NULL)
+        uint32_t cb = 0;
+        DWORD dw_size = 0;
+        DWORD dw_handle = 0;
+        WCHAR block[NAMES_LEN + 1] = {0};
+        if (plugin && !out_string)
         {
             break;
         }
-        if ((dwSize = pfnGetFileVersionInfoSizeW(filepath, &dwHandle)) == 0)
+        if ((hver = init_verinfo()) == NULL)
+        {
+            break;
+        }
+        if ((dw_size = pfnGetFileVersionInfoSizeW(filepath, &dw_handle)) == 0)
         {
         #ifdef _LOGDEBUG
             logmsg("pfnGetFileVersionInfoSizeW return false\n");
         #endif
             break;
         }
-        if ((pBuffer = (LPWSTR) SYS_MALLOC(dwSize * sizeof(WCHAR))) == NULL)
+        if ((buffer = (LPWSTR) SYS_MALLOC(dw_size * sizeof(WCHAR))) == NULL)
         {
             break;
         }
-        if (!pfnGetFileVersionInfoW(filepath, 0, dwSize, (LPVOID) pBuffer))
+        if (!pfnGetFileVersionInfoW(filepath, 0, dw_size, (LPVOID) buffer))
         {
         #ifdef _LOGDEBUG
             logmsg("pfnpfnGetFileVersionInfoW return false\n");
         #endif
             break;
         }
-        pfnVerQueryValueW((LPCVOID) pBuffer, L"\\VarFileInfo\\Translation", (LPVOID *) &lpTranslate, &cbTranslate);
-        if (NULL == lpTranslate)
+        if (pver)
         {
-            break;
+            VS_FIXEDFILEINFO *pversion = NULL;
+            if (!pfnVerQueryValueW((LPCVOID) buffer, L"\\", (void **) &pversion, &cb))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("pfnVerQueryValueW return false\n");
+            #endif
+                break;
+            }
+            if (pversion != NULL)
+            {
+                _snwprintf(block, NAMES_LEN, L"%d", HIWORD(pversion->dwFileVersionMS));
+                *pver = _wtoi(block);
+            }
         }
-        for (i = 0; i < (cbTranslate / sizeof(LANGANDCODEPAGE)); i++)
+        if (out_string)
         {
-            if (plugin)
+            LANGANDCODEPAGE *lpTranslate = NULL;
+            PVOID pTmp = NULL;
+            pfnVerQueryValueW((LPCVOID) buffer, L"\\VarFileInfo\\Translation", (LPVOID *) &lpTranslate, &cb);
+            if (NULL == lpTranslate)
             {
-                _snwprintf(dwBlock, NAMES_LEN, L"\\StringFileInfo\\%s\\ProductName", L"040904e4");
+                break;
             }
-            else
+            for (uint16_t i = 0; i < (cb / sizeof(LANGANDCODEPAGE)); ++i)
             {
-                _snwprintf(dwBlock,
-                           NAMES_LEN,
-                           L"\\StringFileInfo\\%04x%04x\\ProductName",
-                           lpTranslate[i].wLanguage,
-                           lpTranslate[i].wCodePage);
-            }
-            ret = pfnVerQueryValueW((LPCVOID) pBuffer, (LPCWSTR) dwBlock, (LPVOID *) &pTmp, &cbTranslate);
-            if (ret)
-            {
-                out_string[0] = L'\0';
-                wcsncpy(out_string, (LPCWSTR) pTmp, len);
-                ret = wcslen(out_string) > 1;
-                if (ret) break;
+                if (plugin)
+                {
+                    _snwprintf(block, NAMES_LEN, L"\\StringFileInfo\\%s\\ProductName", L"040904e4");
+                }
+                else
+                {
+                    _snwprintf(block,
+                               NAMES_LEN,
+                               L"\\StringFileInfo\\%04x%04x\\ProductName",
+                               lpTranslate[i].wLanguage,
+                               lpTranslate[i].wCodePage);
+                }
+                if ((ret = pfnVerQueryValueW((LPCVOID) buffer, (LPCWSTR) block, (LPVOID *) &pTmp, &cb)))
+                {
+                    out_string[0] = L'\0';
+                    wcsncpy(out_string, (LPCWSTR) pTmp, len);
+                    if ((ret = wcslen(out_string) > 1))
+                    { 
+                        break;
+                    }
+                }
             }
         }
     } while (0);
-    if (pBuffer)
+    if (buffer)
     {
-        SYS_FREE(pBuffer);
+        SYS_FREE(buffer);
     }
-    if (h_ver)
+    if (hver)
     {
-        FreeLibrary(h_ver);
+        FreeLibrary(hver);
     }
     return ret;
 }
@@ -217,63 +240,11 @@ get_product_name(LPCWSTR filepath, LPWSTR out_string, size_t len, bool plugin)
 int WINAPI
 get_file_version(void)
 {
-    HMODULE h_ver = NULL;
-    DWORD dwHandle = 0;
-    DWORD dwSize = 0;
-    VS_FIXEDFILEINFO *pversion = NULL;
-    LPWSTR pbuffer = NULL;
-    WCHAR dw_block[NAMES_LEN] = { 0 };
-    WCHAR filepath[MAX_PATH] = { 0 };
-    uint32_t cb = 0;
     int ver = 0;
-    do
+    WCHAR filepath[MAX_PATH] = {0};
+    if (GetModuleFileNameW(NULL, filepath, MAX_PATH) > 0)
     {
-        if (GetModuleFileNameW(NULL, filepath, MAX_PATH) == 0)
-        {
-            break;
-        }
-        if ((h_ver = init_verinfo()) == NULL)
-        {
-            break;
-        }
-        if ((dwSize = pfnGetFileVersionInfoSizeW(filepath, &dwHandle)) == 0)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("pfnGetFileVersionInfoSizeW return false\n");
-        #endif
-            break;
-        }
-        if ((pbuffer = (LPWSTR) SYS_MALLOC(dwSize * sizeof(WCHAR))) == NULL)
-        {
-            break;
-        }
-        if (!pfnGetFileVersionInfoW(filepath, 0, dwSize, (LPVOID) pbuffer))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("pfnpfnGetFileVersionInfoW return false\n");
-        #endif
-            break;
-        }
-        if (!pfnVerQueryValueW((LPCVOID) pbuffer, L"\\", (void **) &pversion, &cb))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("pfnVerQueryValueW return false\n");
-        #endif
-            break;
-        }
-        if (pversion != NULL)
-        {
-            _snwprintf(dw_block, NAMES_LEN, L"%d%d", HIWORD(pversion->dwFileVersionMS), LOWORD(pversion->dwFileVersionMS));
-            ver = _wtoi(dw_block);
-        }
-    } while (0);
-    if (pbuffer)
-    {
-        SYS_FREE(pbuffer);
-    }
-    if (h_ver)
-    {
-        FreeLibrary(h_ver);
+        get_product_name(filepath, NULL, 0, &ver, false);
     }
     return ver;
 }
@@ -739,7 +710,7 @@ is_ff_official(void)
     WCHAR process_name[MAX_PATH + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
     if (GetModuleFileNameW(NULL, process_name, MAX_PATH) > 0 &&
-        get_product_name(process_name, product_name, NAMES_LEN, false))
+        get_product_name(process_name, product_name, NAMES_LEN, NULL, false))
     {
         for (; moz_array[i]; ++i)
         {
@@ -892,7 +863,7 @@ is_flash_plugins(uintptr_t caller)
     WCHAR dll_name[VALUE_LEN + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
     if (get_module_name(caller, dll_name, VALUE_LEN) &&
-        get_product_name(dll_name, product_name, NAMES_LEN, true))
+        get_product_name(dll_name, product_name, NAMES_LEN, NULL, true))
     {
         res = _wcsicmp(L"Shockwave Flash", product_name) == 0;
     }

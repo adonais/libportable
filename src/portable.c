@@ -543,7 +543,7 @@ child_proces_if(const m_family e)
         {
             for (int i = count - 1; i > 1; --i)
             {
-                if (_wcsicmp(args[i], L"-parentPid") == 0)
+                if (_wcsicmp(args[i], L"-parentPid") == 0 || _wcsicmp(args[i], L"-parentBuildID") == 0)
                 {
                     ret = true;
                     break;

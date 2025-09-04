@@ -92,7 +92,7 @@ setenv_tt(void)
     ini_cache plist = NULL;
     if (init_process_envp())
     {
-        wchar_t env_buf[EXCLUDE_NUM][VALUE_LEN];
+        WCHAR env_buf[EXCLUDE_NUM][VALUE_LEN];
         crt_setenv(L"LIBPORTABLE_SETENV_DEFINED=1");
         if ((plist = iniparser_create_cache(ini_portable_path, false, true)) != NULL)
         {
