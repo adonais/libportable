@@ -784,7 +784,7 @@ threads_on_win10(void *lparam)
 void WINAPI
 threads_on_tabs(void)
 {
-    if (is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe"))
+    if (e_browser > MOZ_UNKOWN)
     {
         DWORD ver = get_os_version();
         if (ver <= 601 && !init_uia())

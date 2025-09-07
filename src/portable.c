@@ -411,7 +411,6 @@ undo_it(void)
     uninstall_bosskey();
     /* 清理启动过的进程树 */
     kill_trees();
-    jmp_end();
     MH_Uninitialize();
 #ifdef _LOGDEBUG
     logmsg("all clean!\n");
@@ -469,11 +468,14 @@ update_thread(void *lparam)
 }
 
 static bool
-init_hook_data(void)
+init_hook_data(const bool gpu)
 {
-    HANDLE mutex = NULL;
     WCHAR appdt[MAX_PATH] = {0};
-    if (!get_appdt_path(appdt, MAX_PATH))
+    if (gpu)
+    {
+        //
+    }
+    else if (!get_appdt_path(appdt, MAX_PATH))
     {
     #ifdef _LOGDEBUG
         logmsg("get_appdt_path(%ls) return false!\n", appdt);
@@ -487,78 +489,95 @@ init_hook_data(void)
     #endif
         return false;
     }
-    if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+    if (!gpu)
     {
-        write_file(appdt);
+        HANDLE mutex = NULL;
+        if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+        {
+            write_file(appdt);
+        }
+        else
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_FILEIO_DEFINED!\n");
+        #endif
+        }
+        if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
+        {
+            setenv_tt();
+        }
+        else
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
+        #endif
+        }
+        if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
+        {
+            init_portable();
+            init_crt_hook();
+            init_safed();
+        }
+        if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||
+           (mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK)) != NULL)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
+        #endif
+            _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
+            _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
+            _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
+        }
+        if (mutex)
+        {
+            CloseHandle(mutex);
+        }
     }
     else
     {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_FILEIO_DEFINED!\n");
-    #endif
-    }
-    if (!_wgetenv(L"LIBPORTABLE_SETENV_DEFINED"))
-    {
-        setenv_tt();
-    }
-    else
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
-    #endif
-    }
-    if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
-    {
-        init_portable();
-        init_crt_hook();
-        init_safed();
-    }
-    if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||
-       (mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK)) != NULL)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
-    #endif
-        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
-        _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
-        _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
-    }
-    if (mutex)
-    {
-        CloseHandle(mutex);
+        CloseHandle((HANDLE)_beginthreadex(NULL, 0, &init_exeception, NULL, 0, NULL));
+        return false;
     }
     return true;
 }
 
 static bool
-child_proces_if(const m_family e)
+child_proces_if(bool *pg)
 {
-    
     bool ret = false;
-    if (e > MOZ_UNKOWN)
+    if (e_browser > MOZ_UNKOWN)
     {
         int    count = 0;
         LPWSTR *args = CommandLineToArgvW(GetCommandLineW(), &count);
         if (NULL != args && count > 1)
         {
-            for (int i = count - 1; i > 1; --i)
+            if (e_browser == MOZ_ICEWEASEL && _wcsicmp(args[count - 1], L"gpu") == 0)
             {
-                if (_wcsicmp(args[i], L"-parentPid") == 0 || _wcsicmp(args[i], L"-parentBuildID") == 0)
+                if (pg)
                 {
-                    ret = true;
-                    break;
+                    *pg = true;
                 }
             }
-            LocalFree(args);
+            else
+            {
+                for (int i = count - 1; i > 1; --i)
+                {
+                    if (_wcsicmp(args[i], L"-parentPid") == 0 || _wcsicmp(args[i], L"-parentBuildID") == 0)
+                    {
+                        ret = true;
+                        break;
+                    }
+                }
+                LocalFree(args);
+            }
         }
     }
     return ret;
 }
 
 static void
-window_hooks(const m_family e)
+window_hooks(void)
 {
-    const DWORD ver = get_os_version();
     ini_cache plist = iniparser_create_cache(ini_portable_path, false, true);
     if (plist)
     {
@@ -569,12 +588,12 @@ window_hooks(const m_family e)
             logmsg("LIBPORTABLE_UPCHECK_DEFINED!\n");
         #endif
         }
-        else if (e > MOZ_ICEWEASEL)
+        else if (e_browser > MOZ_ICEWEASEL)
         {   // 支持官方版本更新开关的禁止与启用.
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
             _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
         }
-        else if (ver > 503 && up && inicache_read_int("General", "Portable", &plist) > 0)
+        else if (up && inicache_read_int("General", "Portable", &plist) > 0)
         {
             // 调用Iceweasel的自动更新进程.
             CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
@@ -624,12 +643,13 @@ window_hooks(const m_family e)
 void WINAPI
 do_it(void)
 {
-    const m_family e = is_ff_official();
-    if (initialize_memset() && !child_proces_if(e) && init_hook_data())
+    bool has_gpu = false;
+    e_browser = is_ff_official();
+    if (initialize_memset() && !child_proces_if(&has_gpu) && init_hook_data(has_gpu))
     {
-        if (e > MOZ_UNKOWN && !no_gui_boot())
+        if (e_browser > MOZ_UNKOWN && !no_gui_boot())
         {
-            window_hooks(e);
+            window_hooks();
         }
     }
 }

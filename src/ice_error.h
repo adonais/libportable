@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 extern unsigned __stdcall init_exeception(void * pParam);
-extern void __stdcall jmp_end(void);
 
 #ifdef __cplusplus
 }

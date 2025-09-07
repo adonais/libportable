@@ -263,7 +263,7 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 unsigned WINAPI
 run_process(void * lparam)
 {
-    if (is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe"))
+    if (e_browser > MOZ_UNKOWN)
     {
         WCHAR wcmd[MAX_PATH+1] = {0};
         WCHAR pcd[MAX_PATH+1] = {0};

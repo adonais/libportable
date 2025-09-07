@@ -34,13 +34,15 @@ typedef struct _LANGANDCODEPAGE
     uint16_t wCodePage;
 } LANGANDCODEPAGE;
 
-static PFNGFVSW pfnGetFileVersionInfoSizeW;
-static PFNGFVIW pfnGetFileVersionInfoW;
-static PFNVQVW pfnVerQueryValueW;
+static PFNGFVSW pfnGetFileVersionInfoSizeW = NULL;
+static PFNGFVIW pfnGetFileVersionInfoW = NULL;
+static PFNVQVW pfnVerQueryValueW = NULL;
+
 char ini_portable_path[MAX_PATH + 1] = {0};
 WCHAR xre_profile_path[MAX_BUFF] = {0};
 WCHAR xre_profile_local_path[MAX_BUFF] = {0};
 LoadLibraryExPtr sLoadLibraryExStub = NULL;
+m_family e_browser = MOZ_UNKOWN;
 
 #ifdef _LOGDEBUG
 #define LOG_FILE L"run_hook.log"

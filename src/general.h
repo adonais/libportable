@@ -76,6 +76,7 @@ typedef enum
 extern "C" {
 #endif 
 
+extern m_family e_browser;
 extern char ini_portable_path[MAX_PATH + 1];
 extern WCHAR xre_profile_path[MAX_BUFF];
 extern WCHAR xre_profile_local_path[MAX_BUFF];

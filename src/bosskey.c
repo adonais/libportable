@@ -124,7 +124,7 @@ uninstall_bosskey(void)
 unsigned WINAPI
 bosskey_thread(void *lparam)
 {
-    if (is_specialapp(L"Iceweasel.exe") || is_specialapp(L"firefox.exe"))
+    if (e_browser > MOZ_UNKOWN)
     {
         WNDINFO  ff_info = {0};
         ff_info.hPid = GetCurrentProcessId();
