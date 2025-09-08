@@ -317,6 +317,22 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd, bool *pv)
     return hr;
 }
 
+static HRESULT
+get_new_botton(IUIAutomationElement *tab_bar, const POINT *pt, int *active)
+{
+    /* 获取新建标签按钮 */
+    HRESULT hr = -1;
+    IUIAutomationElement *botton = find_next_child(tab_bar, UIA_ButtonControlTypeId);
+    if (botton != NULL)
+    {
+        RECT rc;
+        hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
+        *active = (SUCCEEDED(hr) && PtInRect(&rc, *pt)) ? ON_BUTTON_FLAGS : 0;
+        IUIAutomationElement_Release(botton);
+    }
+    return hr;
+}
+
 /* 得到标签页的事件指针, 当标签没激活时把active参数设为标签序号 */
 static bool
 mouse_on_tab(RECT *pr, const POINT *pt, int *active)
@@ -326,6 +342,7 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
     IUIAutomationElement *tab_bar = NULL;
+    IUIAutomationElement *group = NULL;
     IUnknown *m_pattern = NULL;
     bool res = false;
     do
@@ -334,7 +351,6 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         int c = 0;
         HWND hwnd = WindowFromPoint(*pt);
         var.vt = VT_I4;
-        var.lVal = UIA_TabItemControlTypeId;
         hr = get_tab_bars(&tab_bar, hwnd, NULL);
         if (FAILED(hr) || !tab_bar)
         {
@@ -350,20 +366,16 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        if (button_new && active != NULL)
+        if (e_browser == MOZ_ZEN)
         {
-             /* 获取新建标签按钮 */
-            IUIAutomationElement *botton = find_next_child(tab_bar, UIA_ButtonControlTypeId);
-            if (botton != NULL)
+            var.lVal = UIA_GroupControlTypeId;
+        }
+        else
+        {
+            var.lVal = UIA_TabItemControlTypeId;
+            if (button_new && active != NULL)
             {
-                RECT rc;
-                hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
-                if (SUCCEEDED(hr) && PtInRect(&rc, *pt))
-                {
-                    *active = ON_BUTTON_FLAGS;
-                }
-                IUIAutomationElement_Release(botton);
-                botton = NULL;
+                get_new_botton(tab_bar, pt, active);
             }
         }
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
@@ -374,7 +386,7 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        hr = IUIAutomationElement_FindAllBuildCache(tab_bar, TreeScope_Children, pCondition, cache_uia,&pFoundArray);
+        hr = IUIAutomationElement_FindAllBuildCache(tab_bar, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -390,7 +402,44 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        for (idx = 0; idx < c; idx++)
+        if (e_browser == MOZ_ZEN && c > 1)
+        {
+            hr = IUIAutomationElementArray_GetElement(pFoundArray, 1, &group);
+            IUIAutomationCondition_Release(pCondition);
+            IUIAutomationElementArray_Release(pFoundArray);
+            var.lVal = UIA_TabItemControlTypeId;
+            if (SUCCEEDED(hr) && group)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("Zen browser!\n");
+            #endif
+                hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
+                if (FAILED(hr))
+                {
+                #ifdef _LOGDEBUG
+                    logmsg("Zen CreatePropertyCondition false!\n");
+                #endif
+                    break;
+                }
+                hr = IUIAutomationElement_FindAllBuildCache(group, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
+                if (FAILED(hr))
+                {
+                #ifdef _LOGDEBUG
+                    logmsg("Zen IUIAutomationElement_FindAllBuildCache false!\n");
+                #endif
+                    break;
+                }
+                hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
+                if (FAILED(hr) || c == 0 || c > VALUE_LEN)
+                {
+                #ifdef _LOGDEBUG
+                    logmsg("Zen IUIAutomationElementArray_get_Length false, c = %d!\n", c);
+                #endif
+                    break;
+                }
+            }
+        }
+        for (idx = 0; idx < c; ++idx)
         {
             IUIAutomationElement *tmp = NULL;
             hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
@@ -445,6 +494,10 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     if (pFoundArray)
     {
         IUIAutomationElementArray_Release(pFoundArray);
+    }
+    if (group)
+    {
+        IUIAutomationElement_Release(group);
     }
     if (tab_bar)
     {

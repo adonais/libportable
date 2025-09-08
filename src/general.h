@@ -66,6 +66,7 @@ typedef enum
 {
     MOZ_UNKOWN = 0,
     MOZ_ICEWEASEL,
+    MOZ_ZEN,
     MOZ_FIREFOX,
     MOZ_BETA,
     MOZ_DEV,

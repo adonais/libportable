@@ -72,15 +72,13 @@ DEP      = .dep
 RCFLAGS  = /nologo /D "_UNICODE" /D "UNICODE"
 MIN_INC  = $(SRC)\minhook\include
 
-OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj \
-           $(DEP)\new_process.obj $(DEP)\cpu_avx.obj $(DEP)\cpu_avx512.obj $(DEP)\cpu_info.obj \
+OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\inject.obj \
+           $(DEP)\safe_ex.obj  $(DEP)\new_process.obj $(DEP)\cpu_avx.obj $(DEP)\cpu_avx512.obj $(DEP)\cpu_info.obj \
            $(DEP)\balance.obj $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
            $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj
 
-!if "$(DISABLE_SAFE)"!="1"
-OBJDLL   = $(DEP)\safe_ex.obj $(DEP)\inject.obj $(OBJDLL)
-!else
-CFLAGS   = $(CFLAGS) /D "DISABLE_SAFE"
+!if "$(DLL_INJECT)" == "1"
+CFLAGS   = $(CFLAGS) /D "DLL_INJECT"
 !endif
 
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
@@ -123,12 +121,10 @@ $(DEP)\portable.obj     : $(SRC)\portable.c $(SRC)\portable.h
 	$(CC) $(CFLAGS) /c $(SRC)\portable.c /Fo$@
 $(DEP)\general.obj      : $(SRC)\general.c $(SRC)\general.h
 	$(CC) $(CFLAGS) /c $(SRC)\general.c /Fo$@
-!if "$(DISABLE_SAFE)"!="1"
 $(DEP)\inject.obj       : $(SRC)\inject.c $(SRC)\inject.h $(SRC)\winapis.h
 	$(CC) $(CFLAGS) /c $(SRC)\inject.c /Fo$@
 $(DEP)\safe_ex.obj      : $(SRC)\safe_ex.c $(SRC)\safe_ex.h $(SRC)\winapis.h
 	$(CC) $(CFLAGS) /c $(SRC)\safe_ex.c /Fo$@
-!endif
 $(DEP)\ice_error.obj    : $(SRC)\ice_error.c $(SRC)\ice_error.h
 	$(CC) $(CFLAGS) /c $(SRC)\ice_error.c /Fo$@
 $(DEP)\bosskey.obj      : $(SRC)\bosskey.c $(SRC)\bosskey.h

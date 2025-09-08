@@ -703,6 +703,7 @@ is_ff_official(void)
     int i = 0;
     m_family var = MOZ_UNKOWN;
     WCHAR *moz_array[] = {L"Iceweasel",
+                          L"Zen",
                           L"Firefox",
                           L"Firefox Beta",
                           L"Firefox Developer Edition",
@@ -727,15 +728,18 @@ is_ff_official(void)
             var = MOZ_ICEWEASEL;
             break;
         case 1:
-            var = MOZ_FIREFOX;
+            var = MOZ_ZEN;
             break;
         case 2:
-            var = MOZ_BETA;
+            var = MOZ_FIREFOX;
             break;
         case 3:
-            var = MOZ_DEV;
+            var = MOZ_BETA;
             break;
         case 4:
+            var = MOZ_DEV;
+            break;
+        case 5:
             var = MOZ_NIGHTLY;
             break;
         default:

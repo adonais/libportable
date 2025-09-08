@@ -39,7 +39,7 @@ CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -Wno-int-to-pointer-cast \
 ifeq ($(findstring clang,$(CC)),clang)
 CXX      = $(CC)++
 CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-declarations
-ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc)) 
+ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc))
 CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
 MSCRT    =
 MSVC     = 1
@@ -47,7 +47,7 @@ LDFLAGS := $(filter-out -s,$(LDFLAGS)) -fuse-ld=lld
 endif   #target x86_64 or i686
 ifneq (,$(findstring i686,$(DFLAGS)))
 BITS	 = 32
-else 
+else
 BITS	 = 64
 endif
 endif   # clang
@@ -81,9 +81,9 @@ MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -fvisibility=hidden -DCJSON_HIDE_SYMBOLS -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
 OUT1     = $(DISTDIR)/libminhook$(BITS).a
-ifeq ($(MSVC),1)	
+ifeq ($(MSVC),1)
 OBJECTS  += $(DEP)/on_tabs.o
-endif	
+endif
 
 EXEC     = \
     @echo Starting Compile... \
@@ -98,6 +98,10 @@ else ifeq ($(BITS),64)
     CFLAGS	+= $(X64FLAG)
     LDFLAGS += -m64
     ASMFLAGS = -fwin64 -DWINDOWS -D__x86_64__ -Worphan-labels
+endif
+
+ifeq ($(DLL_INJECT),1)
+CFLAGS  += -DDLL_INJECT
 endif
 
 ifeq ($(LIBPORTABLE_STATIC),1)
@@ -148,15 +152,15 @@ $(OUT1)               : $(SUB_DIR)/Makefile
 $(OUT)                : $(OBJECTS) $(OUT1)
 ifeq ($(LIBPORTABLE_STATIC),1)
 	$(LD) $@ $(OBJS)
-else	
+else
 	$(LD) $@ $(OBJS) $(DFLAGS) $(DLLFLAGS) $(LDFLAGS) $(LDLIBS)
-endif	
+endif
 	-$(CP) $(OUT) $(TETE) 2>/dev/null
 $(DEP)/portable.o     : $(SRC)/portable.c $(SRC)/portable.h $(SRC)/general.h
 	$(call EXEC)
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/ini_parser.o   : $(SRC)/ini_parser.c $(SRC)/ini_parser.h
-	$(CC) -c $< $(CFLAGS) -o $@	
+	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/general.o      : $(SRC)/general.c $(SRC)/general.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/inject.o       : $(SRC)/inject.c $(SRC)/inject.h $(SRC)/winapis.h
@@ -182,19 +186,19 @@ $(DEP)/win_registry.o : $(SRC)/win_registry.c $(SRC)/win_registry.h
 $(DEP)/set_env.o      : $(SRC)/set_env.c $(SRC)/set_env.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/on_tabs.o      : $(SRC)/on_tabs.c $(SRC)/on_tabs.h
-	$(CC) -c $< $(CFLAGS) -o $@	
+	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/json_paser.o   : $(SRC)/json_paser.c $(SRC)/json_paser.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/cjson.o        : $(SRC)/cjson.c $(SRC)/cjson.h
 	$(CC) -c $< $(CFLAGS) -o $@
-ifeq ($(LIBPORTABLE_STATIC),)	
+ifeq ($(LIBPORTABLE_STATIC),)
 $(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) $< $(RCFLAGS) $@
 endif
 
 .PHONY                : clean
-clean                 : 
+clean                 :
 	-rm -rf $(DISTDIR) $(DEP) *.pdb
 

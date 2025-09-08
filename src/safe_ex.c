@@ -1,7 +1,3 @@
-#ifdef DISABLE_SAFE
-#error This file should not be compiled!
-#endif
-
 #include "general.h"
 #include "winapis.h"
 #include "inject.h"
@@ -26,7 +22,9 @@ static _RtlNtStatusToDosError  pRtlNtStatusToDosError;
 static _CreateProcessInternalW pCreateProcessInternalW;
 static _CreateProcessInternalW sCreateProcessInternalW;
 
+#ifdef DLL_INJECT
 static volatile long upgrade_ok = 0;
+#endif
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
@@ -246,6 +244,7 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
     }
 }
 
+#ifdef DLL_INJECT
 static void
 dll_update(void)
 {
@@ -255,11 +254,21 @@ dll_update(void)
         wcsncat(upcheck, L"\\upcheck.exe", MAX_PATH);
         if (wexist_file(upcheck))
         {
-            wcsncat(upcheck, L" -dll2", MAX_PATH);
-            CloseHandle(create_new(upcheck, NULL, NULL, 0, NULL));
+            WCHAR ss[NAMES_LEN] = {0};
+            wcsncat(upcheck, L" -dll2 ", MAX_PATH);
+            if (e_browser > MOZ_ICEWEASEL)
+            {
+                _itow((int)e_browser, ss, 10);
+            }
+            if (*ss)
+            {
+                wcsncat(upcheck, ss, MAX_PATH);
+                CloseHandle(create_new(upcheck, NULL, NULL, 0, NULL));
+            }
         }
     }
 }
+#endif
 
 static NTSTATUS WINAPI
 HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
@@ -277,6 +286,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     bool      tohook = false;
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
     trace_command(ProcessParameters->ImagePathName.Buffer, ProcessParameters->CommandLine.Buffer);
+#ifdef DLL_INJECT
     if (is_specialapp(L"updater.exe") &&
        ((ProcessParameters->ImagePathName.Buffer && wcsstr(ProcessParameters->ImagePathName.Buffer, L"/PostUpdate")) ||
        (ProcessParameters->CommandLine.Buffer &&  wcsstr(ProcessParameters->CommandLine.Buffer, L"/PostUpdate"))) &&
@@ -289,6 +299,7 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     #endif
         ExitProcess(255);
     }
+#endif
     if (!ini_read_int("General", "SafeEx", ini_portable_path, true))
     {
         return sNtCreateUserProcess(ProcessHandle, ThreadHandle,
@@ -544,7 +555,6 @@ unsigned WINAPI init_safed(void)
         #endif
         }
     }
-#ifndef DISABLE_SAFE
     if (ver < 600 && ini_read_int("General", "SafeEx", ini_portable_path, true) > 0)
     {
         pLoadLibraryEx = (LoadLibraryExPtr)GetProcAddress(hKernel, "LoadLibraryExW");
@@ -562,6 +572,5 @@ unsigned WINAPI init_safed(void)
         #endif
         }
     }
-#endif
     return (1);
 }

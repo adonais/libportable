@@ -1,7 +1,3 @@
-#ifdef DISABLE_SAFE
-#error This file should not be compiled!
-#endif
-
 #include "general.h"
 #include "winapis.h"
 
