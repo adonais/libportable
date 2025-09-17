@@ -398,13 +398,7 @@ diff_days(void)
 void WINAPI
 undo_it(void)
 {
-    if (g_mutex)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("clean LIBPORTABLE_LAUNCHER_PROCESS\n");
-    #endif
-        CloseHandle(g_mutex);
-    }
+    close_mutex();
     /* 反注册uia */
     un_uia();
     /* 解除快捷键 */
@@ -444,7 +438,6 @@ update_thread(void *lparam)
     {
         wcsncpy(dirs, path, ++pos-path);
         wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
-        _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
     }
     if (ini_read_int("update", "be_ready", ini_portable_path, true) > 0)
     {
@@ -471,11 +464,7 @@ static bool
 init_hook_data(const bool gpu)
 {
     WCHAR appdt[MAX_PATH] = {0};
-    if (gpu)
-    {
-        //
-    }
-    else if (!get_appdt_path(appdt, MAX_PATH))
+    if (!gpu && !get_appdt_path(appdt, MAX_PATH))
     {
     #ifdef _LOGDEBUG
         logmsg("get_appdt_path(%ls) return false!\n", appdt);
@@ -491,7 +480,7 @@ init_hook_data(const bool gpu)
     }
     if (!gpu)
     {
-        HANDLE mutex = NULL;
+        HANDLE mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK);
         if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
         {
             write_file(appdt);
@@ -512,30 +501,35 @@ init_hook_data(const bool gpu)
             logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
         #endif
         }
+        if (!mutex)
+        {
+            if (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
+            {
+                write_json_file(appdt);
+            }
+            init_safed();
+        #ifdef _LOGDEBUG
+            logmsg("Launcher process runing\n");
+        #endif
+            return false;
+        }
         if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
         {
             init_portable();
             init_crt_hook();
             init_safed();
-        }
-        if (_wgetenv(L"LIBPORTABLE_UPCHECK_LAUNCHER_PROCESS") ||
-           (mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK)) != NULL)
-        {
         #ifdef _LOGDEBUG
-            logmsg("LIBPORTABLE_LAUNCHER_PROCESS_DEFINED!\n");
+            logmsg("UI process runing\n");
         #endif
-            _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=");
-            _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=");
-            _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=");
         }
-        if (mutex)
-        {
-            CloseHandle(mutex);
-        }
+        CloseHandle(mutex);
     }
     else
     {
         CloseHandle((HANDLE)_beginthreadex(NULL, 0, &init_exeception, NULL, 0, NULL));
+    #ifdef _LOGDEBUG
+        logmsg("GPU process runing\n");
+    #endif
         return false;
     }
     return true;
@@ -549,27 +543,29 @@ child_proces_if(bool *pg)
     {
         int    count = 0;
         LPWSTR *args = CommandLineToArgvW(GetCommandLineW(), &count);
-        if (NULL != args && count > 1)
+        if (NULL != args)
         {
-            if (e_browser == MOZ_ICEWEASEL && _wcsicmp(args[count - 1], L"gpu") == 0)
+            if (count > 1)
             {
-                if (pg)
+                if (e_browser == MOZ_ICEWEASEL && _wcsicmp(args[count - 1], L"gpu") == 0)
                 {
-                    *pg = true;
-                }
-            }
-            else
-            {
-                for (int i = count - 1; i > 1; --i)
-                {
-                    if (_wcsicmp(args[i], L"-parentPid") == 0 || _wcsicmp(args[i], L"-parentBuildID") == 0)
+                    if (pg)
                     {
-                        ret = true;
-                        break;
+                        *pg = true;
                     }
                 }
-                LocalFree(args);
+                else
+                {
+                    for (int i = 1; i < count; ++i)
+                    {
+                        if ((ret = check_arg(args[i], L"contentproc", L"parentBuildID")))
+                        {
+                            break;
+                        }
+                    }
+                }
             }
+            LocalFree(args);
         }
     }
     return ret;
@@ -582,35 +578,21 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
-        if (_wgetenv(L"LIBPORTABLE_UPCHECK_DEFINED"))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("LIBPORTABLE_UPCHECK_DEFINED!\n");
-        #endif
-        }
-        else if (e_browser > MOZ_ICEWEASEL)
+        if (e_browser > MOZ_ICEWEASEL)
         {   // 支持官方版本更新开关的禁止与启用.
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
-            _wputenv(L"LIBPORTABLE_UPCHECK_DEFINED=1");
         }
         else if (up && inicache_read_int("General", "Portable", &plist) > 0)
         {
             // 调用Iceweasel的自动更新进程.
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&update_thread,NULL,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
         }
         if (inicache_read_int("General", "CreateCrashDump", &plist) > 0)
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&init_exeception,NULL,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &init_exeception, NULL, 0, NULL));
         }
-        if (_wgetenv(L"LIBPORTABLE_ONTABS_DEFINED"))
+        if (inicache_read_int("General", "OnTabs", &plist) > 0)
         {
-        #ifdef _LOGDEBUG
-            logmsg("LIBPORTABLE_ONTABS_DEFINED!\n");
-        #endif
-        }
-        else if (inicache_read_int("General", "OnTabs", &plist) > 0)
-        {
-            _wputenv(L"LIBPORTABLE_ONTABS_DEFINED=1");
             threads_on_tabs();
         }
         if (inicache_read_int("General", "DisableScan", &plist) > 0)
@@ -619,22 +601,15 @@ window_hooks(void)
         }
         if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&set_cpu_balance,NULL,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &set_cpu_balance, NULL, 0, NULL));
         }
         if (inicache_read_int("General", "Bosskey", &plist) > 0)
         {
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&bosskey_thread,NULL,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &bosskey_thread, NULL, 0, NULL));
         }
-        if (_wgetenv(L"LIBPORTABLE_NEWPROCESS_DEFINED"))
+        if (inicache_read_int("General", "ProxyExe", &plist) > 0)
         {
-        #ifdef _LOGDEBUG
-            logmsg("LIBPORTABLE_NEWPROCESS_DEFINED!\n");
-        #endif
-        }
-        else if (inicache_read_int("General", "ProxyExe", &plist) > 0)
-        {
-            _wputenv(L"LIBPORTABLE_NEWPROCESS_DEFINED=1");
-            CloseHandle((HANDLE)_beginthreadex(NULL,0,&run_process,NULL,0,NULL));
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &run_process, NULL, 0, NULL));
         }
         iniparser_destroy_cache(&plist);
     }

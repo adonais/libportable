@@ -11,7 +11,7 @@
 
 #define LEN_PARAM 1024
 
-HANDLE g_mutex = NULL;
+static HANDLE g_mutex = NULL;
 LoadLibraryExPtr pLoadLibraryEx = NULL;
 
 static _NtCreateUserProcess    sNtCreateUserProcess;
@@ -28,7 +28,9 @@ static volatile long upgrade_ok = 0;
 
 static bool in_whitelist(LPCWSTR lpfile)
 {
-    WCHAR *moz_processes[] = {L"", L"%windir%\\system32\\WerFault.exe",
+    WCHAR *moz_processes[] = {L"",
+                              L"%windir%\\system32\\WerFault.exe",
+                              L"desktop-launcher\\desktop-launcher.exe",
                               L"plugin-container.exe",
                               L"plugin-hang-ui.exe",
                               L"firefox-webcontent.exe",
@@ -48,7 +50,8 @@ static bool in_whitelist(LPCWSTR lpfile)
                               L"wow_helper.exe",
                               L"pingsender.exe",
                               L"default-browser-agent.exe",
-                              L"private_browsing.exe"
+                              L"private_browsing.exe",
+                              L"nmhproxy.exe"
                              };
     static  WCHAR white_list[EXCLUDE_NUM][VALUE_LEN];
     int     i = sizeof(moz_processes)/sizeof(moz_processes[0]);
@@ -231,16 +234,11 @@ trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
             var = true;
         }
     }
-    if (var)
+    if (var && (g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK)))
     {
-        // 为启动器进程做标记, dll退出时销毁句柄
-        g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK);
-        if (g_mutex)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
-        #endif
-        }
+    #ifdef _LOGDEBUG
+        logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);
+    #endif
     }
 }
 
@@ -524,10 +522,22 @@ HookLoadLibraryExW(LPCWSTR lpFileName,HANDLE hFile,DWORD dwFlags)
     return sLoadLibraryExStub(lpFileName, hFile, dwFlags);
 }
 
+void WINAPI
+close_mutex(void)
+{
+    if (g_mutex)
+    {
+        CloseHandle(g_mutex);
+    #ifdef _LOGDEBUG
+        logmsg("clean LIBPORTABLE_LAUNCHER_PROCESS\n");
+    #endif
+    }
+}
+
 unsigned WINAPI init_safed(void)
 {
-    HMODULE		hNtdll, hKernel;
-    DWORD		ver = get_os_version();
+    HMODULE     hNtdll, hKernel;
+    DWORD       ver = get_os_version();
     hNtdll   =  GetModuleHandleW(L"ntdll.dll");
     hKernel  =  GetModuleHandleW(L"kernel32.dll");
     if ( hNtdll == NULL || hKernel  == NULL ||

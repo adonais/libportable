@@ -474,12 +474,15 @@ json_lookup(const WCHAR *file, const char *path)
         {
             folder_detach(system_path);
         #ifdef _LOGDEBUG
-            logmsg("system_path = %s\n", system_path);
+            logmsg("system_path = %s, path = %s\n", system_path, path);
         #endif
         }
         /* 不需要替换路径, 返回空指针 */
         if (system_path && _stricmp(path, system_path) == 0)
         {
+        #ifdef _LOGDEBUG
+            logmsg("Looks like the path is the same\n");
+        #endif
             cJSON_Delete(json);
             json = NULL;
         }

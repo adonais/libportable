@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern HANDLE g_mutex;
+extern void __stdcall close_mutex(void);
 extern unsigned  __stdcall init_safed(void);
 
 #ifdef __cplusplus

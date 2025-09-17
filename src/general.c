@@ -1093,18 +1093,34 @@ write_ini_file(ini_cache *ini)
     return false;
 }
 
-static unsigned WINAPI
-write_json_file(void *lparam)
+static bool
+get_xre_path(LPCWSTR appdt)
 {
-    if (*xre_profile_path)
+    if (appdt && appdt[0])
     {
-        cJSON *json = NULL;
+        _snwprintf(xre_profile_path, MAX_BUFF, L"%s", appdt);
+        PathRemoveFileSpecW(xre_profile_path);
+        if (!xre_profile_local_path[0])
+        {
+            get_localdt_path(xre_profile_local_path, MAX_BUFF);
+        }
+        return true;
+    }
+    return false;
+}
+
+void WINAPI
+write_json_file(LPCWSTR appdt)
+{
+    if (xre_profile_path[0] || get_xre_path(appdt))
+    {
+       cJSON *json = NULL;
         char path[MAX_BUFF+1] = {0};
         WCHAR url[MAX_BUFF+1] = {0};
         _snwprintf(url, MAX_BUFF, L"%s\\addonStartup.json.lz4", xre_profile_path);
-        if (wexist_file((LPCWSTR)url))
+        if (wexist_file((LPCWSTR)url) && get_process_directory(path, MAX_BUFF))
         {
-            if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url) && get_process_directory(path, MAX_BUFF))
+            if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url))
             {
             #ifdef _LOGDEBUG
                 logmsg("we need rewrite addonStartup.json.lz4\n");
@@ -1117,7 +1133,6 @@ write_json_file(void *lparam)
             cJSON_Delete(json);
         }
     }
-    return 0;
 }
 
 bool WINAPI
@@ -1207,20 +1222,7 @@ write_file(LPCWSTR appdata_path)
     {
         iniparser_destroy_cache(&handle);
     }
-    if (true)
-    {
-        _snwprintf(xre_profile_path, MAX_BUFF, L"%s", appdata_path);
-        PathRemoveFileSpecW(xre_profile_path);
-        ret = get_localdt_path(xre_profile_local_path, MAX_BUFF);
-    }
-    if (ret && ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
-    {
-    #ifdef _LOGDEBUG
-        logmsg("DisableExtensionPortable return false\n", ini_portable_path);
-    #endif
-        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &write_json_file, NULL, 0, NULL));
-    }
-    return ret;
+    return get_xre_path(appdata_path);
 }
 
 bool WINAPI
@@ -1342,30 +1344,20 @@ is_specialapp(LPCWSTR appname)
 }
 
 bool WINAPI
-print_process_module(DWORD pid)
+check_arg(LPCWSTR warg, LPCWSTR sub1, LPCWSTR sub2)
 {
-    BOOL ret = true;
-    HANDLE hmodule = NULL;
-    MODULEENTRY32 me32 = { 0 };
-    hmodule = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
-    if (hmodule == INVALID_HANDLE_VALUE)
+    if (warg && sub1)
     {
-        return false;
-    }
-    me32.dwSize = sizeof(MODULEENTRY32);
-    if (Module32First(hmodule, &me32))
-    {
-        do
+        int i = 0;
+        if (warg[0] == L'-')
         {
-        #ifdef _LOGDEBUG
-            logmsg("szModule = %ls, start_addr = 0x%x, end_addr = 0x%x\n", me32.szExePath, me32.modBaseAddr, me32.modBaseAddr + me32.modBaseSize);
-        #endif
-        } while (Module32Next(hmodule, &me32));
+            ++i;
+            if (warg[1] == L'-')
+            {
+                ++i;
+            }
+        }
+        return (_wcsicmp(&warg[i], sub1) == 0 || (sub2 && _wcsicmp(&warg[i], sub2) == 0));
     }
-    else
-    {
-        ret = false;
-    }
-    CloseHandle(hmodule);
-    return ret;
+    return false;
 }
