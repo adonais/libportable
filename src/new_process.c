@@ -263,7 +263,7 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 unsigned WINAPI
 run_process(void * lparam)
 {
-    if (e_browser > MOZ_UNKOWN)
+    if (e_browser > MOZ_UNKOWN && is_browser())
     {
         WCHAR wcmd[MAX_PATH+1] = {0};
         WCHAR pcd[MAX_PATH+1] = {0};

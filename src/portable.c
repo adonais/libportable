@@ -501,7 +501,7 @@ init_hook_data(const bool gpu)
             logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
         #endif
         }
-        if (!mutex)
+        if (!mutex && is_browser())
         {
             if (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
             {

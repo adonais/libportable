@@ -837,7 +837,7 @@ threads_on_win10(void *lparam)
 void WINAPI
 threads_on_tabs(void)
 {
-    if (e_browser > MOZ_UNKOWN)
+    if (e_browser > MOZ_UNKOWN && is_browser())
     {
         DWORD ver = get_os_version();
         if (ver <= 601 && !init_uia())

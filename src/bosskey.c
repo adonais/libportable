@@ -124,7 +124,7 @@ uninstall_bosskey(void)
 unsigned WINAPI
 bosskey_thread(void *lparam)
 {
-    if (e_browser > MOZ_UNKOWN)
+    if (e_browser > MOZ_UNKOWN && is_browser())
     {
         WNDINFO  ff_info = {0};
         ff_info.hPid = GetCurrentProcessId();

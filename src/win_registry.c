@@ -28,12 +28,16 @@ HookRegOpenKeyExW(HKEY    hKey,
     return sRegOpenKeyExWStub(hKey, lpSubKey, ulOptions, samDesired, phkResult);
 }
 
-unsigned WINAPI init_winreg(void * pParam)
+unsigned WINAPI
+init_winreg(void * pParam)
 {
-    HMODULE m_adv = GetModuleHandleW(L"advapi32.dll");
-    if ( m_adv && (pRegOpenKeyExW = (RegOpenKeyExPtr)GetProcAddress(m_adv, "RegOpenKeyExW")) != NULL )
+    if (e_browser > MOZ_UNKOWN && is_browser())
     {
-        return creator_hook(pRegOpenKeyExW, HookRegOpenKeyExW, (LPVOID*)&sRegOpenKeyExWStub);
+        HMODULE m_adv = GetModuleHandleW(L"advapi32.dll");
+        if ( m_adv && (pRegOpenKeyExW = (RegOpenKeyExPtr)GetProcAddress(m_adv, "RegOpenKeyExW")) != NULL )
+        {
+            return creator_hook(pRegOpenKeyExW, HookRegOpenKeyExW, (LPVOID*)&sRegOpenKeyExWStub);
+        }
     }
-    return (0);
+    return 0;
 }

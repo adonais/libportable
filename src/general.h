@@ -118,6 +118,7 @@ extern bool     WINAPI cmd_has_profile(char *pout, const int size);
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI get_process_name(LPWSTR name, DWORD wlen);
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
+extern bool     WINAPI is_browser(void);
 
 #ifdef __cplusplus
 }

@@ -25,6 +25,7 @@
 extern void __cdecl logmsg(const char *format, ...);
 #endif
 extern char * __stdcall ini_utf8_mbcs(int codepage, const char *utf8, size_t *out_len);
+extern char * __stdcall ini_utf16_utf8(const wchar_t *utf16, size_t *out_len);
 extern bool __stdcall get_process_directory(char *name, uint32_t len);
 extern bool __stdcall wget_process_directory(LPWSTR lpstrName, DWORD len);
 extern bool __stdcall wcreate_dir(LPCWSTR dir);
@@ -206,17 +207,33 @@ node_path_fix(cJSON *addons, const char *item, const char *sub1, const char *sub
 }
 
 static void
-folder_detach(char *path)
+folder_detach(char *path, const int dp)
 {
     char *p = NULL;
     if ((p = strrchr(path, '\\')) != NULL)
     {
         *p = 0;
-        if ((p = strrchr(path, '\\')) != NULL)
+        if (dp && (p = strrchr(path, '\\')) != NULL)
         {
             *p = 0;
         }
     }
+}
+
+static char *
+get_json_string(const cJSON * const object, const char * const string)
+{
+    char *str = NULL;
+    cJSON *pelement = NULL;
+    if (!object || !string)
+    {
+        return NULL;
+    }
+    if ((pelement = cJSON_GetObjectItem(object, string)) != NULL && (str = cJSON_GetStringValue(pelement)) != NULL)
+    {
+        return _strdup(str);
+    }
+    return NULL;
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -248,10 +265,10 @@ json_replaces(cJSON *json, LPCWSTR u_file, LPCWSTR u_save, const char * win_prof
         win_enc_profile = mychr_replace(win_profiles);
         win_enc_app = mychr_replace(win_app);
         /* 替换浏览器内置扩展路径 */
-        if (system_default && (system_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
+        if (system_default && (system_path = get_json_string(system_default, "path")) != NULL)
         {
             char *win_ansi_path = NULL;
-            folder_detach(system_path);
+            folder_detach(system_path, 1);
             if (!value_repalce(system_default, "path", system_path, NULL, win_app))
             {
             #ifdef _LOGDEBUG
@@ -291,7 +308,7 @@ json_replaces(cJSON *json, LPCWSTR u_file, LPCWSTR u_save, const char * win_prof
             }
         }
         /* 替换用户安装的扩展路径 */
-        if (app_profile && (extension_path = _strdup(cJSON_GetObjectItem(app_profile, "path")->valuestring)) != NULL)
+        if (app_profile && (extension_path = get_json_string(app_profile, "path")) != NULL)
         {
             char *profiles_ansi_path = NULL;
             if (strrchr(extension_path, '\\') != NULL)
@@ -399,7 +416,7 @@ json_replaces(cJSON *json, LPCWSTR u_file, LPCWSTR u_save, const char * win_prof
 }
 
 void* WINAPI
-json_lookup(const WCHAR *file, const char *path)
+json_lookup(const WCHAR *file, const WCHAR *xre_path, const char *path)
 {
     FILE *fp = NULL;
     char *dest = NULL;
@@ -455,11 +472,11 @@ json_lookup(const WCHAR *file, const char *path)
             break;
         }
     #ifdef _LOGDEBUG
-        FILE *tptp = NULL;
-        if ((tptp = _wfopen(L"test.json", L"wb")) != NULL)
+        FILE *tmp = NULL;
+        if ((tmp = _wfopen(L"test.json", L"wb")) != NULL)
         {
-            fwrite(regen_buffer, 1, decompressed_size, tptp);
-            fclose(tptp);
+            fwrite(regen_buffer, 1, decompressed_size, tmp);
+            fclose(tmp);
         }
     #endif
         if ((json = cJSON_Parse(regen_buffer)) == NULL)
@@ -469,22 +486,40 @@ json_lookup(const WCHAR *file, const char *path)
         #endif
             break;
         }
-        cJSON *system_default = cJSON_GetObjectItem(json, "app-system-defaults");
-        if (system_default && (system_path = _strdup(cJSON_GetObjectItem(system_default, "path")->valuestring)) != NULL)
-        {
-            folder_detach(system_path);
+        if ((system_path = get_json_string(cJSON_GetObjectItem(json, "app-system-defaults"), "path")) != NULL)
+        {   // strip browser/features
+            folder_detach(system_path, 1);
         #ifdef _LOGDEBUG
             logmsg("system_path = %s, path = %s\n", system_path, path);
         #endif
+            if (_stricmp(path, system_path) == 0)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("Looks like the path is the same\n");
+            #endif
+                cJSON_Delete(json);
+                json = NULL;
+                break;
+            }
+            free(system_path);
+            system_path = NULL;
         }
-        /* 不需要替换路径, 返回空指针 */
-        if (system_path && _stricmp(path, system_path) == 0)
+        if ((system_path = get_json_string(cJSON_GetObjectItem(json, "app-profile"), "path")) != NULL)
         {
-        #ifdef _LOGDEBUG
-            logmsg("Looks like the path is the same\n");
-        #endif
-            cJSON_Delete(json);
-            json = NULL;
+            char *xre = ini_utf16_utf8(xre_path, NULL);
+            if (xre)
+            {   // strip extensions
+                folder_detach(system_path, 0);
+                if (_stricmp(system_path, xre) == 0)
+                {
+                #ifdef _LOGDEBUG
+                    logmsg("system_path = %s, xre_path = %s\n", system_path, xre);
+                #endif
+                    cJSON_Delete(json);
+                    json = NULL;
+                }
+                free(xre);
+            }
         }
     } while(0);
     if (fp)
@@ -517,7 +552,7 @@ json_parser(void *json, const WCHAR *profile_dir, const char *app_dir)
     if (json_replaces((cJSON *)json, u_file, u_save, my_make_u8(profile_dir, profile, MAX_PATH), app_dir) != 0)
     {
     #ifdef _LOGDEBUG
-        logmsg("lookup_json return false\n");
+        logmsg("json_replaces() return false\n");
     #endif
         return false;
     }

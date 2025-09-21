@@ -1056,7 +1056,6 @@ get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *hand
     return true;
 }
 
-
 static bool
 write_section_header(ini_cache *ini, const int num)
 {
@@ -1114,18 +1113,18 @@ write_json_file(LPCWSTR appdt)
 {
     if (xre_profile_path[0] || get_xre_path(appdt))
     {
-       cJSON *json = NULL;
-        char path[MAX_BUFF+1] = {0};
+        cJSON *json = NULL;
         WCHAR url[MAX_BUFF+1] = {0};
+        char path[MAX_BUFF+1] = {0};
         _snwprintf(url, MAX_BUFF, L"%s\\addonStartup.json.lz4", xre_profile_path);
-        if (wexist_file((LPCWSTR)url) && get_process_directory(path, MAX_BUFF))
+        if (wexist_file(url) && get_process_directory(path, MAX_BUFF))
         {
-            if ((json = json_lookup(url, path)) != NULL && PathRemoveFileSpecW(url))
+            if ((json = json_lookup(url, xre_profile_path, path)) != NULL)
             {
             #ifdef _LOGDEBUG
                 logmsg("we need rewrite addonStartup.json.lz4\n");
             #endif
-                json_parser((void *)json, url, path);
+                json_parser((void *)json, xre_profile_path, path);
             }
         }
         if (json)
@@ -1341,6 +1340,16 @@ is_specialapp(LPCWSTR appname)
     WCHAR process_name[VALUE_LEN+1] = {0};
     get_process_name(process_name, VALUE_LEN);
     return (_wcsicmp(process_name, appname) == 0);
+}
+
+bool WINAPI
+is_browser(void)
+{
+    WCHAR process_name[VALUE_LEN+1] = {0};
+    get_process_name(process_name, VALUE_LEN);
+    return (_wcsicmp(process_name, L"Iceweasel.exe") == 0 ||
+           _wcsicmp(process_name, L"firefox.exe") == 0 ||
+           _wcsicmp(process_name, L"zen.exe") == 0);
 }
 
 bool WINAPI

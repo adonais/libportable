@@ -582,5 +582,5 @@ unsigned WINAPI init_safed(void)
         #endif
         }
     }
-    return (1);
+    return 0;
 }
