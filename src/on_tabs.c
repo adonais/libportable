@@ -333,6 +333,32 @@ get_new_botton(IUIAutomationElement *tab_bar, const POINT *pt, int *active)
     return hr;
 }
 
+static HRESULT
+get_available_rectangle(IUIAutomationElementArray *pFoundArray, const int c, IUIAutomationElement **pfound)
+{
+    HRESULT hr;
+    IUIAutomationElement *pElement = NULL;
+    *pfound = NULL;
+    for (int i = 1; i < c; ++i)
+    {
+        hr = IUIAutomationElementArray_GetElement(pFoundArray, i, &pElement);
+        if (SUCCEEDED(hr) && pElement)
+        {
+            RECT rc = {0};
+            hr = IUIAutomationElement_get_CurrentBoundingRectangle(pElement, &rc);
+            if (SUCCEEDED(hr))
+            {
+                *pfound = pElement;
+            }
+            else
+            {
+                IUIAutomationElement_Release(pElement);
+            }
+        }
+    }
+    return hr;
+}
+
 /* 得到标签页的事件指针, 当标签没激活时把active参数设为标签序号 */
 static bool
 mouse_on_tab(RECT *pr, const POINT *pt, int *active)
@@ -404,15 +430,14 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         }
         if (e_browser == MOZ_ZEN && c > 1)
         {
-            hr = IUIAutomationElementArray_GetElement(pFoundArray, 1, &group);
-            IUIAutomationCondition_Release(pCondition);
-            IUIAutomationElementArray_Release(pFoundArray);
+            hr = get_available_rectangle(pFoundArray, c, &group);
             var.lVal = UIA_TabItemControlTypeId;
             if (SUCCEEDED(hr) && group)
             {
             #ifdef _LOGDEBUG
                 logmsg("Zen browser!\n");
             #endif
+                IUIAutomationCondition_Release(pCondition);
                 hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
                 if (FAILED(hr))
                 {
@@ -421,6 +446,7 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
                 #endif
                     break;
                 }
+                IUIAutomationElementArray_Release(pFoundArray);
                 hr = IUIAutomationElement_FindAllBuildCache(group, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
                 if (FAILED(hr))
                 {
