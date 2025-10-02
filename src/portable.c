@@ -578,6 +578,11 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
+        int ubo = inicache_read_int("General", "EnableUBO", &plist);
+        if (e_browser == MOZ_ICEWEASEL)
+        {
+            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
+        }
         if (e_browser > MOZ_ICEWEASEL)
         {   // 支持官方版本更新开关的禁止与启用.
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));

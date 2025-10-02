@@ -10,6 +10,8 @@
 #include "cjson.h"
 #include "json_paser.h"
 
+#define UBO_URL "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/latest.xpi?viasf=1"
+
 #ifdef __GNUC__
 #define GCC_VERSION ((__GNUC__ * 10000) + (__GNUC_MINOR__ * 1000) + (__GNUC_PATCHLEVEL__ * 100))
 #pragma GCC diagnostic push
@@ -562,12 +564,10 @@ json_parser(void *json, const WCHAR *profile_dir, const char *app_dir)
 cJSON *
 cjson_read_file(LPCWSTR filename)
 {
-    FILE *f;
     long len;
     char *data;
     cJSON *json = NULL;
-
-    f = _wfopen(filename, L"rb");
+    FILE *f = _wfopen(filename, L"rb");
     if (!f)
     {
         return NULL;
@@ -615,7 +615,7 @@ cjson_write_file(LPCWSTR path, const char *str)
             return false;
         }
     }
-    f =  _wfopen(path, L"wb+");
+    f =  _wfopen(path, L"wb");
     if (!f)
     {
         return false;
@@ -625,28 +625,38 @@ cjson_write_file(LPCWSTR path, const char *str)
     return true;
 }
 
+static void
+write_policies_obj(const cJSON *root, const WCHAR *json_file)
+{
+    char *out = cJSON_Print(root);
+    if (out)
+    {
+        cjson_write_file(json_file, out);
+        free(out);
+    }
+}
+
 unsigned WINAPI
 fn_update(void *lparam)
 {
     cJSON *base, *found, *root = NULL;
-    char *out = NULL;
     bool policie_exist = false;
     WCHAR json_file[MAX_PATH + 1] = { 0 };
     int update = (int)(uintptr_t)lparam;
     if (!wget_process_directory(json_file, MAX_PATH))
     {
-        return (0);
+        return 0;
     }
     wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
     policie_exist = _waccess(json_file, 0) == 0;
-    if (!(update || policie_exist))
+    if (!policie_exist)
     {
-        const char *str = "{\n    \"policies\": {\n        \"DisableAppUpdate\": true\n    }\n}";
-        return cjson_write_file(json_file, str);
-    }
-    else if (update && !policie_exist)
-    {
-        return (0);
+        if (!update)
+        {
+            const char *str = "{\n    \"policies\": {\n        \"DisableAppUpdate\": true\n    }\n}";
+            return cjson_write_file(json_file, str);
+        }
+        return 0;
     }
     while (policie_exist)
     {
@@ -673,26 +683,24 @@ fn_update(void *lparam)
                 {
                     break;
                 }
-                else if (update && cJSON_IsFalse(found))
+                if (update && cJSON_IsFalse(found))
                 {
                     break;
                 }
                 if (update)
                 {
-                    cJSON_ReplaceItemInObject(base, "DisableAppUpdate", cJSON_CreateFalse());
+                    cJSON_DeleteItemFromObject(base, "DisableAppUpdate");
                 }
                 else
                 {
                     cJSON_ReplaceItemInObject(base, "DisableAppUpdate", cJSON_CreateTrue());
                 }
-                out = cJSON_Print(root);
-                cjson_write_file(json_file, out);
+                write_policies_obj(root, json_file);
             }
             else if (!update)
             {
                 cJSON_AddBoolToObject(base, "DisableAppUpdate", true);
-                out = cJSON_Print(root);
-                cjson_write_file(json_file, out);
+                write_policies_obj(root, json_file);
             }
         }
         else if (!update)
@@ -700,8 +708,7 @@ fn_update(void *lparam)
             cJSON *polics = cJSON_CreateObject();
             cJSON_AddBoolToObject(polics, "DisableAppUpdate", true);
             cJSON_AddItemToObject(root, "policies", polics);
-            out = cJSON_Print(root);
-            cjson_write_file(json_file, out);
+            write_policies_obj(root, json_file);
         }
         break;
     }
@@ -709,11 +716,163 @@ fn_update(void *lparam)
     {
         cJSON_Delete(root);
     }
-    if (out)
+    return 0;
+}
+
+static void 
+add_ubo_string(cJSON *installer)
+{
+    if (cJSON_IsArray(installer))
     {
-        free(out);
+        cJSON *url = cJSON_CreateString(UBO_URL);
+        if (url)
+        {
+            cJSON_AddItemToArray(installer, url);
+        }
     }
-    return (1);
+}
+
+static bool
+add_installer_obj(cJSON *extension, const bool ubo, bool *rms)
+{
+    int i = 0;
+    int array_size = 0;
+    bool has_ubo = false;
+    cJSON *url = NULL;
+    cJSON *installer = cJSON_GetObjectItem(extension, "Install");
+    array_size = installer ? cJSON_GetArraySize(installer) : 0;
+    for (; i < array_size; ++i)
+    {
+        url = cJSON_GetArrayItem(installer, i);
+        if (url && cJSON_IsString(url) && strcmp(url->valuestring, UBO_URL) == 0)
+        {
+            has_ubo = true;
+            break;
+        }
+    }
+    if (has_ubo)
+    {
+        if (!ubo)
+        {
+            if (array_size == 1)
+            {
+                cJSON_DeleteItemFromObject(extension, "Install");
+                if (rms)
+                {
+                    *rms = true;
+                }
+            }
+            else
+            {
+                cJSON_DeleteItemFromArray(installer, i);
+            }
+            return true;
+        }
+    }
+    else if (ubo)
+    {
+        if (installer)
+        {
+            add_ubo_string(installer);
+        }
+        else if (cJSON_AddArrayToObject(extension, "Install"))
+        {
+            add_ubo_string(cJSON_GetObjectItem(extension, "Install"));
+        }
+        return true;
+    }
+    return false;
+}
+
+static bool
+add_extension_obj(cJSON *base, const bool ubo)
+{
+    bool modified = false;
+    cJSON *extension = cJSON_CreateObject();
+    if (extension && cJSON_AddItemToObject(base, "Extensions", extension))
+    {
+        modified = add_installer_obj(extension, ubo, NULL);
+    }
+    return modified;
+}
+
+static bool
+add_policies_obj(cJSON *root, const bool ubo)
+{
+    bool modified = false;
+    cJSON *policies = cJSON_CreateObject();
+    if (policies && cJSON_AddItemToObject(root, "policies", policies))
+    {
+        modified = add_extension_obj(policies, ubo);
+    }
+    return modified;
+}
+
+unsigned WINAPI
+fn_ubo(void *lparam)
+{
+    cJSON *base, *extension, *root = NULL;
+    bool policie_exist = false;
+    WCHAR json_file[MAX_PATH + 1] = {0};
+    int ubo = (int)(uintptr_t)lparam;
+    if (!wget_process_directory(json_file, MAX_PATH))
+    {
+        return 0;
+    }
+    wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
+    policie_exist = _waccess(json_file, 0) == 0;
+    if (!policie_exist)
+    {
+        if (ubo)
+        {
+            const char *str = "{\n  \"policies\": {\n    \"Extensions\": {\n      \"Install\": [\n        \""UBO_URL"\"\n      ]\n    }\n  }\n}";
+            return cjson_write_file(json_file, str);
+        }
+        return 0;
+    }
+    while (policie_exist)
+    {
+        bool modified = false;
+        root = cjson_read_file(json_file);
+        if (!root)
+        {
+            DeleteFileW(json_file);
+            break;
+        }
+        base = cJSON_GetObjectItem(root, "policies");
+        if (base)
+        {
+            extension = cJSON_GetObjectItem(base, "Extensions");
+            if (extension)
+            {
+                bool self = false;
+                modified = add_installer_obj(extension, ubo > 0, &self);
+                if (self)
+                {
+                    cJSON_DeleteItemFromObject(base, "Extensions");
+                    modified = true;
+                }
+            }
+            else if (ubo)
+            {
+                modified = add_extension_obj(base, ubo > 0);
+            }
+        }
+        else if (ubo)
+        {
+            modified = add_policies_obj(root, ubo > 0);
+        }
+        if (modified)
+        {
+            write_policies_obj(root, json_file);
+        }
+        break;
+    }
+    if (root)
+    {
+        cJSON_Delete(root);
+    }
+    return 0;
 }
 
 #ifdef __GNUC__
