@@ -136,7 +136,18 @@ setenv_tt(void)
                 if (!cmd_has_profile(NULL, 0))
                 {
                     crt_setenv(L"MOZ_LEGACY_PROFILES=0");
-                    crt_setenv(L"SNAP_NAME=firefox");
+                    if (e_browser == MOZ_LIBREWOLF)
+                    {
+                        crt_setenv(L"SNAP_NAME=librewolf");
+                    }
+                    else if (e_browser == MOZ_ZEN)
+                    {
+                        crt_setenv(L"SNAP_NAME=zen");
+                    }
+                    else
+                    {
+                        crt_setenv(L"SNAP_NAME=firefox");
+                    }
                 #ifdef _LOGDEBUG
                     logmsg("disable multipath configuration\n");
                 #endif

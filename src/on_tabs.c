@@ -206,9 +206,6 @@ get_hv_bars(IUIAutomationElement *ice_root, IUIAutomationElement **tab_bar, cons
         int c = 0;
         if (FAILED(hr))
         {
-        #ifdef _LOGDEBUG
-            logmsg("%s_IUIAutomation_CreatePropertyCondition false, cause: %lu\n", __FUNCTION__, GetLastError());
-        #endif
             break;
         }
         hr = IUIAutomationElement_FindAllBuildCache(ice_root, TreeScope_Children, pCondition, cache_uia, &pFoundArray);

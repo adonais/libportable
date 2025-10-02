@@ -703,6 +703,7 @@ is_ff_official(void)
     int i = 0;
     m_family var = MOZ_UNKOWN;
     WCHAR *moz_array[] = {L"Iceweasel",
+                          L"LibreWolf",
                           L"Zen",
                           L"Firefox",
                           L"Firefox Beta",
@@ -728,18 +729,21 @@ is_ff_official(void)
             var = MOZ_ICEWEASEL;
             break;
         case 1:
-            var = MOZ_ZEN;
+            var = MOZ_LIBREWOLF;
             break;
         case 2:
-            var = MOZ_FIREFOX;
+            var = MOZ_ZEN;
             break;
         case 3:
-            var = MOZ_BETA;
+            var = MOZ_FIREFOX;
             break;
         case 4:
-            var = MOZ_DEV;
+            var = MOZ_BETA;
             break;
         case 5:
+            var = MOZ_DEV;
+            break;
+        case 6:
             var = MOZ_NIGHTLY;
             break;
         default:
@@ -882,7 +886,19 @@ is_flash_plugins(uintptr_t caller)
 static bool
 get_mozilla_inifile(char *in_dir, int len, const char *appdt)
 {
-    int m = _snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\Mozilla\\Firefox\\profiles.ini");
+    int m = 0;
+    if (e_browser == MOZ_LIBREWOLF)
+    {
+        m = _snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\librewolf\\profiles.ini");
+    }
+    else if (e_browser == MOZ_ZEN)
+    {
+        m = _snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\zen\\profiles.ini");
+    }
+    else
+    {
+        m = _snprintf(in_dir, (size_t) len, "%s%s", appdt, "\\Mozilla\\Firefox\\profiles.ini");
+    }
     return (m > 0 && m < len);
 }
 
@@ -1064,6 +1080,10 @@ write_section_header(ini_cache *ini, const int num)
     {
         _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", num);
     }
+    else if (e_browser == MOZ_LIBREWOLF || e_browser == MOZ_ZEN)
+    {
+        _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../\r\nDefault=1\r\n\r\n", num);
+    }
     else
     {
         _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=default\r\nIsRelative=1\r\nPath=../../../\r\nDefault=1\r\n\r\n", num);
@@ -1181,9 +1201,11 @@ write_file(LPCWSTR appdata_path)
         char *out_path = NULL;
         if (search_default_section(&handle, &psection))
         {
+            const char *rpath = (e_browser == MOZ_LIBREWOLF || e_browser == MOZ_ZEN) ? "../../" : "../../../";
             if (inicache_read_string(psection, "Path", &out_path, &handle))
             {
-                if (strcmp(out_path, "../../../") != 0)
+                
+                if (strcmp(out_path, rpath) != 0)
                 {
                     if ((n = get_last_section(&handle)) >= 0)
                     {
@@ -1195,7 +1217,7 @@ write_file(LPCWSTR appdata_path)
             }
             else
             {
-                ret = inicache_write_string(psection, "Path", "../../../", &handle);
+                ret = inicache_write_string(psection, "Path", rpath, &handle);
                 ret = inicache_write_string(psection, "IsRelative", "1", &handle);
             }
         }
@@ -1348,8 +1370,10 @@ is_browser(void)
     WCHAR process_name[VALUE_LEN+1] = {0};
     get_process_name(process_name, VALUE_LEN);
     return (_wcsicmp(process_name, L"Iceweasel.exe") == 0 ||
-           _wcsicmp(process_name, L"firefox.exe") == 0 ||
-           _wcsicmp(process_name, L"zen.exe") == 0);
+            _wcsicmp(process_name, L"firefox.exe") == 0 ||
+            _wcsicmp(process_name, L"zen.exe") == 0 ||
+            _wcsicmp(process_name, L"librewolf.exe") == 0
+           );
 }
 
 bool WINAPI

@@ -578,19 +578,18 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
-        int ubo = inicache_read_int("General", "EnableUBO", &plist);
-        if (e_browser == MOZ_ICEWEASEL)
+        if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_LIBREWOLF)
         {
+            int ubo = inicache_read_int("General", "EnableUBO", &plist);
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
+            if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
+            {   // 调用Iceweasel的自动更新进程.
+                CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
+            }
         }
-        if (e_browser > MOZ_ICEWEASEL)
+        else if (e_browser > MOZ_LIBREWOLF)
         {   // 支持官方版本更新开关的禁止与启用.
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
-        }
-        else if (up && inicache_read_int("General", "Portable", &plist) > 0)
-        {
-            // 调用Iceweasel的自动更新进程.
-            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
         }
         if (inicache_read_int("General", "CreateCrashDump", &plist) > 0)
         {
