@@ -102,18 +102,18 @@ set_cpu_balance(void *lparam)
     m_windows.hPid = GetCurrentProcessId();
     if (!get_moz_hwnd(&m_windows))
     {
-        return (0);
+        return 0;
     }
     _snwprintf(m_name, 32, L"%s_%lu", m_pref, m_windows.hPid);
     if ((m_timer = CreateWaitableTimerW(NULL, false, m_name)) == NULL)
     {
-        return (0);
+        return 0;
     }
     m_duetime.QuadPart = -20000000;  /* 2 seconds pass */
     if (!SetWaitableTimer(m_timer, &m_duetime,2000, get_cpu_usage, (LPVOID)&m_cpu, false))
     {
         CloseHandle(m_timer);
-        return (0);
+        return 0;
     }
     if (value < 0 || value > 99)
     {
@@ -127,5 +127,5 @@ set_cpu_balance(void *lparam)
         set_cpu_priority(value, m_cpu);
     }
     CloseHandle(m_timer);
-    return (1);
+    return 0;
 }

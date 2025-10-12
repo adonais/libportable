@@ -65,6 +65,7 @@ extern bool __stdcall ini_delete_section(const char *sec, const char *path);
 extern bool __stdcall inicache_delete_section(const char *sec, ini_cache *ini);
 extern bool __stdcall ini_search_string(const char *key, char **buf, const char *path, const bool isfile);
 extern bool __stdcall inicache_search_string(const char *key, char **buf, ini_cache *ini);
+extern int  __stdcall inicache_readint_value(const char *sec, const char *key, ini_cache *ini, int default_value);
 extern int  __stdcall inicache_read_int(const char *sec, const char *key, ini_cache *ini);
 extern int  __stdcall ini_read_int(const char *sec, const char *key, const char *path, const bool isfile);
 extern bool __stdcall inicache_sort_section(const char *sec, ini_cache *ini);

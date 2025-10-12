@@ -15,6 +15,7 @@
 #include "on_tabs.h"
 #include "ini_parser.h"
 #include "json_paser.h"
+#include "ice_quit.h"
 #include "MinHook.h"
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -481,7 +482,14 @@ init_hook_data(const bool gpu)
     if (!gpu)
     {
         HANDLE mutex = OpenFileMappingW(PAGE_READONLY, false, LIBTBL_LOCK);
-        if (!_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
+        WCHAR *restart = _wgetenv(L"MOZ_APP_RESTART");
+        if (restart)
+        {
+        #ifdef _LOGDEBUG
+            logmsg("MOZ_RESTART_DEFINED!\n");
+        #endif
+        }
+        if (restart || !_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
         {
             write_file(appdt);
         }
@@ -501,8 +509,12 @@ init_hook_data(const bool gpu)
             logmsg("LIBPORTABLE_SETENV_DEFINED!\n");
         #endif
         }
-        if (!mutex && is_browser())
+        if ((!mutex || restart) && is_browser())
         {
+            if (restart)
+            {
+                _wputenv(L"MOZ_APP_RESTART=");
+            }
             if (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
             {
                 write_json_file(appdt);
@@ -518,6 +530,7 @@ init_hook_data(const bool gpu)
             init_portable();
             init_crt_hook();
             init_safed();
+            init_exequit();
         #ifdef _LOGDEBUG
             logmsg("UI process runing\n");
         #endif
@@ -578,14 +591,9 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
-        if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_LIBREWOLF)
-        {
-            int ubo = inicache_read_int("General", "EnableUBO", &plist);
-            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
-            if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
-            {   // 调用Iceweasel的自动更新进程.
-                CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
-            }
+        if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
+        {   // 调用Iceweasel的自动更新进程.
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
         }
         else if (e_browser > MOZ_LIBREWOLF)
         {   // 支持官方版本更新开关的禁止与启用.

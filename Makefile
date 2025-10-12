@@ -76,7 +76,7 @@ X64FLAG  =  -D_WIN64 -m64
 OBJECTS  = $(DEP)/portable.o $(DEP)/general.o $(DEP)/ice_error.o  $(DEP)/safe_ex.o \
            $(DEP)/inject.o $(DEP)/bosskey.o $(DEP)/new_process.o $(DEP)/set_env.o\
            $(DEP)/cpu_avx.o $(DEP)/cpu_avx512.o $(DEP)/cpu_info.o $(DEP)/balance.o $(DEP)/win_registry.o \
-           $(DEP)/on_tabs.o $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/json_paser.o $(DEP)/ini_parser.o
+           $(DEP)/on_tabs.o $(DEP)/lz4.o $(DEP)/cjson.o $(DEP)/json_paser.o $(DEP)/ini_parser.o $(DEP)\ice_quit.o
 MIN_INC  = $(SRC)/minhook/include
 CFLAGS   += -fvisibility=hidden -DCJSON_HIDE_SYMBOLS -I$(MIN_INC) -I$(SRC)
 DISTDIR  = Release
@@ -192,6 +192,8 @@ $(DEP)/json_paser.o   : $(SRC)/json_paser.c $(SRC)/json_paser.h
 $(DEP)/lz4.o          : $(SRC)/lz4.c $(SRC)/lz4.h
 	$(CC) -c $< $(CFLAGS) -o $@
 $(DEP)/cjson.o        : $(SRC)/cjson.c $(SRC)/cjson.h
+	$(CC) -c $< $(CFLAGS) -o $@
+$(DEP)/ice_quit.o     : $(SRC)/ice_quit.c $(SRC)/ice_quit.h
 	$(CC) -c $< $(CFLAGS) -o $@
 ifeq ($(LIBPORTABLE_STATIC),)
 $(DEP)/resource.o     : $(SRC)/resource.rc

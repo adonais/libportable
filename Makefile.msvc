@@ -75,7 +75,7 @@ MIN_INC  = $(SRC)\minhook\include
 OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\inject.obj \
            $(DEP)\safe_ex.obj  $(DEP)\new_process.obj $(DEP)\cpu_avx.obj $(DEP)\cpu_avx512.obj $(DEP)\cpu_info.obj \
            $(DEP)\balance.obj $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj
+           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj $(DEP)\ice_quit.obj
 
 !if "$(DLL_INJECT)" == "1"
 CFLAGS   = $(CFLAGS) /D "DLL_INJECT"
@@ -153,6 +153,8 @@ $(DEP)\json_paser.obj   : $(SRC)\json_paser.c $(SRC)\json_paser.h
 	$(CC) $(CFLAGS) /c $(SRC)\json_paser.c /Fo$@
 $(DEP)\ini_parser.obj   : $(SRC)\ini_parser.c $(SRC)\ini_parser.h
 	$(CC) $(CFLAGS) /c $(SRC)\ini_parser.c /Fo$@
+$(DEP)\ice_quit.obj     : $(SRC)\ice_quit.c $(SRC)\ice_quit.h
+	$(CC) $(CFLAGS) /c $(SRC)\ice_quit.c /Fo$@
 
 !if "$(VC12_CRT)"=="" && "$(MSVC_CRT)"=="1"
 $(DEP)\msvcrt-light-$(PLATFORM).lib : msrt\msvcrt-light-$(PLATFORM).def

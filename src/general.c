@@ -593,29 +593,42 @@ path_to_absolute(LPWSTR path, int len)
  * 等待主窗口并获取句柄,增加线程退出倒计时8s
  */
 HWND WINAPI
-get_moz_hwnd(LPWNDINFO pInfo)
+get_moz_hwnd(LPWNDINFO pinfo)
 {
     HWND hwnd = NULL;
+    bool found = false;
+    DWORD process_id = 0;
+    const WCHAR *classname = L"MozillaWindowClass";
     int i = 40;
-    while (!pInfo->hFF && i--)
+    if ((hwnd = FindWindowW(classname, NULL)) != NULL)
     {
-        DWORD process_id = 0;
-        if ((hwnd = FindWindowExW(NULL, hwnd, L"MozillaWindowClass", NULL)) != NULL)
+        GetWindowThreadProcessId(hwnd, &process_id);
+        if (process_id == pinfo->hPid)
+        {
+            pinfo->hFF = hwnd;
+            found = true;
+        }
+    }
+    while (!found && i--)
+    {
+        process_id = 0;
+        if ((hwnd = FindWindowExW(NULL, hwnd, classname, NULL)) != NULL)
         {
             GetWindowThreadProcessId(hwnd, &process_id);
         }
-        if (!(process_id > 0 && process_id == pInfo->hPid))
+        if (process_id > 0 && process_id == pinfo->hPid)
         {
-            pInfo->hFF = NULL;
-        }
-        else
-        {
-            pInfo->hFF = hwnd;
+            pinfo->hFF = hwnd;
+            found = true;
             break;
         }
         SleepEx(200, FALSE);
     }
-    return (hwnd != NULL ? hwnd : pInfo->hFF);
+    if (!found)
+    {
+        hwnd = NULL;
+    }
+    return hwnd;
 }
 
 bool WINAPI

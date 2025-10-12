@@ -4,6 +4,7 @@
 #include <shlwapi.h>
 
 static int g_atom = 0;
+static uint32_t bosskey_id = 0;
 
 bool
 init_bosskey(LPWNDINFO pinfo)
@@ -110,9 +111,19 @@ set_hotkey(LPWNDINFO pinfo)
     }
 }
 
+uint32_t WINAPI
+get_bosskey_id(void)
+{
+    return bosskey_id;
+}
+
 void WINAPI
 uninstall_bosskey(void)
 {
+    if (bosskey_id)
+    {
+        bosskey_id = 0;
+    }
     if (g_atom)
     {
         UnregisterHotKey(NULL, g_atom);
@@ -128,17 +139,32 @@ bosskey_thread(void *lparam)
     {
         WNDINFO  ff_info = {0};
         ff_info.hPid = GetCurrentProcessId();
+        bosskey_id = GetCurrentThreadId();
         set_hotkey(&ff_info);
         if (init_bosskey(&ff_info))
         {
             MSG msg;
             g_atom = ff_info.atom_str;
-            while (GetMessageW(&msg, NULL, 0, 0) > 0)
+            while (TRUE) 
             {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-                EnumWindows(find_chwnd, (LPARAM)&ff_info);
+                if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+                {
+                    if (msg.message == WM_QUIT)
+                    {
+                        break;
+                    }
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                    EnumWindows(find_chwnd, (LPARAM)&ff_info);
+                }
+                else 
+                {
+                    SleepEx(20, FALSE);
+                }
             }
+       #ifdef _LOGDEBUG
+           logmsg("bosskey_thread exit ...\n");
+       #endif
         }
     }
     return 0;

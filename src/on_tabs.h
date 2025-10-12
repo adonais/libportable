@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+extern bool __stdcall on_tabs_reload(void);
 extern void __stdcall threads_on_tabs(void);
 extern void __stdcall un_uia(void);
 

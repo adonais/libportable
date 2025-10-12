@@ -62,39 +62,39 @@ static bool in_whitelist(LPCWSTR lpfile)
         pname = &lpfile[1];
     }
     /* 遍历白名单一次,只需遍历一次 */
-    if ( NULL == StrStrIW(white_list[1], L"WerFault.exe") )
+    if (NULL == StrStrIW(white_list[1], L"WerFault.exe"))
     {
         /* firefox目录下进程的路径 */
         int   num;
         WCHAR temp[VALUE_LEN] = {0};
         GetModuleFileNameW(NULL,temp,VALUE_LEN);
-        wcsncpy(white_list[0],(LPCWSTR)temp,VALUE_LEN);
+        wcsncpy(white_list[0], (LPCWSTR)temp, VALUE_LEN);
         wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
         PathRemoveFileSpecW(temp);
-        for(num=2; num<i; ++num)
+        for(num = 2; num < i; ++num)
         {
             _snwprintf(white_list[num], VALUE_LEN, L"%s\\%s", temp, moz_processes[num]);
         }
         ret = ini_foreach_wstring("whitelist", &white_list[num], EXCLUDE_NUM-num, ini_portable_path, true);
     }
-    if ( true )
+    if (true)
     {
         /* 核对白名单 */
-        for ( i=0; i<EXCLUDE_NUM && white_list[i][0] != L'\0' ; i++ )
+        for (i = 0; i < EXCLUDE_NUM && white_list[i][0] != L'\0'; i++)
         {
-            if ( !(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':' )
+            if (!(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':')
             {
                 path_to_absolute(white_list[i],VALUE_LEN);
             }
-            if ( StrChrW(white_list[i],L'*') || StrChrW(white_list[i],L'?') )
+            if (StrChrW(white_list[i], L'*') || StrChrW(white_list[i], L'?'))
             {
-                if ( PathMatchSpecW(pname,white_list[i]) )
+                if (PathMatchSpecW(pname,white_list[i]))
                 {
                     ret = true;
                     break;
                 }
             }
-            else if (_wcsnicmp(white_list[i],pname,wcslen(white_list[i]))==0)
+            else if (_wcsnicmp(white_list[i], pname,wcslen(white_list[i])) == 0)
             {
                 ret = true;
                 break;

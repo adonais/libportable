@@ -649,14 +649,7 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
                 MouseEvent.cbSize = sizeof(TRACKMOUSEEVENT);
                 MouseEvent.dwFlags = TME_HOVER | TME_LEAVE;
                 MouseEvent.hwndTrack = pmouse->hwnd;
-                if (mouse_time)
-                {
-                    MouseEvent.dwHoverTime = mouse_time;
-                }
-                else
-                {
-                    MouseEvent.dwHoverTime = HOVER_DEFAULT;
-                }
+                MouseEvent.dwHoverTime = mouse_time;
                 TrackMouseEvent(&MouseEvent);
                 break;
             } 
@@ -767,15 +760,14 @@ un_uia(void)
         CoUninitialize();
         g_uia = NULL;
     #ifdef _LOGDEBUG
-        logmsg("IUIAutomation_Release(g_uia)\n");
+        logmsg("IUIAutomation_Release\n");
     #endif
     }
 }
 
-static bool
-init_uia(void)
+bool WINAPI
+on_tabs_reload(void)
 {
-    HRESULT hr;
     ini_cache plist  = iniparser_create_cache(ini_portable_path, false, true);
     if (!plist)
     {
@@ -784,9 +776,9 @@ init_uia(void)
     mouse_time = inicache_read_int("tabs", "mouse_time", &plist);
     if (mouse_time < 0)
     {
-        mouse_time = 300;
+        mouse_time = HOVER_DEFAULT;
     }
-    if (!mouse_time)
+    else if (!mouse_time)
     {
     #ifdef _LOGDEBUG
         logmsg("mouse_time = 0, mouse_hover will be disabled!\n");
@@ -797,44 +789,33 @@ init_uia(void)
     {
         tab_event = true;
     }
-    if (inicache_read_int("tabs", "double_click_close", &plist) > 0)
-    {
-        double_click = true;
-    }
-    if (tab_event && double_click && inicache_read_int("tabs", "left_click_close", &plist) > 0)
-    {
-        left_click = true;
-    }
-    if (inicache_read_int("tabs", "right_click_close", &plist) > 0)
-    {
-        right_click = true;
-    }
-    if (inicache_read_int("tabs", "double_click_new", &plist) > 0)
-    {
-        left_new = true;
-    }
-    if (inicache_read_int("tabs", "mouse_hover_close", &plist) > 0)
-    {
-        mouse_close = true;
-    }
-    if (inicache_read_int("tabs", "mouse_hover_new", &plist) > 0)
-    {
-        button_new = true;
-    }
-    if (inicache_read_int("tabs", "right_click_recover", &plist) > 0)
-    {
-        right_double = true;
-    }
+    double_click = inicache_read_int("tabs", "double_click_close", &plist) > 0;
+    left_click = (tab_event && double_click && inicache_read_int("tabs", "left_click_close", &plist) > 0);
+    right_click = inicache_read_int("tabs", "right_click_close", &plist) > 0;
+    left_new = inicache_read_int("tabs", "double_click_new", &plist) > 0;
+    mouse_close = inicache_read_int("tabs", "mouse_hover_close", &plist) > 0;
+    button_new = inicache_read_int("tabs", "mouse_hover_new", &plist) > 0;
+    right_double = inicache_read_int("tabs", "right_click_recover", &plist) > 0;
     iniparser_destroy_cache(&plist);
     if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new || right_double))
     {
         return false;
     }
-    CoInitialize(NULL);
-    hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **) &g_uia);
-    if (SUCCEEDED(hr) && g_uia)
+    return true;
+}
+
+static bool
+init_uia(void)
+{
+    HRESULT hr = -1;
+    if (on_tabs_reload())
     {
-        hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
+        CoInitialize(NULL);
+        hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **) &g_uia);
+        if (SUCCEEDED(hr) && g_uia)
+        {
+            hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
+        }
     }
     return SUCCEEDED(hr);
 }
@@ -844,16 +825,12 @@ threads_on_win10(void *lparam)
 {
     WNDINFO  ff_info = {0};
     ff_info.hPid = GetCurrentProcessId();
-    if (get_moz_hwnd(&ff_info) && init_uia())
+    if (!(get_moz_hwnd(&ff_info) && init_uia()))
     {
-        //
-    }
-#ifdef _LOGDEBUG
-    else
-    {
+    #ifdef _LOGDEBUG
         logmsg("win10 uia error!\n");
+    #endif
     }
-#endif
     return 0;
 }
 
