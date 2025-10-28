@@ -199,22 +199,27 @@ kill_trees(void)
 HANDLE WINAPI
 create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
 {
-    PROCESS_INFORMATION pi;
     STARTUPINFOW si;
     DWORD dwCreat = 0;
     LPCWSTR lp_dir = NULL;
-    WCHAR process[MAX_PATH+1] = {0};
+    PROCESS_INFORMATION pi = {0};
+    const size_t len = (wcmd ? wcslen(wcmd) : 1) + (param ? wcslen(param) : 1) + NAMES_LEN;
+    WCHAR *process = (WCHAR *)calloc(sizeof(WCHAR), len + 1);
+    if (!process)
+    {
+        return NULL;
+    }
     if (pcd != NULL && wcslen(pcd) > 1)
     {
         lp_dir = pcd;
     }
     if (param != NULL && wcslen(param ) > 1)
     {
-        _snwprintf(process, MAX_PATH, L"%s %s", wcmd, param);
+        _snwprintf(process, len, L"%s %s", wcmd, param);
     }
     else
     {
-        _snwprintf(process, MAX_PATH, L"%s", wcmd);
+        _snwprintf(process, len, L"%s", wcmd);
     }
     if (true)
     {
@@ -245,14 +250,16 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
                           &si,&pi))
         {
         #ifdef _LOGDEBUG
-            logmsg("CreateProcessW %ls error, cause: %lu\n", wcmd, GetLastError());
+            logmsg("CreateProcessW %ls error, cause: %lu\n", process, GetLastError());
         #endif
+            free(process);
             return NULL;
         }
         if (NULL != opid)
         {
             *opid = pi.dwProcessId;
         }
+        free(process);
     }
     return pi.hProcess;
 }

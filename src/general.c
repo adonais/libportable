@@ -938,6 +938,9 @@ get_arg_path(const ini_cache *ini, char **out_path, bool *relative)
                 }
                 free(var);
                 ret = true;
+            #ifdef _LOGDEBUG
+                logmsg("specified profile [%s]\n", *out_path);
+            #endif
             }
         }
     }
@@ -1178,20 +1181,6 @@ write_file(LPCWSTR appdata_path)
     _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
     if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
-        return ret;
-    }
-    if (cmd_has_setup())
-    {
-    #ifdef _LOGDEBUG
-        logmsg("browser setup profile\n");
-    #endif
-        return ret;
-    }
-    if (cmd_has_profile(NULL, 0))
-    {
-    #ifdef _LOGDEBUG
-        logmsg("browser profile boot\n");
-    #endif
         return ret;
     }
     if (!WideCharToMultiByte(CP_UTF8, 0, appdata_path, -1, appdt, MAX_BUFF, NULL, NULL))

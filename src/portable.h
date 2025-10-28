@@ -26,7 +26,9 @@
 #define CPU_SSE42_MASK   0x10
 #define CPU_SSE41_MASK   0x8
 
-#ifdef  __cplusplus
+#define _UPDATE L"upcheck.exe "
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -37,11 +39,16 @@ TETE_EXT_CLASS uint32_t GetNonTemporalDataSizeMin_tt(void);
 
 TETE_EXT_CLASS void *__cdecl memset_nontemporal_tt(void *, int, size_t);
 #if defined(LIBPORTABLE_STATIC)
-TETE_EXT_CLASS void __stdcall do_it(void);
+TETE_EXT_CLASS void do_it(void);
+TETE_EXT_CLASS void undo_it(void);
+#else
+extern void undo_it(void);
 #endif
-TETE_EXT_CLASS void __stdcall undo_it(void);
 
-#ifdef  __cplusplus
+TETE_EXT_CLASS int ctype_download_caller(int id, const char *url, const char *name,
+               const char *save, const char *refer, const char *pcookie, const char *pbuf);
+
+#ifdef __cplusplus
 }
 #endif
 

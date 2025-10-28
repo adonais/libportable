@@ -111,7 +111,7 @@ setenv_tt(void)
             {
                 WCHAR env_appdt[MAX_BUFF] =  {0};
                 WCHAR env_localdt[MAX_BUFF] =  {0};
-                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL && !cmd_has_setup())
+                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL)
                 {
                     if (*xre_profile_path)
                     {
@@ -133,7 +133,7 @@ setenv_tt(void)
                         crt_setenv(env_localdt);
                     }
                 }
-                if (!cmd_has_profile(NULL, 0))
+                if (true)
                 {
                     crt_setenv(L"MOZ_LEGACY_PROFILES=0");
                     if (e_browser == MOZ_LIBREWOLF)
@@ -152,12 +152,6 @@ setenv_tt(void)
                     logmsg("disable multipath configuration\n");
                 #endif
                 }
-            #ifdef _LOGDEBUG
-                else
-                {
-                    logmsg("browser profile boot\n");
-                }
-            #endif
             }
             if (inicache_foreach_wkey("Env", env_buf, EXCLUDE_NUM, &plist))
             {

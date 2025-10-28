@@ -76,22 +76,6 @@ typedef struct _global_hooks
 } global_hooks;
 
 //-------------------------------------------------------------------------
-// Windows 8.x functions:
-//-------------------------------------------------------------------------
-
-typedef DWORD (*ptr_PssCaptureSnapshot)(HANDLE ProcessHandle, PSS_CAPTURE_FLAGS CaptureFlags, DWORD ThreadContextFlags, HPSS *SnapshotHandle);
-typedef DWORD (*ptr_PssWalkMarkerCreate)(PSS_ALLOCATOR const *Allocator, HPSSWALK *WalkMarkerHandle);
-typedef DWORD (*ptr_PssWalkSnapshot)(HPSS SnapshotHandle, PSS_WALK_INFORMATION_CLASS InformationClass, HPSSWALK WalkMarkerHandle, void *Buffer, DWORD BufferLength);
-typedef DWORD (*ptr_PssWalkMarkerFree)(HPSSWALK WalkMarkerHandle);
-typedef DWORD (*ptr_PssFreeSnapshot)(HANDLE ProcessHandle, HPSS SnapshotHandle);
-
-static ptr_PssCaptureSnapshot fn_PssCaptureSnapshot;
-static ptr_PssWalkMarkerCreate fn_PssWalkMarkerCreate;
-static ptr_PssWalkSnapshot fn_PssWalkSnapshot;
-static ptr_PssWalkMarkerFree fn_PssWalkMarkerFree;
-static ptr_PssFreeSnapshot fn_PssFreeSnapshot;
-
-//-------------------------------------------------------------------------
 // Global Variables:
 //-------------------------------------------------------------------------
 // Spin lock flag for EnterSpinLock()/LeaveSpinLock().
@@ -319,82 +303,6 @@ static bool EnumerateThreads(PFROZEN_THREADS pThreads)
     return succeeded;
 }
 
-static bool SnapThreads(PFROZEN_THREADS pThreads)
-{
-    bool succeeded = false;
-    HPSS hsnapshot = NULL;
-    HANDLE hprocess = NULL;
-#if (defined _M_X64) || (defined __x86_64__)
-    if (!fn_PssCaptureSnapshot)
-    {
-        HMODULE hssapi = GetModuleHandleW(L"kernel32.dll");
-        fn_PssCaptureSnapshot = hssapi ? (ptr_PssCaptureSnapshot)(void *)GetProcAddress(hssapi, "PssCaptureSnapshot") : NULL;
-        if (fn_PssCaptureSnapshot)
-        {
-            fn_PssWalkMarkerCreate = (ptr_PssWalkMarkerCreate)(void *)GetProcAddress(hssapi, "PssWalkMarkerCreate");
-            fn_PssWalkSnapshot = (ptr_PssWalkSnapshot)(void *)GetProcAddress(hssapi, "PssWalkSnapshot");
-            fn_PssWalkMarkerFree = (ptr_PssWalkMarkerFree)(void *)GetProcAddress(hssapi, "PssWalkMarkerFree");
-            fn_PssFreeSnapshot = (ptr_PssFreeSnapshot)(void *)GetProcAddress(hssapi, "PssFreeSnapshot");
-        }
-    }
-#endif
-    if (!fn_PssCaptureSnapshot || !fn_PssWalkMarkerCreate || !fn_PssWalkSnapshot || !fn_PssWalkMarkerFree || !fn_PssFreeSnapshot)
-    {
-        return EnumerateThreads(pThreads);
-    }
-    if ((hprocess = GetCurrentProcess()) != NULL && fn_PssCaptureSnapshot(hprocess, PSS_CAPTURE_THREADS, 0, &hsnapshot) == ERROR_SUCCESS)
-    {
-        HPSSWALK hwalk = NULL;
-        if (ERROR_SUCCESS == fn_PssWalkMarkerCreate(NULL, &hwalk))
-        {
-            PSS_THREAD_ENTRY te;
-            DWORD res = ERROR_SUCCESS;
-            succeeded = true;
-            while ((res = fn_PssWalkSnapshot(hsnapshot, PSS_WALK_THREADS, hwalk, &te, sizeof(te))) == ERROR_SUCCESS)
-            {
-                if (te.ProcessId == GetCurrentProcessId() && te.ThreadId != GetCurrentThreadId())
-                {
-                    if (pThreads->pItems == NULL)
-                    {
-                        pThreads->capacity = INITIAL_THREAD_CAPACITY;
-                        pThreads->pItems = (LPDWORD)HeapAlloc(g_hHeap, 0, pThreads->capacity * sizeof(DWORD));
-                        if (pThreads->pItems == NULL)
-                        {
-                            succeeded = false;
-                            break;
-                        }
-                    }
-                    else if (pThreads->size >= pThreads->capacity)
-                    {
-                        LPDWORD p;
-                        pThreads->capacity *= 2;
-                        p = (LPDWORD)HeapReAlloc(g_hHeap, 0, pThreads->pItems, pThreads->capacity * sizeof(DWORD));
-                        if (p == NULL)
-                        {
-                            succeeded = false;
-                            break;
-                        }
-                        pThreads->pItems = p;
-                    }
-                    pThreads->pItems[pThreads->size++] = te.ThreadId;
-                }
-            }
-            if (succeeded && res != ERROR_NO_MORE_ITEMS)
-            {
-                succeeded = false;
-            }
-            if (!succeeded && pThreads->pItems != NULL)
-            {
-                HeapFree(g_hHeap, 0, pThreads->pItems);
-                pThreads->pItems = NULL;
-            }
-            fn_PssWalkMarkerFree(hwalk);
-        }
-        fn_PssFreeSnapshot(hprocess, hsnapshot);
-    }
-    return succeeded;
-}
-
 //-------------------------------------------------------------------------
 static MH_STATUS Freeze(PFROZEN_THREADS pThreads, UINT pos, const UINT action)
 {
@@ -402,7 +310,7 @@ static MH_STATUS Freeze(PFROZEN_THREADS pThreads, UINT pos, const UINT action)
     pThreads->pItems   = NULL;
     pThreads->capacity = 0;
     pThreads->size     = 0;
-    if (!SnapThreads(pThreads))
+    if (!EnumerateThreads(pThreads))
     {
         status = MH_ERROR_MEMORY_ALLOC;
     }

@@ -35,7 +35,6 @@
 #define SHSTDAPI STDAPI
 #endif
 
-#define _UPDATE L"upcheck.exe "
 #define NONTEMPORAL_16K 0x4000u
 
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
@@ -72,8 +71,6 @@ static  SHGetKnownFolderPathPtr       sSHGetKnownFolderPathStub = NULL;
 static  SHGetFolderPathWPtr           sSHGetFolderPathWStub = NULL;
 static  uintptr_t                     m_target[EXCLUDE_NUM] = {0};
 
-static  memset_ptr stub_memset = NULL;
-
 typedef void (*pointer_to_handler)();
 typedef struct _dyn_link_desc
 {
@@ -92,9 +89,7 @@ GetNonTemporalDataSizeMin_tt(void)
 void * __cdecl
 memset_nontemporal_tt(void *dest, int c, size_t count)
 {
-    return (count < (size_t)NONTEMPORAL_16K ?
-           (stub_memset ? stub_memset(dest, c, count) : memset(dest, c, count)) :
-           optimize_memset(dest, c, count));
+    return (count < (size_t)NONTEMPORAL_16K ? memset(dest, c, count) : optimize_memset(dest, c, count));
 }
 
 uint32_t
@@ -362,25 +357,6 @@ init_portable(void)
 #undef DLD
 }
 
-static void
-init_crt_hook(void)
-{
-    if (_wgetenv(L"MOZ_CRT_HOOK"))
-    {
-        HMODULE hcrt = NULL;
-        memset_ptr fn_memset = NULL;
-        if ((hcrt = GetModuleHandleW(L"vcruntime140.dll")) && (fn_memset = (memset_ptr)GetProcAddress(hcrt , "memset")) != NULL)
-        {
-            if (creator_hook(fn_memset, memset_nontemporal_tt, (LPVOID*)&stub_memset))
-            {
-            #ifdef _LOGDEBUG
-                logmsg("we hook memset\n");
-            #endif
-            }
-        }
-    }
-}
-
 static bool
 diff_days(void)
 {
@@ -396,7 +372,7 @@ diff_days(void)
 }
 
 /* uninstall hook and clean up */
-void WINAPI
+void
 undo_it(void)
 {
     close_mutex();
@@ -528,7 +504,6 @@ init_hook_data(const bool gpu)
         if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
         {
             init_portable();
-            init_crt_hook();
             init_safed();
             init_exequit();
         #ifdef _LOGDEBUG
@@ -627,17 +602,27 @@ window_hooks(void)
     }
 }
 
-void WINAPI
+void
 do_it(void)
 {
-    bool has_gpu = false;
-    e_browser = is_ff_official();
-    if (initialize_memset() && !child_proces_if(&has_gpu) && init_hook_data(has_gpu))
+    if (!cmd_has_profile(NULL, 0) && !cmd_has_setup() && !_wgetenv(L"LIBPORTABLE_WONT_EANBLED"))
     {
-        if (e_browser > MOZ_UNKOWN && !no_gui_boot())
+        bool has_gpu = false;
+        e_browser = is_ff_official();
+        if (initialize_memset() && !child_proces_if(&has_gpu) && init_hook_data(has_gpu))
         {
-            window_hooks();
+            if (e_browser > MOZ_UNKOWN && !no_gui_boot())
+            {
+                window_hooks();
+            }
         }
+    }
+    else
+    {
+    #ifdef _LOGDEBUG
+        logmsg("The browser specified a profile, libportable not enabled\n");
+    #endif
+        SetEnvironmentVariableW(L"LIBPORTABLE_WONT_EANBLED", L"1");
     }
 }
 

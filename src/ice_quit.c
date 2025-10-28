@@ -1,9 +1,15 @@
+#ifndef LIBPORTABLE_STATIC
+#define TETE_BUILD
+#endif
+
 #include "ice_quit.h"
 #include "general.h"
 #include "bosskey.h"
 #include "on_tabs.h"
 #include "ini_parser.h"
 #include "json_paser.h"
+#include "new_process.h"
+#include "portable.h"
 #include <process.h>
 
 #define PORTABLE_UP    (WM_USER + 0x4E20)
@@ -22,8 +28,6 @@
 static HHOOK proc_hook = NULL;
 static HWND  proc_hwnd = NULL;
 static volatile long proc_once = 0;
-
-extern void WINAPI undo_it(void);
 
 static unsigned WINAPI
 proc_thread(void *lparam)
@@ -68,6 +72,17 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
                     if ((bossid = get_bosskey_id()) > 0)
                     {
                         PostThreadMessage(bossid, WM_QUIT, 0, 0);
+                    }
+                    if (ini_read_int("aria2", "close", ini_portable_path, true) > 0)
+                    {
+                        wchar_t *p = NULL;
+                        wchar_t wcmd[MAX_PATH+1] = {0};
+                        if (GetModuleFileNameW(NULL, wcmd, MAX_PATH) > 0 && (p = wcsrchr(wcmd, L'\\')) != NULL)
+                        {
+                            p[1] = L'\0';
+                            wcsncat(wcmd, L"upcheck.exe -a2quit", MAX_PATH);
+                            CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
+                        }
                     }
                     UnhookWindowsHookEx(proc_hook);
                     proc_hook = NULL;
@@ -173,6 +188,57 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
         }
     }
     return CallNextHookEx(proc_hook, code, wparam, lparam);
+}
+
+int ctype_download_caller(int id, const char *url, const char *name, const char *save, const char *refer, const char *cookie, const char *buf)
+{
+    if (id >= 0  && url)
+    {
+        wchar_t *purl = ini_utf8_utf16(url, NULL);
+        wchar_t *pname = name ? ini_utf8_utf16(name, NULL) : _wcsdup(L"");
+        wchar_t *psave = save ? ini_utf8_utf16(save, NULL) : _wcsdup(L"");
+        wchar_t *prefer = refer ? ini_utf8_utf16(refer, NULL) : _wcsdup(L"");
+        wchar_t *pck = cookie ? ini_utf8_utf16(cookie, NULL) : _wcsdup(L"");
+        wchar_t *pbuf = buf ? ini_utf8_utf16(buf, NULL) : _wcsdup(L"");
+        const size_t len = (pname ? wcslen(pname) : 1) +
+                           (psave ? wcslen(psave) : 1) +
+                           (prefer ? wcslen(prefer) : 1) +
+                           (pck ? wcslen(pck) : 1) +
+                           (pbuf ? wcslen(pbuf) : 1) +
+                           (purl ? wcslen(purl) : 1) +
+                           MAX_BUFF;
+        wchar_t *wcmd = (wchar_t *)calloc(sizeof(wchar_t), len + 1);
+        if (id >= 0 && purl && pname && psave && prefer && pck && pbuf && wcmd)
+        {
+            wchar_t *p = NULL;
+            wchar_t  dirs[MAX_PATH+1] = {0};
+            if ((GetModuleFileNameW(NULL, dirs, MAX_PATH) > 0) && (p = wcsrchr(dirs, L'\\')) != NULL)
+            {
+                p[1] = 0;
+            }
+            if (*dirs)
+            {
+                _snwprintf(wcmd, len, L"%s"_UPDATE L"-m %d -i \"%s\" -ref \"%s\" -b \"%s\" -cok \"%s\"", dirs, id, purl, prefer, pck, pbuf);
+                _snwprintf(dirs, MAX_PATH, L"%s\\%s", psave, pname);
+                if (wcslen(dirs) > 1)
+                {
+                    wcsncat(wcmd, L" -o ", len);
+                    wcsncat(wcmd, dirs, len);
+                }
+            }
+            if (*wcmd)
+            {
+                CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
+            }
+        }
+        ini_safe_free(purl);
+        ini_safe_free(pname);
+        ini_safe_free(psave);
+        ini_safe_free(prefer);
+        ini_safe_free(pck);
+        ini_safe_free(pbuf);
+    }
+    return 0;
 }
 
 void WINAPI
