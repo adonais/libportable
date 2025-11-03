@@ -491,10 +491,6 @@ init_hook_data(const bool gpu)
             {
                 _wputenv(L"MOZ_APP_RESTART=");
             }
-            if (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1)
-            {
-                write_json_file(appdt);
-            }
             init_safed();
         #ifdef _LOGDEBUG
             logmsg("Launcher process runing\n");
@@ -503,6 +499,7 @@ init_hook_data(const bool gpu)
         }
         if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
         {
+            rewrite_json(appdt);
             init_portable();
             init_safed();
             init_exequit();

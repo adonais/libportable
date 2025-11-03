@@ -109,7 +109,7 @@ extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
 extern m_family WINAPI is_ff_official(void);
 extern bool     WINAPI write_file(LPCWSTR appdt);
-extern void     WINAPI write_json_file(LPCWSTR appdt);
+extern void     WINAPI rewrite_json(LPCWSTR appdt);
 extern bool     WINAPI check_arg(LPCWSTR warg, LPCWSTR sub1, LPCWSTR sub2);
 extern bool     WINAPI get_appdt_path(WCHAR *ini, int len);
 extern bool     WINAPI get_localdt_path(WCHAR *ini, int len);

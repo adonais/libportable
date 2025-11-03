@@ -1144,29 +1144,36 @@ get_xre_path(LPCWSTR appdt)
     return false;
 }
 
-void WINAPI
-write_json_file(LPCWSTR appdt)
+static unsigned WINAPI
+write_json_file(void *lparam)
 {
-    if (xre_profile_path[0] || get_xre_path(appdt))
+    cJSON *json = NULL;
+    WCHAR url[MAX_BUFF+1] = {0};
+    char path[MAX_BUFF+1] = {0};
+    _snwprintf(url, MAX_BUFF, L"%s\\addonStartup.json.lz4", xre_profile_path);
+    if (wexist_file(url) && get_process_directory(path, MAX_BUFF))
     {
-        cJSON *json = NULL;
-        WCHAR url[MAX_BUFF+1] = {0};
-        char path[MAX_BUFF+1] = {0};
-        _snwprintf(url, MAX_BUFF, L"%s\\addonStartup.json.lz4", xre_profile_path);
-        if (wexist_file(url) && get_process_directory(path, MAX_BUFF))
+        if ((json = json_lookup(url, xre_profile_path, path)) != NULL)
         {
-            if ((json = json_lookup(url, xre_profile_path, path)) != NULL)
-            {
-            #ifdef _LOGDEBUG
-                logmsg("we need rewrite addonStartup.json.lz4\n");
-            #endif
-                json_parser((void *)json, xre_profile_path, path);
-            }
+        #ifdef _LOGDEBUG
+            logmsg("we need rewrite addonStartup.json.lz4\n");
+        #endif
+            json_parser((void *)json, xre_profile_path, path);
         }
-        if (json)
-        {
-            cJSON_Delete(json);
-        }
+    }
+    if (json)
+    {
+        cJSON_Delete(json);
+    }
+    return 0;
+}
+
+void WINAPI
+rewrite_json(LPCWSTR appdt)
+{
+    if ((xre_profile_path[0] || get_xre_path(appdt)) && (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1))
+    {
+        CloseHandle((HANDLE)_beginthreadex(NULL, 0, &write_json_file, NULL, 0, NULL));
     }
 }
 
