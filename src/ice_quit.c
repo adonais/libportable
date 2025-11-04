@@ -87,7 +87,7 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
                     UnhookWindowsHookEx(proc_hook);
                     proc_hook = NULL;
                     undo_it();
-                    return 1;
+                    break;
                 }
                 case PORTABLE_UP:
                 {
