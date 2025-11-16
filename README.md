@@ -20,8 +20,8 @@ Microsoft Visual Studio/Windows .
 - Gcc/Linux Cross compiling:
 
 	make clean  
-	make PGO_GEN=1 bits=32 
-	make PGO_USE=1 bits=32 
+	make PGO_GEN=1 bits=32  
+	make PGO_USE=1 bits=32  
 
 ## Add libportable into Firefox?
 **Binary static injection,example:**
