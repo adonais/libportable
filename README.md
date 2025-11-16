@@ -1,58 +1,27 @@
 ## How to build libportable source code?
 
 - C compiler  
-Microsoft Visual Studio .   
+Microsoft Visual Studio/Windows .   
  
 - or
 
-- gcc, msys/msys2  
-gcc for windows:  
-https://sourceforge.net/projects/libportable/files/Tools/  
-msys msys2 project on:  
-https://sourceforge.net/projects/mingw/files/MSYS  
-https://sourceforge.net/projects/msys2/
+- Gcc/Linux  
 
 ## Build!
 - vc14 or above  (cmd shell)  
 
 	nmake -f Makefile.msvc clean  
-	nmake -f Makefile.msvc
+	nmake -f Makefile.msvc  
 	
-	link against minimal msvcrt.dll:  
-	nmake -f Makefile.msvc MSVC_CRT=1
-
-- gcc/mingw64 compiler (msys shell)
-
-	make clean  
-	make
-	
-	enable GCC Link-time optimization(LTO):   
-	make LTO=1
-	
-	If gcc is a cross-compiler, use the CROSS_COMPILING option:
-	
-	make clean  
-	64bits:  
-	make CROSS_COMPILING=x86_64-w64-mingw32-  
-	32bits:  
-	make CROSS_COMPILING=x86_64-w64-mingw32- BITS=32  
-
-- clang compiler,If you have MSVC compiler installed   
-	**(cmd shell):**
-	
+	clang:  
 	nmake -f Makefile.msvc CC=clang-cl clean  
 	nmake -f Makefile.msvc CC=clang-cl  
-	
-	**(msys shell):**  
-	
-	make clean  
-	make CC=clang DFLAGS=--target=x86_64-w64-windows-gnu        // (64bits target build)  
-	make CC=clang DFLAGS=--target=i686-w64-windows-gnu         // (32bits target build)  
-	
-	make clean  
-	make CC=clang DFLAGS=--target=i686-pc-windows-msvc  
-	make CC=clang DFLAGS=--target=x86_64-pc-windows-msvc  
 
+- Gcc/Linux Cross compiling:
+
+	make clean  
+	make PGO_GEN=1 bits=32 
+	make PGO_USE=1 bits=32 
 
 ## Add libportable into Firefox?
 **Binary static injection,example:**
@@ -62,12 +31,12 @@ https://sourceforge.net/projects/msys2/
 
 **Compiled from firefox's source code,patches example:**   
 ```
-diff --git a/toolkit/library/nsDllMain.cpp b/toolkit/library/nsDllMain.cpp
---- a/toolkit/library/nsDllMain.cpp
-+++ b/toolkit/library/nsDllMain.cpp
-@@ -8,6 +8,16 @@
- #include "mozilla/Assertions.h"
- #include "mozilla/WindowsVersion.h"
+diff --git a/mozglue/misc/WindowsDllMain.cpp b/mozglue/misc/WindowsDllMain.cpp
+--- a/mozglue/misc/WindowsDllMain.cpp
++++ b/mozglue/misc/WindowsDllMain.cpp
+@@ -6,6 +6,16 @@
+ 
+ #include <libloaderapi.h>
  
 +#if defined(_MSC_VER) && defined(TT_MEMUTIL)
 +#if defined(_M_IX86)
@@ -79,7 +48,7 @@ diff --git a/toolkit/library/nsDllMain.cpp b/toolkit/library/nsDllMain.cpp
 +#endif
 +#endif /* _MSC_VER && TT_MEMUTIL */
 +
- #if defined(__GNUC__)
- // If DllMain gets name mangled, it won't be seen.
- extern "C" {
+ BOOL WINAPI DllMain(HINSTANCE aInstDll, DWORD aReason, LPVOID) {
+   if (aReason == DLL_PROCESS_ATTACH) {
+     ::DisableThreadLibraryCalls(aInstDll);
 ```

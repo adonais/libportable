@@ -120,6 +120,7 @@ extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI get_process_name(LPWSTR name, DWORD wlen);
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void);
+extern bool     WINAPI browser_child_process(LPCWSTR pline);
 
 #ifdef __cplusplus
 }

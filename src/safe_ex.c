@@ -170,71 +170,16 @@ HookNtWriteVirtualMemory(HANDLE ProcessHandle,
                                  NumberOfBytesWritten);
 }
 
-static bool
-skip_double_quote(wchar_t *p, int len)
-{
-    int i = (int)wcslen(p);
-    wchar_t *tmp = NULL;
-    if (p[0] == L'\"')
-    {
-        int k = 0;
-        tmp = (wchar_t *)calloc(sizeof(wchar_t), len + 1);
-        if (!tmp)
-        {
-            return false;
-        }
-        for(int j = 1; j < i; ++j)
-        {
-
-            if (p[j]  != L'\"')
-            {
-                tmp[k++] = p[j];
-            }
-        }
-        if (tmp[wcslen(tmp) - 1] == L' ')
-        {
-            tmp[wcslen(tmp) - 1] = L'\0';
-        }
-        wcsncpy(p, tmp, len);
-        free(tmp);
-    }
-    return true;
-}
-
 static void
 trace_command(LPCWSTR image_path, LPCWSTR cmd_path)
 {
-    bool    var = false;
-    WCHAR   m_line[LEN_PARAM + 1] = {0};
-    size_t  len = 0;
+    bool    child = false;
     LPCWSTR lpfile = cmd_path ? cmd_path : image_path;
-    wcsncpy(m_line, GetCommandLineW(), LEN_PARAM);
-    if ((len = wcslen(m_line)) > 0)
+    if (lpfile)
     {
-        if (m_line[len - 1] == 0x20)
-        {
-            m_line[len - 1] = 0;
-        }
-        if (*lpfile != L'"' && !skip_double_quote(m_line, LEN_PARAM))
-        {
-        #ifdef _LOGDEBUG
-            logmsg("skip_double_quote failed\n");
-        #endif
-        }
-        var = wcscmp(m_line, lpfile) == 0;
+        child = browser_child_process(lpfile);
     }
-    if (!var)
-    {
-        if (NULL != cmd_path)
-        {
-            var = wcscmp(cmd_path, image_path) == 0;
-        }
-        else
-        {
-            var = true;
-        }
-    }
-    if (var && (g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK)))
+    if (!child && (g_mutex = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READONLY, 0, sizeof(bool), LIBTBL_LOCK)))
     {
     #ifdef _LOGDEBUG
         logmsg("we set LIBPORTABLE_LAUNCHER_PROCESS=1, g_mutex  = 0x%p\n", g_mutex);

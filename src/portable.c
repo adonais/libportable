@@ -297,15 +297,16 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         if (!*ppszPath)
         {
             return E_OUTOFMEMORY;
-        #ifdef _LOGDEBUG
-            logmsg("return E_OUTOFMEMORY\n");
-        #endif
         }
         wcscpy(*ppszPath, appdata_path);
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
-    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData) || IsEqualGUID(rfid, &FOLDERID_ProgramData))
+    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData) || IsEqualGUID(rfid, &FOLDERID_ProgramData)
+        #if defined(DLL_INJECT)
+            || is_specialapp(L"crashhelper.exe")
+        #endif
+            )
     {
         WCHAR localdt_path[MAX_PATH+1] = {0};
         if (!get_localdt_path(localdt_path, MAX_PATH))
@@ -491,15 +492,15 @@ init_hook_data(const bool gpu)
             {
                 _wputenv(L"MOZ_APP_RESTART=");
             }
+            rewrite_json(appdt);
             init_safed();
         #ifdef _LOGDEBUG
-            logmsg("Launcher process runing\n");
+            logmsg("Launcher process runing, mutex = %s\n", mutex ? "true" : "false");
         #endif
             return false;
         }
         if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
         {
-            rewrite_json(appdt);
             init_portable();
             init_safed();
             init_exequit();
@@ -563,9 +564,14 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
-        if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
-        {   // 调用Iceweasel的自动更新进程.
-            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
+        if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_LIBREWOLF)
+        {
+            int ubo = inicache_read_int("General", "EnableUBO", &plist);
+            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
+            if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
+            {   // 调用Iceweasel的自动更新进程.
+                CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
+            }
         }
         else if (e_browser > MOZ_LIBREWOLF)
         {   // 支持官方版本更新开关的禁止与启用.

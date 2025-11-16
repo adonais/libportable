@@ -1,53 +1,49 @@
-CC       := $(CROSS_COMPILING)gcc
+CC       := clang-cl
+BITS	 ?= 64
+AR       = llvm-lib
 CFLAGS   = -O2
-DFLAGS   ?=
-LD       = $(CC) -o
-AR       = ar
-LDFLAGS  = -Wl,-s
-CFLAGS   += $(DFLAGS) -Wall -Wno-unused -Wno-format -DNDEBUG \
-            -finline-functions -DWINVER=0x0600 -D_WIN32_IE=0x0800 -D_UCRT
-LTO      ?=
-OUT      = libminhook$(BITS).a
-USE_GCC  =
 
-ifeq ($(findstring clang,$(CC)),)
-BUILD = $(shell file `which $(CC)` 2>/dev/null | grep x86-64)
-USE_GCC  = 1
-else
-AR = llvm-ar.exe
-BUILD = $(shell file `which $(CC)` 2>/dev/null | grep x86-64)
+ifeq ($(BITS),32)
+CFLAGS += --target=i686-pc-windows-msvc
 endif
 
-ifneq ($(CROSS_COMPILING),)
-ifneq ($(BITS),32)
-BITS	 ?= 64
-endif
-else
-ifeq ($(BUILD),)
-BITS	 ?= 32
-else
-BITS	 ?= 64
-endif
+ifeq ($(INCLUDE),)
+$(error You must define the INCLUDE environment variable for cross-compilation. example: \
+  export INCLUDE=";$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/atlmfc/include;$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/include")
 endif
 
-ifeq ($(findstring clang,$(CC)),clang)
-CFLAGS   += -Wno-ignored-attributes -Wno-unknown-attributes -Wno-deprecated-declarations
-ifneq (,$(filter $(DFLAGS),--target=x86_64-pc-windows --target=x86_64-pc-windows-msvc --target=i686-pc-windows --target=i686-pc-windows-msvc))
-CFLAGS   += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT
+ifneq ($(MOZ_FETCHES_DIR),)
+# CFLAGS += -I"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.39.33519/atlmfc/include" -I"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.39.33519/include"
+
+CFLAGS += -Xclang -ivfsoverlay -Xclang $(MOZ_FETCHES_DIR)/vs/overlay.yaml -MD
+CFLAGS += -flto=thin -guard:cf -Xclang -MP
+CFLAGS += -D_CRT_SECURE_NO_WARNINGS -DVC12_CRT -DWINVER=0x0600 -D_WIN32_IE=0x0800
+CFLAGS += -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.22621.0/shared" \
+          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.22621.0/um" \
+          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.22621.0/ucrt"
+
+CFLAGS += -fms-compatibility-version=19.39 \
+          -Wno-nonportable-include-path \
+          -Wno-pragma-pack \
+          -Wno-unknown-pragmas \
+          -Wno-microsoft-anon-tag \
+          -Wno-ignored-pragma-intrinsic \
+          -Wno-macro-redefined \
+          -Wno-ignored-attributes
+else
+$(error You must define the MOZ_FETCHES_DIR environment variable)
+endif
+
+ifeq ($(PGO_GEN), 1)
+CFLAGS += -clang:-fprofile-generate -mllvm -pgo-temporal-instrumentation -mllvm -enable-name-compression=false
+else ifeq ($(PGO_USE), 1)
+CFLAGS += -clang:-fprofile-use="$(MOZ_FETCHES_DIR)/merged64.profdata"
+endif
+
 OUT      = minhook$(BITS).lib
-endif   #target x86_64 or i686
-ifneq (,$(findstring i686,$(DFLAGS)))
-BITS	 = 32
-else 
-BITS	 = 64
-endif
-endif   # clang
-
 MD       = mkdir -p
 SRC      = src
 DEP      = ../../.dep
-X86FLAG  = -m32 -march=i686
-X64FLAG  = -m64
 MIN_INC  = include
 OBJECTS  = $(DEP)/buffer.o $(DEP)/hde$(BITS).o $(DEP)/hook.o $(DEP)/trampoline.o
 DISTDIR  = ../../Release
@@ -58,32 +54,17 @@ EXEC     = \
     $(shell $(MD) $(DISTDIR) 2>/dev/null) \
     $(shell $(MD) $(DEP) 2>/dev/null) \
 
-ifeq ($(BITS),32)
-    CFLAGS += $(X86FLAG)
-    LDFLAGS += $(X86FLAG)
-else ifeq ($(BITS),64)
-    CFLAGS += $(X64FLAG)
-    LDFLAGS += $(X64FLAG)
-endif
-
-ifeq ($(USE_GCC),1)
-ifeq ($(LTO), 1)
-AR       := $(filter-out ar,$(AR )) gcc-ar
-CFLAGS   := $(filter-out -O2,$(CFLAGS)) -D__LTO__ -Os -flto
-endif
-endif
-
 $(DISTDIR)/$(OUT)      : $(OBJECTS) 
-	$(AR) rcs $@ $^
+	$(AR) -out:$@ $^
 $(DEP)/buffer.o        : $(SRC)/buffer.c $(SRC)/buffer.h
 	$(call EXEC)
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 $(DEP)/hde$(BITS).o    : $(SRC)/hde/hde$(BITS).c $(SRC)/hde/hde$(BITS).h
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 $(DEP)/hook.o          : $(SRC)/hook.c $(MIN_INC)/MinHook.h
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 $(DEP)/trampoline.o    : $(SRC)/trampoline.c $(SRC)/trampoline.h
-	$(CC) -c $< $(CFLAGS) -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY		       : clean
 clean                  : 

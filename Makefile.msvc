@@ -41,17 +41,17 @@ CFLAGS   = $(CFLAGS) /MD /GS- /GR- /utf-8 /D "USE_UTF8" /D "VC12_CRT"
 !endif
 
 !if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
-PLATFORM = x64
-BITS	 = 64
-CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
+PLATFORM  = x64
+BITS      = 64
+CFLAGS    = $(CFLAGS) /D "WIN64" /D "_WIN64"
 GEN_FLAGS = -m i386:x86-64
 !else
-PLATFORM = x86
-BITS	 = 32
-CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
+PLATFORM  = x86
+BITS      = 32
+CFLAGS    = $(CFLAGS) /D "WIN32" /D "_WIN32"
 GEN_FLAGS = -m i386
 !if "$(CC)"=="clang-cl"
-CFLAGS   = $(CFLAGS) --target=i686-pc-windows-msvc
+CFLAGS    = $(CFLAGS) --target=i686-pc-windows-msvc
 !endif
 !endif
 
@@ -85,8 +85,8 @@ CFLAGS   = $(CFLAGS) /I$(MIN_INC)
 
 !if "$(LIBPORTABLE_STATIC)"=="1"
 LD       = llvm-lib.exe
-OUT	 = $(DISTDIR)\portable$(BITS)_s.lib
-TETE	 = $(DISTDIR)\tmemutil_s.lib
+OUT	     = $(DISTDIR)\portable$(BITS)_s.lib
+TETE     = $(DISTDIR)\tmemutil_s.lib
 CFLAGS   = $(CFLAGS) /D "LIBPORTABLE_STATIC"
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
@@ -99,18 +99,18 @@ LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:MSVCRT
 !endif
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib $(CRTFLAGS)
-OUT	 = $(DISTDIR)\portable$(BITS).dll
-TETE	 = $(DISTDIR)\tmemutil.dll
+OUT	     = $(DISTDIR)\portable$(BITS).dll
+TETE     = $(DISTDIR)\tmemutil.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res
 OBJS     = $(OBJDLL)
 !endif
 
-DISTDIR	 = Release
-OUT1	 = $(DISTDIR)\minhook$(BITS).lib
+DISTDIR  = Release
+OUT1     = $(DISTDIR)\minhook$(BITS).lib
 
 all                     : dirs $(OUT1) $(OUT)
 
-$(OUT1)			        : $(SUB_DIR)/Makefile.msvc
+$(OUT1)                 : $(SUB_DIR)/Makefile.msvc
 	$(SUBMK)
 
 $(OUT)			        : $(OBJDLL)
@@ -178,21 +178,21 @@ dirs:
     @if not exist "$(DISTDIR)" mkdir "$(DISTDIR)" && echo.   Created $(DISTDIR)
     @if not exist "$(DEP)" mkdir "$(DEP)" && echo.   Created $(DEP)
 
-.PHONY		            : install
+.PHONY                  : install
 install                 : all
-    @if not defined LIBPORTABLE_PATH @echo please defined LIBPORTABLE_PATH environment variable&exit 1
-    @if not exist "%LIBPORTABLE_PATH%" mkdir "%LIBPORTABLE_PATH%"
-    @if not exist "%LIBPORTABLE_PATH%\bin" mkdir "%LIBPORTABLE_PATH%\bin"
-    @if not exist "%LIBPORTABLE_PATH%\lib" mkdir "%LIBPORTABLE_PATH%\lib"
-    @if not exist "%LIBPORTABLE_PATH%\include" mkdir "%LIBPORTABLE_PATH%\include"
-    -$(CP) $(SRC)\portable.h "%LIBPORTABLE_PATH%\include"
-    -$(CP) $(DISTDIR)\portable$(BITS).lib "%LIBPORTABLE_PATH%\lib"
-    -$(CP) $(OUT) "%LIBPORTABLE_PATH%\bin"
-    -$(CP) $(SRC)\portable(example).ini "%LIBPORTABLE_PATH%\bin"
+	@if not defined LIBPORTABLE_PATH @echo please defined LIBPORTABLE_PATH environment variable&exit 1
+	@if not exist "%LIBPORTABLE_PATH%" mkdir "%LIBPORTABLE_PATH%"
+	@if not exist "%LIBPORTABLE_PATH%\bin" mkdir "%LIBPORTABLE_PATH%\bin"
+	@if not exist "%LIBPORTABLE_PATH%\lib" mkdir "%LIBPORTABLE_PATH%\lib"
+	@if not exist "%LIBPORTABLE_PATH%\include" mkdir "%LIBPORTABLE_PATH%\include"
+	-$(CP) $(SRC)\portable.h "%LIBPORTABLE_PATH%\include"
+	-$(CP) $(DISTDIR)\portable$(BITS).lib "%LIBPORTABLE_PATH%\lib"
+	-$(CP) $(OUT) "%LIBPORTABLE_PATH%\bin"
+	-$(CP) $(SRC)\portable(example).ini "%LIBPORTABLE_PATH%\bin"
 
 $(DEP)\resource.res     : $(SRC)\resource.rc
 	$(RC) $(RCFLAGS)  /fo$@ $(SRC)\resource.rc
 
-.PHONY		            : clean
+.PHONY                  : clean
 clean                   : 
 	-$(RMDIR) $(DISTDIR) $(DEP) 2>NUL 1>NUL

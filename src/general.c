@@ -1144,8 +1144,8 @@ get_xre_path(LPCWSTR appdt)
     return false;
 }
 
-static unsigned WINAPI
-write_json_file(void *lparam)
+static void
+write_json_file(void)
 {
     cJSON *json = NULL;
     WCHAR url[MAX_BUFF+1] = {0};
@@ -1165,7 +1165,6 @@ write_json_file(void *lparam)
     {
         cJSON_Delete(json);
     }
-    return 0;
 }
 
 void WINAPI
@@ -1173,7 +1172,7 @@ rewrite_json(LPCWSTR appdt)
 {
     if ((xre_profile_path[0] || get_xre_path(appdt)) && (ini_read_int("General", "DisableExtensionPortable", ini_portable_path, true) != 1))
     {
-        CloseHandle((HANDLE)_beginthreadex(NULL, 0, &write_json_file, NULL, 0, NULL));
+        write_json_file();
     }
 }
 
@@ -1402,4 +1401,27 @@ check_arg(LPCWSTR warg, LPCWSTR sub1, LPCWSTR sub2)
         return (_wcsicmp(&warg[i], sub1) == 0 || (sub2 && _wcsicmp(&warg[i], sub2) == 0));
     }
     return false;
+}
+
+bool WINAPI
+browser_child_process(LPCWSTR pline)
+{
+    bool ret = false;
+    if (e_browser > MOZ_UNKOWN && pline)
+    {
+        int    count = 0;
+        LPWSTR *args = CommandLineToArgvW(pline, &count);
+        if (NULL != args)
+        {
+            for (int i = 1; i < count; ++i)
+            {
+                if ((ret = check_arg(args[i], L"contentproc", L"parentBuildID")))
+                {
+                    break;
+                }
+            }
+            LocalFree(args);
+        }
+    }
+    return ret;
 }
