@@ -40,3 +40,4 @@ obj/
 [Dd]ebug*/
 [Rr]elease*/
 .dep/
+.obj/

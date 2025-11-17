@@ -495,7 +495,7 @@ init_hook_data(const bool gpu)
             rewrite_json(appdt);
             init_safed();
         #ifdef _LOGDEBUG
-            logmsg("Launcher process runing, mutex = %s\n", mutex ? "true" : "false");
+            logmsg("Launcher process runing, mutex = %s, pid = %lu\n", mutex ? "true" : "false", GetCurrentProcessId());
         #endif
             return false;
         }
@@ -505,7 +505,7 @@ init_hook_data(const bool gpu)
             init_safed();
             init_exequit();
         #ifdef _LOGDEBUG
-            logmsg("UI process runing\n");
+            logmsg("UI process runing, pid = %lu\n", GetCurrentProcessId());
         #endif
         }
         CloseHandle(mutex);
@@ -514,7 +514,7 @@ init_hook_data(const bool gpu)
     {
         CloseHandle((HANDLE)_beginthreadex(NULL, 0, &init_exeception, NULL, 0, NULL));
     #ifdef _LOGDEBUG
-        logmsg("GPU process runing\n");
+        logmsg("GPU process runing, pid = %lu\n", GetCurrentProcessId());
     #endif
         return false;
     }

@@ -1,6 +1,8 @@
-# Building: make MOZ_FETCHES_DIR=/builds/worker/fetches
-# Building 32bits: make MOZ_FETCHES_DIR=/builds/worker/fetches bits=32
-# Install make install LIBPORTABLE_PATH=$MOZ_FETCHES_DIR/clang
+# Building: export MOZ_FETCHES_DIR=/builds/worker/fetches
+# Building: export INCLUDE=";$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/atlmfc/include;$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/include"
+# Building: make BITS=32
+# Install : export CLANG_PATH=$MOZ_FETCHES_DIR/clang
+# Install : make install
 CC       = clang-cl
 BITS	 ?= 64
 LD       = lld-link -DLL
@@ -8,7 +10,7 @@ RC       = llvm-rc
 RCFLAGS  = -nologo -D "_UNICODE" -D "UNICODE" -FO
 CFLAGS   = -O2
 LIBPATH  =
-LIBPORTABLE_PATH =
+LIBPORTABLE_PATH = $(CLANG_PATH)
 
 ifeq ($(BITS),32)
 CFLAGS      += --target=i686-pc-windows-msvc
@@ -154,8 +156,10 @@ $(DEP)/resource.o     : $(SRC)/resource.rc
 	$(RC) $< $(RCFLAGS) $@
 
 .PHONY             : install
-install                 : all
-	@if test -z "$(LIBPORTABLE_PATH)" ; then echo install in ... $(LIBPORTABLE_PATH); fi
+install            : all
+ifeq ($(LIBPORTABLE_PATH),)
+	$(error You must define the CLANG_PATH environment variable)
+endif
 	@if [ ! -d "$(LIBPORTABLE_PATH)" ]; then $(MD) $(LIBPORTABLE_PATH); fi
 	@if [ ! -d "$(LIBPORTABLE_PATH)/bin" ]; then $(MD) "$(LIBPORTABLE_PATH)/bin"; fi
 	@if [ ! -d "$(LIBPORTABLE_PATH)/lib" ]; then $(MD) "$(LIBPORTABLE_PATH)/lib"; fi

@@ -75,12 +75,10 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
                     }
                     if (ini_read_int("aria2", "close", ini_portable_path, true) > 0)
                     {
-                        wchar_t *p = NULL;
                         wchar_t wcmd[MAX_PATH+1] = {0};
-                        if (GetModuleFileNameW(NULL, wcmd, MAX_PATH) > 0 && (p = wcsrchr(wcmd, L'\\')) != NULL)
+                        if (wget_process_directory(wcmd, MAX_PATH))
                         {
-                            p[1] = L'\0';
-                            wcsncat(wcmd, L"upcheck.exe -a2quit", MAX_PATH);
+                            wcsncat(wcmd, L"\\upcheck.exe -a2quit", MAX_PATH);
                             CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
                         }
                     }
@@ -251,7 +249,7 @@ int ctype_download_caller(int id, const char *url, const char *name, const char 
 void WINAPI
 init_exequit(void)
 {
-    if (e_browser > MOZ_UNKOWN && is_browser())
+    if (e_browser > MOZ_UNKOWN && get_file_version() > 131 && is_browser())
     {
         proc_hook = SetWindowsHookExW(WH_CALLWNDPROC, proc_function, dll_module, GetCurrentThreadId());
         if (proc_hook == NULL)
