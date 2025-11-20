@@ -5,6 +5,9 @@ CFLAGS   = -O2
 
 ifeq ($(BITS),32)
 CFLAGS += --target=i686-pc-windows-msvc
+PROFDATA    = merged32.profdata
+else
+PROFDATA    = merged64.profdata
 endif
 
 ifeq ($(INCLUDE),)
@@ -37,7 +40,7 @@ endif
 ifeq ($(PGO_GEN), 1)
 CFLAGS += -clang:-fprofile-generate -mllvm -pgo-temporal-instrumentation -mllvm -enable-name-compression=false
 else ifeq ($(PGO_USE), 1)
-CFLAGS += -clang:-fprofile-use="$(MOZ_FETCHES_DIR)/merged64.profdata"
+CFLAGS += -clang:-fprofile-use="$(MOZ_FETCHES_DIR)/$(PROFDATA)"
 endif
 
 OUT      = minhook$(BITS).lib
