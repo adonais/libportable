@@ -104,14 +104,9 @@ ini_path_init(void)
     {
         WCHAR ini_example[MAX_PATH + 1] = {0};
         wcsncpy(ini_example, ini_path, MAX_PATH);
-        if ((ret = PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"tmemutil.ini") &&
-                   PathFileExistsW(ini_example)) == false)
+        if ((ret = PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"tmemutil.ini") && PathFileExistsW(ini_example)) == false)
         {
-            if (PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"portable(example).ini") &&
-                PathFileExistsW(ini_example))
-            {
-                ret = true;
-            }
+            ret = PathRemoveFileSpecW(ini_example) && PathAppendW(ini_example, L"portable(example).ini") && PathFileExistsW(ini_example);
         }
         if (ret)
         {

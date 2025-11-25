@@ -1,5 +1,5 @@
-#ifndef _BAL_ANCE_H_
-#  define _BAL_ANCE_H_
+#ifndef _CPU_BALANCE_H_
+#  define _CPU_BALANCE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,4 +11,4 @@ extern unsigned __stdcall set_cpu_balance(void *fx_info);
 }
 #endif 
 
-#endif   /* end _BAL_ANCE_H_ */
+#endif   /* end _CPU_BALANCE_H_ */

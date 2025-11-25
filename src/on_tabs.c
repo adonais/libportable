@@ -24,6 +24,7 @@ static bool button_new;
 static bool right_double;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
+#define ON_CLOSED_FLAGS 998
 #define ON_BUTTON_FLAGS 999
 #ifndef GET_X_LPARAM
 #define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
@@ -315,7 +316,7 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd, bool *pv)
 }
 
 static HRESULT
-get_new_botton(IUIAutomationElement *tab_bar, const POINT *pt, int *active)
+get_botton_flags(IUIAutomationElement *tab_bar, const POINT *pt, int *active, int dv)
 {
     /* 获取新建标签按钮 */
     HRESULT hr = -1;
@@ -324,7 +325,7 @@ get_new_botton(IUIAutomationElement *tab_bar, const POINT *pt, int *active)
     {
         RECT rc;
         hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
-        *active = (SUCCEEDED(hr) && PtInRect(&rc, *pt)) ? ON_BUTTON_FLAGS : 0;
+        *active = (SUCCEEDED(hr) && PtInRect(&rc, *pt)) ? dv : 0;
         IUIAutomationElement_Release(botton);
     }
     return hr;
@@ -398,7 +399,7 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
             var.lVal = UIA_TabItemControlTypeId;
             if (button_new && active != NULL)
             {
-                get_new_botton(tab_bar, pt, active);
+                get_botton_flags(tab_bar, pt, active, ON_BUTTON_FLAGS);
             }
         }
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
@@ -499,9 +500,30 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
                         #endif
                             break;
                         }
-                        if (!sel)
+                        if (!sel || mouse_close)
                         {
-                            *active = idx + 1;
+                            hr = get_botton_flags(tmp, pt, active, ON_CLOSED_FLAGS);
+                            if (FAILED(hr))
+                            {
+                                RECT rc_dup = {0};
+                            #ifdef _LOGDEBUG
+                                logmsg("Maybe not closed button\n");
+                            #endif
+                                memcpy(&rc_dup, &rc, sizeof(RECT));
+                                rc_dup.right -= 26;
+                                if (PtInRect(&rc_dup, *pt))
+                                {
+                                    *active = idx + 1;
+                                }
+                                else
+                                {
+                                    *active = ON_CLOSED_FLAGS;
+                                }
+                            }
+                            else if (*active == 0)
+                            {
+                                *active = idx + 1;
+                            }
                         }
                     }
                     res = true;
@@ -590,25 +612,19 @@ message_function(int nCode, WPARAM wParam, LPARAM lParam)
                     int active = 0;
                     if (mouse_on_tab(&rc, &msg->pt, &active))
                     {
-                        bool in = false;
-                        rc.right -= 26;
-                        in = PtInRect(&rc, msg->pt);
-                        if (tab_event && in && active > 0)
+                        if (tab_event && active > 0 && active != ON_CLOSED_FLAGS)
                         {
                         #ifdef _LOGDEBUG
                             logmsg("mouse on inactive tab[%d]\n", active);
                         #endif
                             send_click(MOUSEEVENTF_LEFTDOWN);
                         }
-                        else if (mouse_close && !in)
+                        else if (mouse_close && active == ON_CLOSED_FLAGS)
                         {
-                            rc.top += 6;
-                            rc.right += 18;
-                            rc.bottom -= 6;
-                            if (PtInRect(&rc, msg->pt))
-                            {
-                                send_click(MOUSEEVENTF_LEFTDOWN);
-                            }
+                        #ifdef _LOGDEBUG
+                            logmsg("WM_MOUSEHOVER[mouse on closed botton!]\n");
+                        #endif
+                            send_click(MOUSEEVENTF_LEFTDOWN);
                         }
                         break;
                     }

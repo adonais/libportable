@@ -1,5 +1,5 @@
-#ifndef _IN_JECT_H
-#define _IN_JECT_H
+#ifndef _INJECT_DLL_H
+#define _INJECT_DLL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,4 +11,4 @@ extern unsigned __stdcall InjectDll(void *mpara);
 }
 #endif
 
-#endif   /* _IN_JECT_H */
+#endif   /* _INJECT_DLL_H */
