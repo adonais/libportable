@@ -19,7 +19,6 @@
 #define IPC_QUIT  ("{\"command\": [\"quit\"]}\n")
 #define IPC_PAUSE ("{\"command\": [\"set_property\", \"pause\", %s]}\n")
 
-typedef LPWSTR *(*CommandLineToArgvWptr)(LPCWSTR pline, int *numargs);
 static CommandLineToArgvWptr pCommandLineToArgvW,sCommandLineToArgvWstub;
 static volatile long locks = 0;
 extern volatile INT_PTR mpv_window_hwnd;
@@ -30,7 +29,7 @@ extern WCHAR ini_path[MAX_PATH+1];
 // 但我们不链接crt, 导致链接器找不到memeset, 这里实现memeset骗过链接器
 // extern void *memset(void *dst, int val, SIZE_T size){return NULL;}
 
-static int
+int WINAPI
 mp_argument_cmp(LPCWSTR s1, LPCWSTR s2)
 {
     WCHAR *p = (WCHAR *)s1;
@@ -47,7 +46,7 @@ mp_argument_cmp(LPCWSTR s1, LPCWSTR s2)
     {
         ++p;
     }
-    return api_wcsncmp(p, s2, n);
+    return api_wcsnicmp(p, s2, n);
 }
 
 static bool
@@ -247,7 +246,7 @@ mp_wstr_replace(WCHAR *in, const size_t in_size, LPCWSTR pattern, LPCWSTR by)
     {
         WCHAR *in_ptr = in;
         size_t offset = 0;
-        while ((needle = api_wcsstr(in_ptr, pattern)) && offset < in_size)
+        while ((needle = api_wcsstr(in_ptr, pattern)) != NULL && offset < in_size)
         {
             api_wcsncpy(res + offset, in_ptr, needle - in_ptr);
             offset += needle - in_ptr;
@@ -652,7 +651,7 @@ init_crthook(void)
         {
             break;
         }
-        if (!(pCommandLineToArgvW = (CommandLineToArgvWptr)GetProcAddress(shell32, "CommandLineToArgvW")))
+        if (NULL == (pCommandLineToArgvW = (CommandLineToArgvWptr)GetProcAddress(shell32, "CommandLineToArgvW")))
         {
             break;
         }

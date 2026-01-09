@@ -92,12 +92,12 @@ read_appkey(LPCWSTR lpappname,           /* 区段名 */
 }
 
 int WINAPI 
-read_appint(LPCWSTR cat,LPCWSTR name)
+read_appint(LPCWSTR cat, LPCWSTR name)
 {
     int ret = -1;
     if (ini_path[1] != L':')
     {
-        if (!find_mpv_conf(ini_path,MAX_PATH))
+        if (!find_mpv_conf(ini_path, MAX_PATH))
         {
             return ret;
         }

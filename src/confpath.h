@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-bool __stdcall find_mpv_conf(wchar_t* PATH, const int len);
+bool __stdcall find_mpv_conf(wchar_t *path, const int len);
 
 #ifdef __cplusplus
 }

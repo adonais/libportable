@@ -23,7 +23,13 @@ DLL_MAIN_STDCALL_NAME = __DllMainCRTStartup@12
 endif
 
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -ffunction-sections -fdata-sections -finline-functions \
-            -fomit-frame-pointer -DWINVER=0x0600 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN -DNDEBUG
+            -fomit-frame-pointer -DWINVER=0x0600 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN 
+
+ifeq ($(APP_DEBUG),1)
+CFLAGS   += -DDEBUG -D_LOGDEBUG
+else
+CFLAGS   += -DNDEBUG
+endif
 
 MD       = mkdir -p
 CP       = cp

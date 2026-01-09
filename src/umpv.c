@@ -36,6 +36,51 @@ umpv_init_status(void)
 #pragma GCC optimize ("O3")
 #endif
 
+static bool
+judg_args(void)
+{
+    int  argc = 0;
+    HMODULE hcrt = GetModuleHandleW(L"shell32.dll");
+    CommandLineToArgvWptr crt_CommandLineToArgvW = hcrt ? (CommandLineToArgvWptr)GetProcAddress(hcrt, "CommandLineToArgvW") : NULL;
+    wchar_t **argv = crt_CommandLineToArgvW ? crt_CommandLineToArgvW(GetCommandLineW(), &argc) : NULL;
+    if (argc > 0 && argv != NULL)
+    {
+        if (argc == 1)
+        {
+            wchar_t buf[NAMES_LEN];
+            buf[NAMES_LEN] = L'\0';
+            if (GetEnvironmentVariableW(L"_started_from_console", buf, NAMES_LEN - 1) && (buf[0] == L'y' && buf[1] == L'e' && buf[2] == L's'))
+            {
+            #ifdef _LOGDEBUG
+                logmsg("[libumpv] started from console and no argments\n");
+            #endif
+                LocalFree(argv);
+                return false;
+            }
+        }
+        for (int i = 1; i < argc; ++i)
+        {
+            if (mp_argument_cmp(argv[i], L"v") == 0 ||
+                mp_argument_cmp(argv[i], L"version") == 0 ||
+                mp_argument_cmp(argv[i], L"h") == 0 ||
+                mp_argument_cmp(argv[i], L"help") == 0 ||
+                mp_argument_cmp(argv[i], L"list-options") == 0 ||
+                mp_argument_cmp(argv[i], L"register") == 0 ||
+                mp_argument_cmp(argv[i], L"unregister") == 0
+               )
+            {
+            #ifdef _LOGDEBUG
+                logmsg("[libumpv] No file to play\n");
+            #endif
+                LocalFree(argv);
+                return false;
+            }
+        }
+        LocalFree(argv);
+        return true;
+    }
+    return false;
+}
 /* uninstall hook and clean up */
 void WINAPI undo_it(void)
 {
@@ -66,14 +111,20 @@ void WINAPI do_it(void)
     {
         return;
     }
+    if (!judg_args())
+    {
+    #ifdef _LOGDEBUG
+        logmsg("[libumpv] no need to load\n");
+    #endif
+        return;
+    }
     if (MH_Initialize() != MH_OK)
     {
         return;
     }
-    if (!lib_init_once)
+    if (!_InterlockedCompareExchange(&lib_init_once, 1L, 0L))
     {
         init_bosskey();
-        *(long volatile*)&lib_init_once = 1;
     }
     if (!(init_crthook() && init_exeception()))
     {

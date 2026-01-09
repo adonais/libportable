@@ -197,9 +197,9 @@ static DWORD WINAPI
 bosskey_thread(void *lparam)
 {
     (void *)lparam;
-    if (get_moz_hwnd(&mph) && read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && regster_hotkey(&mph))
+    if (read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && get_moz_hwnd(&mph) && regster_hotkey(&mph))
     {   /* 重定向主窗口循环, 主要是让bosskey_thread正常退出 */
-        if ((boss_wnd = (WNDPROC) SetWindowLongPtrW(mph.h, GWLP_WNDPROC, (LONG_PTR) bosskey_proc)))
+        if ((boss_wnd = (WNDPROC) SetWindowLongPtrW(mph.h, GWLP_WNDPROC, (LONG_PTR) bosskey_proc)) != NULL)
         {
             MSG msg;
             while (GetMessageW(&msg, NULL, 0, 0) > 0 && msg.message != WM_QUIT)
@@ -233,7 +233,7 @@ undo_bosskey(void)
         _InterlockedExchange(&boss_t, 0);
         boss_wnd = NULL;
     }
-    if (lib_pid == mph.pid)
+    if (lib_pid > 0 && lib_pid == mph.pid)
     {
         _InterlockedExchange(&lib_init_once, 0);
     }
@@ -242,10 +242,10 @@ undo_bosskey(void)
 void WINAPI
 init_bosskey(void)
 {
-    api_memset(&mph, 0, sizeof(WNDINFO));
-    mph.pid = lib_pid;
-    if (!boss_t)
+    if (!boss_t && lib_pid)
     {
+        api_memset(&mph, 0, sizeof(WNDINFO));
+        mph.pid = lib_pid;
         CloseHandle((HANDLE)CreateThread(NULL, 0, &bosskey_thread, NULL, 0, (DWORD *)&boss_t));
     }
 }

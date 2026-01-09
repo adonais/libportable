@@ -4,7 +4,7 @@ CC   = cl.exe
 CPP	 = cl.exe
 VC12_CRT =
 TCMALLOC =
-CFLAGS   = /nologo /W4 /WX /O2 /GL /Gd /TC /MD /fp:precise /D "NDEBUG" /D "_UNICODE" /D "UNICODE" \
+CFLAGS   = /nologo /W4 /WX /O2 /GL /Gd /TC /MD /fp:precise /D "_UNICODE" /D "UNICODE" \
            /D "WIN32_LEAN_AND_MEAN" /D "_CRT_SECURE_NO_WARNINGS" /GS- /GR- /utf-8 /Gs10000000
 LD       = link.exe /DLL
 MAKE	 = nmake
@@ -21,6 +21,12 @@ PLATFORM = X86
 BITS	 = 32
 CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
 ASMFLAGS = -fwin32 -O2 -DWINDOWS -D__i386__ -DWIN32 -DMSVC -Worphan-labels
+!endif
+
+!if "$(APP_DEBUG)"=="1"
+CFLAGS   = $(CFLAGS) /D "DEBUG" /D "_LOGDEBUG"
+!else
+CFLAGS   = $(CFLAGS) /D "NDEBUG"
 !endif
 
 CPPFLAGS = $(CFLAGS) /TP
@@ -58,10 +64,6 @@ CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
 OUT	 = $(DISTDIR)\umpv.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res
 OBJS     = $(OBJDLL)
-!endif
-
-!if "$(APP_DEBUG)"=="1"
-CFLAGS   = $(CFLAGS) /D "_LOGDEBUG"
 !endif
 
 DISTDIR	 = Release

@@ -6,9 +6,15 @@ LD       = $(CROSS_COMPILING)gcc
 LDFLAGS  = -Wl,-s
 AR       =$(CROSS_COMPILING)ar
 CFLAGS   += $(DFLAGS) -Wall -Wno-unused -ffunction-sections -fdata-sections -fomit-frame-pointer \
-            -finline-functions -DWINVER=0x0600 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN -DNDEBUG
+            -finline-functions -DWINVER=0x0600 -D_WIN32_IE=0x0601 -DWIN32_LEAN_AND_MEAN
 
 LTO      :=
+
+ifeq ($(APP_DEBUG),1)
+CFLAGS   += -DDEBUG -D_LOGDEBUG
+else
+CFLAGS   += -DNDEBUG
+endif
 
 MD       = mkdir -p
 SRC      = src
