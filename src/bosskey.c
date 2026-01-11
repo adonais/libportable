@@ -197,7 +197,7 @@ static DWORD WINAPI
 bosskey_thread(void *lparam)
 {
     (void *)lparam;
-    if (read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && get_moz_hwnd(&mph) && regster_hotkey(&mph))
+    if (get_moz_hwnd(&mph) && read_appkey(L"libumpv", L"#HotKey", mph.key_str, sizeof(mph.key_str), ini_path) && regster_hotkey(&mph))
     {   /* 重定向主窗口循环, 主要是让bosskey_thread正常退出 */
         if ((boss_wnd = (WNDPROC) SetWindowLongPtrW(mph.h, GWLP_WNDPROC, (LONG_PTR) bosskey_proc)) != NULL)
         {
