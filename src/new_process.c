@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <shlobj.h>
 
 #define PROCESS_NUM 10
-static  void* g_handle[PROCESS_NUM];
+static  intptr_t g_handle[PROCESS_NUM] = {0};
 
 static HANDLE
 search_process(LPCWSTR lpstr, DWORD m_parent)
@@ -57,7 +58,7 @@ search_process(LPCWSTR lpstr, DWORD m_parent)
             HANDLE tmp = OpenProcess(PROCESS_TERMINATE, false, chi_pid[i]);
             if (NULL != tmp)
             {
-                g_handle[h_num++] = tmp;
+                g_handle[h_num++] = (intptr_t)tmp;
                 search_process(NULL, chi_pid[i]);
             }
         }
@@ -185,11 +186,11 @@ kill_trees(void)
 {
     if (g_handle[0] > 0)
     {
-        int i;
-        for (i = 0 ; i < PROCESS_NUM && g_handle[i] > 0 ; ++i)
+        for (int i = 0 ; i < PROCESS_NUM && g_handle[i] > 0 ; ++i)
         {
-            TerminateProcess(g_handle[i], (DWORD) - 1);
-            CloseHandle(g_handle[i]);
+            TerminateProcess((HANDLE)g_handle[i], (DWORD) - 1);
+            CloseHandle((HANDLE)g_handle[i]);
+            g_handle[i] = 0;
         }
         refresh_tray();
     }
@@ -228,7 +229,7 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
         si.dwFlags = STARTF_USESHOWWINDOW;
         if (flags > 1)
         {
-            si.wShowWindow = SW_SHOWNOACTIVATE;
+            si.wShowWindow = SW_NORMAL;
         }
         else if (flags == 1)
         {
@@ -247,7 +248,8 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
                           dwCreat,
                           NULL,
                           lp_dir,
-                          &si,&pi))
+                          &si,
+                          &pi))
         {
         #ifdef _LOGDEBUG
             logmsg("CreateProcessW %ls error, cause: %lu\n", process, GetLastError());
@@ -259,6 +261,7 @@ create_new(LPCWSTR wcmd, LPCWSTR param, LPCWSTR pcd, int flags, DWORD *opid)
         {
             *opid = pi.dwProcessId;
         }
+        CloseHandle(pi.hThread);
         free(process);
     }
     return pi.hProcess;
@@ -272,32 +275,51 @@ run_process(void * lparam)
 {
     if (e_browser > MOZ_UNKOWN && is_browser())
     {
+        bool  noquit = false;
         WCHAR wcmd[MAX_PATH+1] = {0};
         WCHAR pcd[MAX_PATH+1] = {0};
         WCHAR param[MAX_PATH+1] = {0};
         int flags = get_parameters(wcmd, param, pcd, MAX_PATH);
-        if (flags < 0)
-        {
-            return (0);
-        }
         /* 如果是无界面启动,直接返回 */
         if (no_gui_boot())
         {
             return (0);
         }
+        if (flags < 0)
+        {
+            return (0);
+        }
+        else if (flags > 2)
+        {
+            noquit = true;
+            if (flags > 5)
+            {
+                flags = 5;
+            }
+            flags -= 3;
+        }
     #ifdef _LOGDEBUG
-        logmsg("wcmd[%ls], param[%ls], pcd[%ls]\n", wcmd, param, pcd);
+        logmsg("wcmd[%ls], param[%ls], pcd[%ls], flags[%d], noquit[%d]\n", wcmd, param, pcd, flags, noquit);
     #endif
         /* 重启外部进程需要延迟一下 */
         Sleep(500);
         if (wcslen(wcmd) > 0 && !search_process(wcmd, 0))
         {
             DWORD pid = 0;
-            g_handle[0] = create_new(wcmd, param, pcd, flags, &pid);
-            if (g_handle[0] != NULL && (SleepEx(3000, false) == 0))
+            HANDLE h = create_new(wcmd, param, pcd, flags, &pid);
+            if (h != NULL)
             {
-                /* 延迟,因为有可能进程还没创建,无法结束进程树 */
-                search_process(NULL, pid);
+                if (!noquit)
+                {
+                    /* 延迟,因为有可能进程还没创建,无法结束进程树 */
+                    g_handle[0] = (intptr_t)h;
+                    SleepEx(3000, false);
+                    search_process(NULL, pid);
+                }
+                else
+                {
+                    CloseHandle(h);
+                }
             }
         }
     }
