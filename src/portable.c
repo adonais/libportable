@@ -9,7 +9,6 @@
 #include "bosskey.h"
 #include "new_process.h"
 #include "cpu_info.h"
-#include "balance.h"
 #include "set_env.h"
 #include "win_registry.h"
 #include "on_tabs.h"
@@ -588,10 +587,6 @@ window_hooks(void)
         if (inicache_read_int("General", "DisableScan", &plist) > 0)
         {
             init_winreg(NULL);
-        }
-        if (inicache_read_int("General", "ProcessAffinityMask", &plist) > 0)
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &set_cpu_balance, NULL, 0, NULL));
         }
         if (inicache_read_int("General", "Bosskey", &plist) > 0)
         {

@@ -74,8 +74,8 @@ MIN_INC  = $(SRC)\minhook\include
 
 OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bosskey.obj $(DEP)\inject.obj \
            $(DEP)\safe_ex.obj  $(DEP)\new_process.obj $(DEP)\cpu_avx.obj $(DEP)\cpu_avx512.obj $(DEP)\cpu_info.obj \
-           $(DEP)\balance.obj $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj \
-           $(DEP)\lz4.obj $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj $(DEP)\ice_quit.obj
+           $(DEP)\win_registry.obj $(DEP)\set_env.obj $(DEP)\on_tabs.obj $(DEP)\lz4.obj \
+           $(DEP)\cjson.obj $(DEP)\json_paser.obj $(DEP)\ini_parser.obj $(DEP)\ice_quit.obj
 
 !if "$(DLL_INJECT)" == "1"
 CFLAGS   = $(CFLAGS) /D "DLL_INJECT"
@@ -137,8 +137,6 @@ $(DEP)\cpu_avx512.obj   : $(SRC)\cpu_avx512.c $(SRC)\cpu_avx512.h
 	$(CC) $(CFLAGS) /arch:AVX512 /c $(SRC)\cpu_avx512.c /Fo$@
 $(DEP)\cpu_info.obj     : $(SRC)\cpu_info.c $(SRC)\cpu_info.h
 	$(CC) $(CFLAGS) /c $(SRC)\cpu_info.c /Fo$@
-$(DEP)\balance.obj      : $(SRC)\balance.c $(SRC)\balance.h
-	$(CC) $(CFLAGS) /c $(SRC)\balance.c /Fo$@
 $(DEP)\win_registry.obj : $(SRC)\win_registry.c $(SRC)\win_registry.h
 	$(CC) $(CFLAGS) /c $(SRC)\win_registry.c /Fo$@
 $(DEP)\set_env.obj      : $(SRC)\set_env.c $(SRC)\set_env.h
