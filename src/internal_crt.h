@@ -90,7 +90,21 @@ static inline WCHAR *api_wcscat(PWSTR psz1, PCWSTR psz2)
 
 static inline WCHAR *api_wcsncat(PWSTR psz1, PCWSTR psz2, size_t num)
 {
-    return StrNCatW(psz1, psz2, (int)num);
+    if (psz1 == NULL)
+    {
+        return NULL;
+    }
+    else if (psz2 == NULL)
+    {
+        psz1[0] = L'\0';
+        return psz1;
+    }
+    else if (num <= api_wcslen(psz1) + api_wcslen(psz2))
+    {
+        psz1[0] = L'\0';
+        return psz1;
+    }
+    return StrCatW(psz1, psz2);
 }
 
 static inline int api_memcmp(const void *b1, const void *b2, size_t n)
