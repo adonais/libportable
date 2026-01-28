@@ -414,7 +414,7 @@ update_thread(void *lparam)
     if (true)
     {
         wcsncpy(dirs, path, ++pos-path);
-        wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
+        wp_wcsncat(temp, L"\\Mozilla\\updates", MAX_PATH);
     }
     if (ini_read_int("update", "be_ready", ini_portable_path, true) > 0)
     {

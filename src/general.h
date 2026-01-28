@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <windows.h>
 #include <intrin.h>
+#include <errno.h>
 
 #define   SYS_MALLOC(x) (HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)))
 #define   SYS_FREE(x)   (HeapFree(GetProcessHeap(), HEAP_ZERO_MEMORY, (x)),(x = NULL))
@@ -121,6 +122,8 @@ extern bool     WINAPI get_process_name(LPWSTR name, DWORD wlen);
 extern bool     WINAPI is_specialapp(LPCWSTR appname);
 extern bool     WINAPI is_browser(void);
 extern bool     WINAPI browser_child_process(LPCWSTR pline);
+extern errno_t  wp_strncat(char *dst, const char *src, size_t number);
+extern errno_t  wp_wcsncat(wchar_t *dst, const wchar_t *src, size_t number);
 
 #ifdef __cplusplus
 }

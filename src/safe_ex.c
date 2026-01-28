@@ -194,18 +194,18 @@ dll_update(void)
     WCHAR upcheck[MAX_PATH+1] = {0};
     if (upgrade_ok && wget_process_directory(upcheck, MAX_PATH))
     {
-        wcsncat(upcheck, L"\\upcheck.exe", MAX_PATH);
+        wp_wcsncat(upcheck, L"\\upcheck.exe", MAX_PATH);
         if (wexist_file(upcheck))
         {
             WCHAR ss[NAMES_LEN] = {0};
-            wcsncat(upcheck, L" -dll2 ", MAX_PATH);
+            wp_wcsncat(upcheck, L" -dll2 ", MAX_PATH);
             if (e_browser > MOZ_ICEWEASEL)
             {
                 _itow((int)e_browser, ss, 10);
             }
             if (*ss)
             {
-                wcsncat(upcheck, ss, MAX_PATH);
+                wp_wcsncat(upcheck, ss, MAX_PATH);
                 CloseHandle(create_new(upcheck, NULL, NULL, 0, NULL));
             }
         }

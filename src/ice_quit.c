@@ -78,7 +78,7 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
                         wchar_t wcmd[MAX_PATH+1] = {0};
                         if (wget_process_directory(wcmd, MAX_PATH))
                         {
-                            wcsncat(wcmd, L"\\upcheck.exe -a2quit", MAX_PATH);
+                            wp_wcsncat(wcmd, L"\\upcheck.exe -a2quit", MAX_PATH);
                             CloseHandle(create_new(wcmd, NULL, NULL, 0, NULL));
                         }
                     }
@@ -227,8 +227,8 @@ int ctype_download_caller(int id, const char *url, const char *name, const char 
                 }
                 if (wcslen(dirs) > 1)
                 {
-                    wcsncat(wcmd, L" -o ", len);
-                    wcsncat(wcmd, dirs, len);
+                    wp_wcsncat(wcmd, L" -o ", len);
+                    wp_wcsncat(wcmd, dirs, len);
                 }
             }
             if (*wcmd)

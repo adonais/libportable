@@ -31,6 +31,7 @@ extern char * __stdcall ini_utf16_utf8(const wchar_t *utf16, size_t *out_len);
 extern bool __stdcall get_process_directory(char *name, uint32_t len);
 extern bool __stdcall wget_process_directory(LPWSTR lpstrName, DWORD len);
 extern bool __stdcall wcreate_dir(LPCWSTR dir);
+extern errno_t wp_wcsncat(wchar_t *dst, const wchar_t *src, size_t number);
 
 static const char *moz_magic = "mozLz40";
 
@@ -647,7 +648,7 @@ fn_update(void *lparam)
     {
         return 0;
     }
-    wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
+    wp_wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
     policie_exist = _waccess(json_file, 0) == 0;
     if (!policie_exist)
     {
@@ -819,7 +820,7 @@ fn_ubo(void *lparam)
     {
         return 0;
     }
-    wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
+    wp_wcsncat(json_file, L"\\distribution\\policies.json", MAX_PATH);
     policie_exist = _waccess(json_file, 0) == 0;
     if (!policie_exist)
     {

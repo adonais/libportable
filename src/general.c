@@ -44,6 +44,46 @@ WCHAR xre_profile_local_path[MAX_BUFF] = {0};
 LoadLibraryExPtr sLoadLibraryExStub = NULL;
 m_family e_browser = MOZ_UNKOWN;
 
+errno_t wp_strncat(char *dst, const char *src, size_t number)
+{
+    if (dst == NULL)
+    {
+        return EINVAL;
+    }
+    else if (src == NULL)
+    {
+        dst[0] = '\0';
+        return EINVAL;
+    }
+    else if (number <= strlen(dst) + strlen(src))
+    {
+        dst[0] = '\0';
+        return ERANGE;
+    }
+    strcat(dst, src);
+    return 0;
+}
+
+errno_t wp_wcsncat(wchar_t *dst, const wchar_t *src, size_t number)
+{
+    if (dst == NULL)
+    {
+        return EINVAL;
+    }
+    else if (src == NULL)
+    {
+        dst[0] = L'\0';
+        return EINVAL;
+    }
+    else if (number <= wcslen(dst) + wcslen(src))
+    {
+        dst[0] = L'\0';
+        return ERANGE;
+    }
+    wcscat(dst, src);
+    return 0;
+}
+
 #ifdef _LOGDEBUG
 #define LOG_FILE L"run_hook.log"
 static WCHAR logfile_buf[MAX_PATH + 1];
@@ -53,8 +93,8 @@ init_logs(void)
 {
     if (*logfile_buf == '\0' && GetEnvironmentVariableW(L"APPDATA", logfile_buf, MAX_PATH) > 0)
     {
-        wcsncat(logfile_buf, L"\\", MAX_PATH);
-        wcsncat(logfile_buf, LOG_FILE, MAX_PATH);
+        wp_wcsncat(logfile_buf, L"\\", MAX_PATH);
+        wp_wcsncat(logfile_buf, LOG_FILE, MAX_PATH);
     }
 }
 
@@ -1068,8 +1108,8 @@ get_profile_path(char *in_dir, int len, const char *appdt, const ini_cache *hand
     }
     if (relative && path_strip_suffix(in_dir))
     {
-        strncat(in_dir, "\\", len);
-        strncat(in_dir, path, len);
+        wp_strncat(in_dir, "\\", len);
+        wp_strncat(in_dir, path, len);
         rel2abs(in_dir, len);
         if (in_dir[strlen(in_dir) - 1] == '\\')
         {
@@ -1283,7 +1323,7 @@ get_appdt_path(WCHAR *path, int len)
     {
         return false;
     }
-    return !!wcsncat(path, L"\\AppData", len);
+    return (wp_wcsncat(path, L"\\AppData", len) == 0);
 }
 
 bool WINAPI
@@ -1312,7 +1352,7 @@ get_localdt_path(WCHAR *path, int len)
     {
         return false;
     }
-    return !!wcsncat(path, L"\\LocalAppData\\Temp\\Fx", len);
+    return (wp_wcsncat(path, L"\\LocalAppData\\Temp\\Fx", len) == 0);
 }
 
 DWORD WINAPI
