@@ -230,7 +230,14 @@ HookNtCreateUserProcess(PHANDLE ProcessHandle,PHANDLE ThreadHandle,
     RTL_USER_PROCESS_PARAMETERS myProcessParameters;
     trace_command(ProcessParameters->ImagePathName.Buffer, ProcessParameters->CommandLine.Buffer);
 #ifdef DLL_INJECT
-    if (is_specialapp(L"updater.exe") &&
+    if (StrStrIW(ProcessParameters->ImagePathName.Buffer, L"crashhelper.exe"))
+    {
+        // 此进程使用硬编码在用户目录生成文件, 重定向导致目录错乱, 见:
+        // https://searchfox.org/firefox-release/source/toolkit/crashreporter/crash_helper_server/src/logging/env.rs#48
+        // 太多人抱怨此问题, 所以直接禁止它启动, 可能导致无法使用carsh汇报
+        return ((NTSTATUS)0x00000116);
+    }
+    else if (is_specialapp(L"updater.exe") &&
        ((ProcessParameters->ImagePathName.Buffer && wcsstr(ProcessParameters->ImagePathName.Buffer, L"/PostUpdate")) ||
        (ProcessParameters->CommandLine.Buffer &&  wcsstr(ProcessParameters->CommandLine.Buffer, L"/PostUpdate"))) &&
        !_InterlockedCompareExchange(&upgrade_ok, 1, 0))

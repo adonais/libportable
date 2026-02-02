@@ -36,6 +36,10 @@
 
 #define NONTEMPORAL_16K 0x4000u
 
+#ifdef _LOGDEBUG
+extern __declspec(dllimport) char **environ;
+#endif
+
 typedef  LPITEMIDLIST PIDLIST_ABSOLUTE;
 
 SHSTDAPI SHILCreateFromPath (PCWSTR pszPath, PIDLIST_ABSOLUTE *ppidl, DWORD *rgfInOut);
@@ -301,11 +305,7 @@ HookSHGetKnownFolderPath(REFKNOWNFOLDERID rfid,DWORD dwFlags,HANDLE hToken,PWSTR
         PathRemoveBackslashW(*ppszPath);
         return S_OK;
     }
-    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData) || IsEqualGUID(rfid, &FOLDERID_ProgramData)
-        #if defined(DLL_INJECT)
-            || is_specialapp(L"crashhelper.exe")
-        #endif
-            )
+    else if (IsEqualGUID(rfid, &FOLDERID_LocalAppData) || IsEqualGUID(rfid, &FOLDERID_ProgramData))
     {
         WCHAR localdt_path[MAX_PATH+1] = {0};
         if (!get_localdt_path(localdt_path, MAX_PATH))
@@ -328,30 +328,33 @@ static void
 init_portable(void)
 {
 #define DLD(s,h) {#s, (void*)(Hook##s), (pointer_to_handler*)(void*)(&h)}
-    int i;
-    HMODULE shell32;
-    const dyn_link_desc api_tables[] =
+    if (!_wgetenv(L"LIBPORTABLE_SETUP_DEFINED") && ini_read_int("General", "Portable", ini_portable_path, true) > 0)
     {
-          DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
-        , DLD(SHGetFolderPathW, sSHGetFolderPathWStub)
-        , DLD(SHGetSpecialFolderPathW, sSHGetSpecialFolderPathWStub)
-        , DLD(SHGetKnownFolderIDList, sSHGetKnownFolderIDListStub)
-        , DLD(SHGetKnownFolderPath, sSHGetKnownFolderPathStub)
-    };
-    int func_num = sizeof(api_tables)/sizeof(api_tables[0]);
-    if ((shell32 = GetModuleHandleW(L"shell32.dll")) == NULL)
-    {
-        return;
-    }
-    if (!m_target[0])
-    {
-        for (i = 0 ; i < func_num; i++)
+        int i;
+        HMODULE shell32;
+        const dyn_link_desc api_tables[] =
         {
-            m_target[i] = (uintptr_t)GetProcAddress(shell32, api_tables[i].name);
+              DLD(SHGetSpecialFolderLocation, sSHGetSpecialFolderLocationStub)
+            , DLD(SHGetFolderPathW, sSHGetFolderPathWStub)
+            , DLD(SHGetSpecialFolderPathW, sSHGetSpecialFolderPathWStub)
+            , DLD(SHGetKnownFolderIDList, sSHGetKnownFolderIDListStub)
+            , DLD(SHGetKnownFolderPath, sSHGetKnownFolderPathStub)
+        };
+        int func_num = sizeof(api_tables)/sizeof(api_tables[0]);
+        if ((shell32 = GetModuleHandleW(L"shell32.dll")) == NULL)
+        {
+            return;
         }
-        for (i = 0 ; m_target[i] != 0 && i < func_num; i++)
+        if (!m_target[0])
         {
-            creator_hook((void*)m_target[i], api_tables[i].hook, (void **)api_tables[i].original);
+            for (i = 0 ; i < func_num; i++)
+            {
+                m_target[i] = (uintptr_t)GetProcAddress(shell32, api_tables[i].name);
+            }
+            for (i = 0 ; m_target[i] != 0 && i < func_num; i++)
+            {
+                creator_hook((void*)m_target[i], api_tables[i].hook, (void **)api_tables[i].original);
+            }
         }
     }
 #undef DLD
@@ -396,6 +399,13 @@ update_thread(void *lparam)
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[MAX_PATH+1] = {0};
     WCHAR wcmd[MAX_BUFF+1] = {0};
+    if (!_wgetenv(L"LIBPORTABLE_SETUP_DEFINED"))
+    {
+    #ifdef _LOGDEBUG
+        logmsg("%s LIBPORTABLE_SETUP_DEFINED\n", __FUNCTION__);
+    #endif
+        return (0);
+    }
     if (!get_localdt_path(temp, MAX_PATH))
     {
     #ifdef _LOGDEBUG
@@ -441,6 +451,13 @@ static bool
 init_hook_data(const bool gpu)
 {
     WCHAR appdt[MAX_PATH] = {0};
+    if (!ini_path_init())
+    {
+    #ifdef _LOGDEBUG
+        logmsg("ini_path_init() return false!\n");
+    #endif
+        return false;
+    }
     if (!gpu && !get_appdt_path(appdt, MAX_PATH))
     {
     #ifdef _LOGDEBUG
@@ -465,6 +482,13 @@ init_hook_data(const bool gpu)
             logmsg("MOZ_RESTART_DEFINED!\n");
         #endif
         }
+    /*
+    #ifdef _LOGDEBUG
+        for (char **env = environ; *env != NULL; env++) {
+            logmsg("%s\n", *env);
+        }
+    #endif
+    */
         if (restart || !_wgetenv(L"LIBPORTABLE_FILEIO_DEFINED"))
         {
             write_file(appdt);
@@ -492,13 +516,16 @@ init_hook_data(const bool gpu)
                 _wputenv(L"MOZ_APP_RESTART=");
             }
             rewrite_json(appdt);
+            // 启动器进程重定向注册表路径
+            init_portable();
+            // 获取子进程参数
             init_safed();
         #ifdef _LOGDEBUG
             logmsg("Launcher process runing, mutex = %s, pid = %lu\n", mutex ? "true" : "false", GetCurrentProcessId());
         #endif
             return false;
         }
-        if (ini_read_int("General", "Portable", ini_portable_path, true) > 0 && wcreate_dir(appdt))
+        if (_wgetenv(L"LIBPORTABLE_SETUP_DEFINED") || wcreate_dir(appdt))
         {
             init_portable();
             init_safed();
@@ -567,7 +594,7 @@ window_hooks(void)
         {
             int ubo = inicache_read_int("General", "EnableUBO", &plist);
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
-            if (e_browser == MOZ_ICEWEASEL && up > 0 && inicache_read_int("General", "Portable", &plist) > 0)
+            if (e_browser == MOZ_ICEWEASEL && up > 0)
             {   // 调用Iceweasel的自动更新进程.
                 CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
             }
@@ -603,7 +630,7 @@ window_hooks(void)
 void
 do_it(void)
 {
-    if (!cmd_has_profile(NULL, 0) && !cmd_has_setup() && !_wgetenv(L"LIBPORTABLE_WONT_EANBLED"))
+    if (!_wgetenv(L"LIBPORTABLE_WONT_EANBLED"))
     {
         bool has_gpu = false;
         e_browser = is_ff_official();
@@ -614,13 +641,6 @@ do_it(void)
                 window_hooks();
             }
         }
-    }
-    else
-    {
-    #ifdef _LOGDEBUG
-        logmsg("The browser specified a profile, libportable not enabled\n");
-    #endif
-        SetEnvironmentVariableW(L"LIBPORTABLE_WONT_EANBLED", L"1");
     }
 }
 

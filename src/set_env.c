@@ -96,40 +96,48 @@ setenv_tt(void)
         crt_setenv(L"LIBPORTABLE_SETENV_DEFINED=1");
         if ((plist = iniparser_create_cache(ini_portable_path, false, true)) != NULL)
         {
-            char *val_str = NULL;
-            if (inicache_read_string("Env", "NpluginPath", &val_str, &plist))
-            {
-                WCHAR plugin_str[VALUE_LEN] = {L'M',L'O',L'Z',L'_',L'P',L'L',L'U',L'G',L'I',
-                                               L'N',L'_',L'P',L'A',L'T',L'H',L'=',0};
-                int envlen = (int)wcslen(plugin_str);
-                MultiByteToWideChar(CP_UTF8, 0, val_str, -1, plugin_str+envlen, VALUE_LEN-envlen);
-                path_to_absolute(plugin_str+envlen, VALUE_LEN-envlen);
-                crt_setenv(plugin_str);
-                free(val_str);
-            }
-            if (inicache_read_int("General", "Portable", &plist) > 0)
+            // No longer supporting old versions
+            // char *val_str = NULL;
+            // if (inicache_read_string("Env", "NpluginPath", &val_str, &plist))
+            // {
+            //     WCHAR plugin_str[MAX_PATH] = {L'M',L'O',L'Z',L'_',L'P',L'L',L'U',L'G',L'I',
+            //                                   L'N',L'_',L'P',L'A',L'T',L'H',L'=',0};
+            //     int envlen = (int)wcslen(plugin_str);
+            //     MultiByteToWideChar(CP_UTF8, 0, val_str, -1, plugin_str + envlen, MAX_PATH - envlen);
+            //     path_to_absolute(plugin_str + envlen, MAX_PATH - envlen);
+            //     crt_setenv(plugin_str);
+            //     free(val_str);
+            // }
+            if (!_wgetenv(L"LIBPORTABLE_SETUP_DEFINED") && inicache_read_int("General", "Portable", &plist) > 0)
             {
                 WCHAR env_appdt[MAX_BUFF] =  {0};
                 WCHAR env_localdt[MAX_BUFF] =  {0};
-                if (get_file_version() > 131 && _wgetenv(L"XRE_PROFILE_PATH") == NULL)
+                if (get_file_version() > 131)
                 {
-                    if (*xre_profile_path)
+                    if (_wgetenv(L"XRE_PROFILE_PATH") == NULL && *xre_profile_path)
                     {
                         _snwprintf(env_appdt, MAX_BUFF, L"XRE_PROFILE_PATH=%s", xre_profile_path);
-                    }
-                    if (*xre_profile_local_path)
-                    {
-                        _snwprintf(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%s", xre_profile_local_path);
-                    }
-                    if (env_appdt[0])
-                    {
                         crt_setenv(env_appdt);
                     #ifdef _LOGDEBUG
                         logmsg("we setup XRE_PROFILE_PATH\n");
                     #endif
                     }
-                    if (env_localdt[0])
+                    if (_wgetenv(L"XRE_PROFILE_LOCAL_PATH") == NULL && *xre_profile_local_path)
                     {
+                        _snwprintf(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%s", xre_profile_local_path);
+                        crt_setenv(env_localdt);
+                    }
+                    if (*xre_profile_path && _wgetenv(L"MOZ_APP_DATA") == NULL)
+                    {
+                        _snwprintf(env_appdt, MAX_BUFF, L"MOZ_APP_DATA=%s\\AppData\\Mozilla\\Firefox", xre_profile_path);
+                        crt_setenv(env_appdt);
+                    #ifdef _LOGDEBUG
+                        logmsg("we setup MOZ_APP_DATA\n");
+                    #endif
+                    }
+                    if (*xre_profile_local_path && _wgetenv(L"MOZ_LOCAL_APP_DATA") == NULL)
+                    {
+                        _snwprintf(env_localdt, MAX_BUFF, L"MOZ_LOCAL_APP_DATA=%s", xre_profile_local_path);
                         crt_setenv(env_localdt);
                     }
                 }

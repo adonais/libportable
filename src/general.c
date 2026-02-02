@@ -123,7 +123,7 @@ logmsg(const char *format, ...)
 }
 #endif
 
-static bool
+bool
 ini_path_init(void)
 {
     bool  ret = false;
@@ -825,71 +825,64 @@ get_module_name(uintptr_t caller, WCHAR *out, int len)
     return res;
 }
 
-bool WINAPI
-cmd_has_profile(char *pout, const int size)
+static int
+argment_cmp(const WCHAR *path, const WCHAR *args)
+{
+    WCHAR *p = (WCHAR *)path;
+    if (p && p[0] == L'-')
+    {
+        ++p;
+        if (*p == L'-')
+        {
+            ++p;
+        }
+        return args ? _wcsicmp(p, args) : 1;
+    }
+    return 1;
+}
+
+static bool
+cmd_has_profile_path(void)
 {
     int     count = 0;
-    bool    ret = false;
     LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
     if (NULL != args)
     {
-        for (int i = 0; i < count; ++i)
+        for (int i = 1; i < count; ++i)
         {
-            WCHAR *p = NULL;
-            if (args[i][0] == '-')
+            if ((argment_cmp(args[i], L"profile") == 0) && (i + 1 < count))
             {
-                p = &args[i][1];
-                if (args[i][1] == '-')
-                {
-                    p = &args[i][2];
-                }
+                WCHAR env_dt[MAX_BUFF] =  {0};
+                _snwprintf(env_dt, MAX_BUFF, L"XRE_PROFILE_PATH=%s", args[i + 1]);
+                return _wputenv(env_dt) == 0;
             }
-            if (p && (_wcsicmp(p, L"p") == 0 || _wcsicmp(p, L"profile") == 0)  && (i + 1 < count))
+        }
+        LocalFree(args);
+    }
+    return false;
+}
+
+static bool
+cmd_has_setup(char *pout, const int size)
+{
+    int     count = 0;
+    LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (NULL != args)
+    {
+        for (int i = 1; i < count; ++i)
+        {
+            if ((argment_cmp(args[i], L"P") == 0 || argment_cmp(args[i], L"ProfileManager") == 0))
             {
-                ret = true;
-                if (pout)
+                if (pout && (i + 1 < count))
                 {
                     util_make_u8(args[i + 1], pout, (int)size);
                 }
-                break;
+                return true;
             }
         }
         LocalFree(args);
     }
-    return ret;
-}
-
-bool WINAPI
-cmd_has_setup(void)
-{
-    int     count = 0;
-    bool    ret = false;
-    LPWSTR  *args = CommandLineToArgvW(GetCommandLineW(), &count);
-    if (NULL != args)
-    {
-        for (int i = 0; i < count; i++)
-        {
-            WCHAR *p = NULL;
-            if (args[i][0] == '-')
-            {
-                p = &args[i][1];
-                if (args[i][1] == '-')
-                {
-                    p = &args[i][2];
-                }
-            }
-            if (p)
-            {
-                if ((_wcsicmp(p, L"p") == 0 || _wcsicmp(p, L"ProfileManager") == 0) && (i + 1 == count))
-                {
-                    ret = true;
-                    break;
-                }
-            }
-        }
-        LocalFree(args);
-    }
-    return ret;
+    return false;
 }
 
 bool WINAPI
@@ -958,7 +951,7 @@ get_arg_path(const ini_cache *ini, char **out_path, bool *relative)
 {
     bool ret = false;
     char name[NAMES_LEN+1] = {0};
-    if (cmd_has_profile(name, NAMES_LEN))
+    if (cmd_has_setup(name, NAMES_LEN))
     {
         if (name[0])
         {
@@ -1168,8 +1161,16 @@ get_xre_path(LPCWSTR appdt)
 {
     if (appdt && appdt[0])
     {
-        _snwprintf(xre_profile_path, MAX_BUFF, L"%s", appdt);
-        PathRemoveFileSpecW(xre_profile_path);
+        WCHAR *xpath = _wgetenv(L"XRE_PROFILE_PATH");
+        if (xpath)
+        {
+            _snwprintf(xre_profile_path, MAX_BUFF, L"%s", xpath);
+        }
+        else
+        {
+            _snwprintf(xre_profile_path, MAX_BUFF, L"%s", appdt);
+            PathRemoveFileSpecW(xre_profile_path);
+        }
         if (!xre_profile_local_path[0])
         {
             get_localdt_path(xre_profile_local_path, MAX_BUFF);
@@ -1220,8 +1221,11 @@ write_file(LPCWSTR appdata_path)
     char appdt[MAX_BUFF + 1] = {0};
     char moz_profile[MAX_BUFF + 1] =  {0};
     _wputenv(L"LIBPORTABLE_FILEIO_DEFINED=1");
-    if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
+    if (_wgetenv(L"LIBPORTABLE_SETUP_DEFINED") || ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
+    #ifdef _LOGDEBUG
+        logmsg("%s LIBPORTABLE_SETUP_DEFINED\n", __FUNCTION__);
+    #endif
         return ret;
     }
     if (!WideCharToMultiByte(CP_UTF8, 0, appdata_path, -1, appdt, MAX_BUFF, NULL, NULL))
@@ -1293,12 +1297,22 @@ bool WINAPI
 get_appdt_path(WCHAR *path, int len)
 {
     char *buf = NULL;
-    if (!ini_path_init())
+    WCHAR *xpath = NULL;
+    bool has_profd = cmd_has_profile_path();
+    if ((xpath = _wgetenv(L"XRE_PROFILE_PATH")) != NULL && _snwprintf(path, len, L"%s\\AppData", xpath) > 0)
     {
-    #ifdef _LOGDEBUG
-        logmsg("ini_path_init(%ls) return false!\n", ini_portable_path);
-    #endif
-        return false;
+        if (_wgetenv(L"XRE_PROFILE_LOCAL_PATH") == NULL)
+        {
+            WCHAR env_localdt[MAX_BUFF] =  {0};
+            _snwprintf(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%s\\LocalAppData\\Temp\\Fx", xpath);
+            return _wputenv(env_localdt) == 0;
+        }
+        return true;
+    }
+    if (!has_profd && cmd_has_setup(NULL, 0))
+    {
+        _wputenv(L"LIBPORTABLE_SETUP_DEFINED=1");
+        return true;
     }
     if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
@@ -1330,9 +1344,16 @@ bool WINAPI
 get_localdt_path(WCHAR *path, int len)
 {
     char *buf = NULL;
-    if (!ini_path_init())
+    WCHAR *xpath = _wgetenv(L"XRE_PROFILE_LOCAL_PATH");
+    if (xpath)
     {
-        return false;
+        return _snwprintf(path, len, L"%s", xpath) > 0;
+    }
+    else if ((xpath = _wgetenv(L"XRE_PROFILE_PATH")) != NULL && _snwprintf(path, len, L"%s\\LocalAppData\\Temp\\Fx", xpath) > 0)
+    {
+        WCHAR env_localdt[MAX_BUFF] =  {0};
+        _snwprintf(env_localdt, MAX_BUFF, L"XRE_PROFILE_LOCAL_PATH=%s", path);
+        return _wputenv(env_localdt) == 0;
     }
     if (ini_read_int("General", "Portable", ini_portable_path, true) <= 0)
     {
