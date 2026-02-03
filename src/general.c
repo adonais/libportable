@@ -570,8 +570,8 @@ create_dir(const char *dir)
 bool WINAPI
 path_to_absolute(LPWSTR path, int len)
 {
-    WCHAR lpfile[MAX_PATH + 1] = { 0 };
-    int n = 1;
+    int n = 0;
+    WCHAR lpfile[MAX_PATH + 1] = {0};
     if (NULL == path || *path == L'\0' || *path == L' ')
     {
         return false;
@@ -582,46 +582,64 @@ path_to_absolute(LPWSTR path, int len)
         {
             return false;
         }
-        _snwprintf(lpfile, MAX_PATH, L"%s", &path[1]);
+        if (!((n = _snwprintf(lpfile, MAX_PATH, L"%s", &path[1])) > 0 && n < MAX_PATH))
+        {
+            return false;
+        }
         lpfile[wcslen(lpfile) - 1] = L'\0';
     }
-    else
+    else if (!((n = _snwprintf(lpfile, MAX_PATH, L"%s", path)) > 0 && n < MAX_PATH))
     {
-        _snwprintf(lpfile, MAX_PATH, L"%s", path);
+        return false;
     }
-    wchr_replace(lpfile);
+    if (true)
+    {
+        wchr_replace(lpfile);
+    }
     if (lpfile[0] == L'%')
     {
-        WCHAR buf_env[VALUE_LEN + 1] = { 0 };
-        while (lpfile[n] != L'\0')
+        WCHAR buf[MAX_PATH] = {0};
+        WCHAR env[MAX_PATH] = {0};
+        n = 1;
+        while (lpfile[n++] != L'\0')
         {
-            if (lpfile[n++] == L'%')
+            if (lpfile[n] == L'%')
             {
                 break;
             }
         }
-        if (n < len)
+        if (n > 1 && n < MAX_PATH - 1)
         {
-            _snwprintf(buf_env, n + 1, L"%s", lpfile);
+            _snwprintf(buf, n + 1, L"%s", lpfile);
         }
-        if (wcslen(buf_env) > 1 && ExpandEnvironmentStringsW(buf_env, buf_env, VALUE_LEN) > 0)
+        if (wcslen(buf) > 1 && ExpandEnvironmentStringsW(buf, env, MAX_PATH - 1) > 0)
         {
-            if (lpfile[n] != 0 && lpfile[n] == '\\')
+            if (lpfile[n] != 0 && lpfile[n + 1] == L'\\')
             {
                 ++n;
             }
-            return (NULL != PathCombineW(path, buf_env, &lpfile[n]));
+            if (len > (int)(wcslen(env) + wcslen(&lpfile[n + 1])))
+            {
+                return (NULL != PathCombineW(path, env, &lpfile[n + 1]));
+            }
         }
     }
     else if (lpfile[1] != L':')
     {
-        WCHAR name[MAX_PATH + 1] = { 0 };
-        if (GetModuleFileNameW(NULL, name, MAX_PATH) > 0 && PathRemoveFileSpecW(name))
+        WCHAR name[MAX_PATH] = {0};
+        if (GetModuleFileNameW(NULL, name, MAX_PATH - 1) > 0 && PathRemoveFileSpecW(name))
         {
-            return (NULL != PathCombineW(path, name, lpfile));
+            if (len > (int)(wcslen(name) + wcslen(lpfile)))
+            {
+                return (NULL != PathCombineW(path, name, lpfile));
+            }
         }
     }
-    return (NULL != PathCombineW(path, NULL, lpfile));
+    else if (len > (int)wcslen(lpfile))
+    {
+        return (NULL != PathCombineW(path, NULL, lpfile));
+    }
+    return false;
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
