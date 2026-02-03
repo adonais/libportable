@@ -517,7 +517,9 @@ init_hook_data(const bool gpu)
             }
             rewrite_json(appdt);
             // 启动器进程重定向注册表路径
+        #ifdef DLL_INJECT
             init_portable();
+        #endif
             // 获取子进程参数
             init_safed();
         #ifdef _LOGDEBUG

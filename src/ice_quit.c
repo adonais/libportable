@@ -217,11 +217,12 @@ int ctype_download_caller(int id, const char *url, const char *name, const char 
             if (*dirs)
             {
                 _snwprintf(wcmd, len, L"%s"_UPDATE L"-m %d -i \"%s\" -ref \"%s\" -b \"%s\" -cok \"%s\"", dirs, id, purl, prefer, pck, pbuf);
-                if (wcslen(psave) > 0)
+                *dirs = L'\0';
+                if (wcslen(psave) > 0 && wcslen(pname) > 0)
                 {
                     _snwprintf(dirs, MAX_PATH, L"\"%s\\%s\"", psave, pname);
                 }
-                else
+                else if (wcslen(pname) > 0)
                 {
                     _snwprintf(dirs, MAX_PATH, L"\"%s\"", pname);
                 }

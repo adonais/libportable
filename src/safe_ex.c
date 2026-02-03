@@ -67,7 +67,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         /* firefox目录下进程的路径 */
         int   num;
         WCHAR temp[VALUE_LEN] = {0};
-        GetModuleFileNameW(NULL,temp,VALUE_LEN);
+        GetModuleFileNameW(NULL,temp, VALUE_LEN);
         wcsncpy(white_list[0], (LPCWSTR)temp, VALUE_LEN);
         wcsncpy(white_list[1], (LPCWSTR)moz_processes[1], VALUE_LEN);
         PathRemoveFileSpecW(temp);
@@ -84,7 +84,7 @@ static bool in_whitelist(LPCWSTR lpfile)
         {
             if (!(white_list[i][0] == L'*' || white_list[i][0] == L'?') && white_list[i][1] != L':')
             {
-                path_to_absolute(white_list[i],VALUE_LEN);
+                path_to_absolute(white_list[i], VALUE_LEN);
             }
             if (StrChrW(white_list[i], L'*') || StrChrW(white_list[i], L'?'))
             {
