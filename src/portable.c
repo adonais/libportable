@@ -399,10 +399,10 @@ update_thread(void *lparam)
     WCHAR temp[MAX_PATH+1] = {0};
     WCHAR path[MAX_PATH+1] = {0};
     WCHAR wcmd[MAX_BUFF+1] = {0};
-    if (!_wgetenv(L"LIBPORTABLE_SETUP_DEFINED"))
+    if (_wgetenv(L"LIBPORTABLE_SETUP_DEFINED"))
     {
     #ifdef _LOGDEBUG
-        logmsg("%s LIBPORTABLE_SETUP_DEFINED\n", __FUNCTION__);
+        logmsg("Custom configuration file path, update disabled\n");
     #endif
         return (0);
     }
