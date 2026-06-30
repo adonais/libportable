@@ -18,6 +18,7 @@ HookRegOpenKeyExW(HKEY    hKey,
          StrStrIW(lpSubKey, L"\\MozillaPlugins")      ||
          StrStrIW(lpSubKey, L"\\QuickTimePlayer.exe") ||
          StrStrIW(lpSubKey, L"\\wmplayer.exe")        ||
+         StrStrIW(lpSubKey, L"\\run")                 ||
          StrStrIW(lpSubKey, L"\\Adobe\\")) )
     {
     #ifdef _LOGDEBUG
