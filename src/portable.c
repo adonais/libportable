@@ -595,7 +595,7 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
-        if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_LIBREWOLF)
+        if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_FIREFOX)
         {
             int ubo = inicache_read_int("General", "EnableUBO", &plist);
             CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));

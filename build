@@ -1,0 +1,7 @@
+#!/bin/bash
+
+export MOZ_FETCHES_DIR=/builds/worker/fetches
+export INCLUDE=";$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/atlmfc/include;$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.39.33519/include"
+export PATH=$PATH:$MOZ_FETCHES_DIR/clang20/bin
+export CLANG_PATH=$MOZ_FETCHES_DIR/clang_t
+make $@
