@@ -10,7 +10,9 @@
 #include "cjson.h"
 #include "json_paser.h"
 
-#define UBO_URL "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/latest.xpi?viasf=1"
+#define UBO_EXTEN  "uBlock0@raymondhill.net"
+#define UBO_URL    "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/latest.xpi?viasf=1"
+#define UPDATE_URL "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/update.json?viasf=1"
 
 #ifdef __GNUC__
 #define GCC_VERSION ((__GNUC__ * 10000) + (__GNUC_MINOR__ * 1000) + (__GNUC_PATCHLEVEL__ * 100))
@@ -721,68 +723,143 @@ fn_update(void *lparam)
 }
 
 static void 
-add_ubo_string(cJSON *installer)
+add_element_string(cJSON *installer, const char *pstr)
 {
-    if (cJSON_IsArray(installer))
+    cJSON *element = NULL;
+    if (strcmp(pstr, "installation_mode") == 0 && (element = cJSON_CreateString("normal_installed")) != NULL)
     {
-        cJSON *url = cJSON_CreateString(UBO_URL);
-        if (url)
-        {
-            cJSON_AddItemToArray(installer, url);
-        }
+        cJSON_AddItemToObject(installer, "installation_mode", element);
+    }
+    else if (strcmp(pstr, "install_url") == 0 && (element = cJSON_CreateString(UBO_URL)) != NULL)
+    {
+        cJSON_AddItemToObject(installer, "install_url", element);
+    }
+    else if (strcmp(pstr, "update_url") == 0 && (element = cJSON_CreateString(UPDATE_URL)) != NULL)
+    {
+        cJSON_AddItemToObject(installer, "update_url", element);
     }
 }
 
-static bool
-add_installer_obj(cJSON *extension, const bool ubo, bool *rms)
+static void 
+add_ubo_string(cJSON *installer, bool *rms)
 {
-    int i = 0;
-    int array_size = 0;
-    bool has_ubo = false;
-    cJSON *url = NULL;
-    cJSON *installer = cJSON_GetObjectItem(extension, "Install");
-    array_size = installer ? cJSON_GetArraySize(installer) : 0;
-    for (; i < array_size; ++i)
+    if (installer)
     {
-        url = cJSON_GetArrayItem(installer, i);
-        if (url && cJSON_IsString(url) && strcmp(url->valuestring, UBO_URL) == 0)
+        cJSON *object = cJSON_GetObjectItem(installer, "installation_mode");
+        if (object)
         {
-            has_ubo = true;
-            break;
-        }
-    }
-    if (has_ubo)
-    {
-        if (!ubo)
-        {
-            if (array_size == 1)
+            if (!cJSON_IsString(object))
             {
-                cJSON_DeleteItemFromObject(extension, "Install");
+                cJSON_DeleteItemFromObject(installer, "installation_mode");
+                add_element_string(installer, "installation_mode");
                 if (rms)
                 {
                     *rms = true;
                 }
             }
-            else
+        }
+        else
+        {
+            add_element_string(installer, "installation_mode");
+        }
+        if ((object = cJSON_GetObjectItem(installer, "install_url")) != NULL)
+        {
+            if (!cJSON_IsString(object))
             {
-                cJSON_DeleteItemFromArray(installer, i);
+                cJSON_DeleteItemFromObject(installer, "install_url");
+                add_element_string(installer, "install_url");
+                if (rms)
+                {
+                    *rms = true;
+                }
             }
-            return true;
+        }
+        else
+        {
+            add_element_string(installer, "install_url");
+        }
+        if ((object = cJSON_GetObjectItem(installer, "update_url")) != NULL)
+        {
+            if (!(cJSON_IsString(object) && strcmp(object->valuestring, UPDATE_URL) == 0))
+            {
+                cJSON_DeleteItemFromObject(installer, "update_url");
+                add_element_string(installer, "update_url");
+                if (rms)
+                {
+                    *rms = true;
+                }
+            }
+        }
+        else
+        {
+            add_element_string(installer, "update_url");
+        }
+    }
+}
+
+#define SAFE_GET_STRING(_obj, _key, _dst) do { \
+    cJSON *_tmp = cJSON_GetObjectItem(_obj, _key); \
+    _dst = (_tmp && cJSON_IsString(_tmp)) ? _tmp->valuestring : NULL; \
+} while(0)
+
+static bool
+has_installer_obj(cJSON *installer_obj)
+{
+    bool has_mode = false;
+    bool has_url = false;
+    bool has_update = false;
+    const char *mode = NULL;
+    const char *url = NULL;
+    const char *update = NULL;
+    SAFE_GET_STRING(installer_obj, "installation_mode", mode);
+    SAFE_GET_STRING(installer_obj, "install_url", url);
+    SAFE_GET_STRING(installer_obj, "update_url", update);
+    has_mode = mode != NULL;
+    has_url = (url && strcmp(url, UBO_URL) == 0);
+    has_update = (update && strcmp(update, UPDATE_URL) == 0);
+    return (has_mode && has_url && has_update);
+}
+
+static bool
+add_ubo_obj(cJSON *extension, const bool ubo, bool *rms)
+{
+    bool modified = false;
+    cJSON *installer = cJSON_GetObjectItem(extension, UBO_EXTEN);
+    bool has_ubo = installer && cJSON_GetArraySize(installer) >= 3 && has_installer_obj(installer);
+    if (has_ubo)
+    {
+        if (!ubo)
+        {
+            cJSON_DeleteItemFromObject(extension, UBO_EXTEN);
+            if (rms)
+            {
+                *rms = true;
+            }
+            modified = true;
         }
     }
     else if (ubo)
     {
         if (installer)
         {
-            add_ubo_string(installer);
+            add_ubo_string(installer, &modified);
         }
-        else if (cJSON_AddArrayToObject(extension, "Install"))
+        else if ((installer = cJSON_CreateObject()) != NULL && cJSON_AddItemToObject(extension, UBO_EXTEN, installer))
         {
-            add_ubo_string(cJSON_GetObjectItem(extension, "Install"));
+            add_ubo_string(installer, NULL);
+            modified = true;
         }
-        return true;
     }
-    return false;
+    else if (installer)
+    {
+        cJSON_DeleteItemFromObject(extension, UBO_EXTEN);
+        if (rms)
+        {
+            *rms = true;
+        }
+        modified = true;
+    }
+    return modified;
 }
 
 static bool
@@ -790,9 +867,9 @@ add_extension_obj(cJSON *base, const bool ubo)
 {
     bool modified = false;
     cJSON *extension = cJSON_CreateObject();
-    if (extension && cJSON_AddItemToObject(base, "Extensions", extension))
+    if (extension && cJSON_AddItemToObject(base, "ExtensionSettings", extension))
     {
-        modified = add_installer_obj(extension, ubo, NULL);
+        modified = add_ubo_obj(extension, ubo, NULL);
     }
     return modified;
 }
@@ -826,7 +903,7 @@ fn_ubo(void *lparam)
     {
         if (ubo)
         {
-            const char *str = "{\n  \"policies\": {\n    \"Extensions\": {\n      \"Install\": [\n        \""UBO_URL"\"\n      ]\n    }\n  }\n}";
+            const char *str = "{\n  \"policies\": {\n    \"ExtensionSettings\": {\n      \""UBO_EXTEN"\": {\n        \"installation_mode\": \"normal_installed\",\n        \"install_url\": \""UBO_URL"\",\n        \"update_url\": \""UPDATE_URL"\"\n      }\n    }\n  }\n}";
             return cjson_write_file(json_file, str);
         }
         return 0;
@@ -837,20 +914,24 @@ fn_ubo(void *lparam)
         root = cjson_read_file(json_file);
         if (!root)
         {
-            DeleteFileW(json_file);
+            policie_exist = false;
             break;
         }
         base = cJSON_GetObjectItem(root, "policies");
         if (base)
         {
-            extension = cJSON_GetObjectItem(base, "Extensions");
+            extension = cJSON_GetObjectItem(base, "ExtensionSettings");
             if (extension)
             {
                 bool self = false;
-                modified = add_installer_obj(extension, ubo > 0, &self);
+                modified = add_ubo_obj(extension, ubo > 0, &self);
                 if (self)
                 {
-                    cJSON_DeleteItemFromObject(base, "Extensions");
+                    extension = cJSON_GetObjectItem(base, "ExtensionSettings");
+                    if (extension->child == NULL)
+                    {
+                        cJSON_DeleteItemFromObject(base, "ExtensionSettings");
+                    }
                     modified = true;
                 }
             }
@@ -865,13 +946,27 @@ fn_ubo(void *lparam)
         }
         if (modified)
         {
-            write_policies_obj(root, json_file);
+            if (!ubo && (base = cJSON_GetObjectItem(root, "policies")) != NULL && base->child == NULL)
+            {
+            #ifdef _LOGDEBUG
+                logmsg("we delete policies.json\n");
+            #endif
+                policie_exist = false;
+            }
+            if (policie_exist)
+            {
+                write_policies_obj(root, json_file);
+            }
         }
         break;
     }
     if (root)
     {
         cJSON_Delete(root);
+    }
+    if (!policie_exist)
+    {
+        DeleteFileW(json_file);
     }
     return 0;
 }
