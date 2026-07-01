@@ -515,7 +515,10 @@ init_hook_data(const bool gpu)
             {
                 _wputenv(L"MOZ_APP_RESTART=");
             }
-            rewrite_json(appdt);
+            if (get_file_version() < 151)
+            {
+                rewrite_json(appdt);
+            }
             // 启动器进程重定向注册表路径
         #ifdef DLL_INJECT
             init_portable();
