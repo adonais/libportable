@@ -206,6 +206,9 @@ dll_update(void)
             if (*ss)
             {
                 wp_wcsncat(upcheck, ss, MAX_PATH);
+            #ifdef _LOGDEBUG
+                logmsg("upcheck: [%ls]\n", upcheck);
+            #endif
                 CloseHandle(create_new(upcheck, NULL, NULL, 0, NULL));
             }
         }
