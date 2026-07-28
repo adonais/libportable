@@ -595,6 +595,10 @@ window_hooks(void)
     if (plist)
     {
         int up = inicache_read_int("General", "Update", &plist);
+        if (e_browser > MOZ_LIBREWOLF)
+        {   // 支持官方版本更新开关的禁止与启用.
+            fn_update((void *)(uintptr_t)up);
+        }
         if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_FIREFOX)
         {
             int ubo = inicache_read_int("General", "EnableUBO", &plist);
@@ -603,10 +607,6 @@ window_hooks(void)
             {   // 调用Iceweasel的自动更新进程.
                 CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
             }
-        }
-        else if (e_browser > MOZ_LIBREWOLF)
-        {   // 支持官方版本更新开关的禁止与启用.
-            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_update, (void *)(uintptr_t)up, 0, NULL));
         }
         if (inicache_read_int("General", "CreateCrashDump", &plist) > 0)
         {
