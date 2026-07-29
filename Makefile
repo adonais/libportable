@@ -23,21 +23,26 @@ endif
 
 ifeq ($(INCLUDE),)
 $(error You must define the INCLUDE environment variable for cross-compilation. example: \
-  export INCLUDE=".:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.50.35717/atlmfc/include:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.50.35717/include")
+  export INCLUDE=".:$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/atlmfc/include:$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/include")
+endif
+
+ifeq ($(ESR115), 1)
+CFLAGS += -DESR115
+CFLAGS += -fms-compatibility-version=19.39
+else
+CFLAGS += -fms-compatibility-version=19.50
 endif
 
 ifneq ($(MOZ_FETCHES_DIR),)
-# CFLAGS += -I"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/atlmfc/include" -I"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/include"
 
 CFLAGS += -Xclang -ivfsoverlay -Xclang $(MOZ_FETCHES_DIR)/vs/overlay.yaml -MD
 CFLAGS += -flto=thin -guard:cf -Xclang -MP
 CFLAGS += -D_CRT_SECURE_NO_WARNINGS -DCJSON_HIDE_SYMBOLS  -DVC12_CRT -DWINVER=0x0600 -D_WIN32_IE=0x0800 -DINITGUID
-CFLAGS += -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.26100.0/shared" \
-          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.26100.0/um" \
-          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/10.0.26100.0/ucrt"
+CFLAGS += -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/$(sdk_version)/shared" \
+          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/$(sdk_version)/um" \
+          -I"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Include/$(sdk_version)/ucrt"
 
-CFLAGS += -fms-compatibility-version=19.50 \
-          -Wno-nonportable-include-path \
+CFLAGS += -Wno-nonportable-include-path \
           -Wno-pragma-pack \
           -Wno-unknown-pragmas \
           -Wno-ignored-pragma-intrinsic \
@@ -47,15 +52,15 @@ CFLAGS += -fms-compatibility-version=19.50 \
           -Wno-missing-prototype-for-cc
 
 ifeq ($(BITS),32)
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/atlmfc/lib/x86"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/lib/x86"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/10.0.26100.0/um/x86"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/10.0.26100.0/ucrt/x86"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/atlmfc/lib/x86"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/lib/x86"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/$(sdk_version)/um/x86"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/$(sdk_version)/ucrt/x86"
 else
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/atlmfc/lib/x64"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/14.50.35717/lib/x64"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/10.0.26100.0/um/x64"
-LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/atlmfc/lib/x64"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/lib/x64"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/$(sdk_version)/um/x64"
+LIBPATH += -libpath:"$(MOZ_FETCHES_DIR)/vs/Windows Kits/10/Lib/$(sdk_version)/ucrt/x64"
 endif
 else
 $(error You must define the MOZ_FETCHES_DIR environment variable)

@@ -1,10 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+esr115="$1"
+
+if [ ! -z "$esr115" ] && [ "$esr115" = "ESR115=1" ]; then
+  export cl_version="14.39.33519"
+  export sdk_version="10.0.22621.0"
+else
+  export cl_version="14.50.35717"
+  export sdk_version="10.0.26100.0"
+fi
 
 if [ -z "$MOZ_FETCHES_DIR" ]; then
   export MOZ_FETCHES_DIR=/builds/worker/fetches
 fi
 if [ -z "$INCLUDE" ]; then
-  export INCLUDE=".:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.50.35717/atlmfc/include:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/14.50.35717/include"
+  os_name=$(uname -s)
+  if [ "$os_name" = "Linux" ]; then
+    export INCLUDE=".;$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/$cl_version/atlmfc/include;$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/$cl_version/include"
+  else
+    export INCLUDE=".:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/$cl_version/atlmfc/include:$MOZ_FETCHES_DIR/vs/VC/Tools/MSVC/$cl_version/include"
+  fi
 fi
 if [ -z "$CLANG_PATH" ]; then
   export CLANG_PATH=$MOZ_FETCHES_DIR/clang
