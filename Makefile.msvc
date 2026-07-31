@@ -81,6 +81,10 @@ OBJDLL   = $(DEP)\portable.obj $(DEP)\general.obj $(DEP)\ice_error.obj $(DEP)\bo
 CFLAGS   = $(CFLAGS) /D "DLL_INJECT"
 !endif
 
+!if "$(ESR115)" == "1"
+CFLAGS   = $(CFLAGS) /D "ESR115"
+!endif
+
 CFLAGS   = $(CFLAGS) /I$(MIN_INC)
 
 !if "$(LIBPORTABLE_STATIC)"=="1"

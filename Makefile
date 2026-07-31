@@ -26,6 +26,14 @@ $(error You must define the INCLUDE environment variable for cross-compilation. 
   export INCLUDE=".:$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/atlmfc/include:$(MOZ_FETCHES_DIR)/vs/VC/Tools/MSVC/$(cl_version)/include")
 endif
 
+ifeq ($(APP_DEBUG), 1)
+CFLAGS += -D_LOGDEBUG
+endif
+
+ifeq ($(DLL_INJECT),1)
+CFLAGS  += -DDLL_INJECT
+endif
+
 ifeq ($(ESR115), 1)
 CFLAGS += -DESR115
 CFLAGS += -fms-compatibility-version=19.39
@@ -93,10 +101,6 @@ EXEC     = \
     @echo Starting Compile... \
     $(shell $(MD) $(DISTDIR) 2>/dev/null) \
     $(shell $(MD) $(DEP) 2>/dev/null) \
-
-ifeq ($(DLL_INJECT),1)
-CFLAGS  += -DDLL_INJECT
-endif
 
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll

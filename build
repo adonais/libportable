@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 
-esr115="$1"
+esr115=0
 
-if [ ! -z "$esr115" ] && [ "$esr115" = "ESR115=1" ]; then
+for arg in "$@"
+do
+  if [ ! -z "$arg" ] && [ "$arg" = "ESR115=1" ]; then
+    esr115=1
+    break
+  fi
+done
+
+if [ "$esr115" = "1" ]; then
   export cl_version="14.39.33519"
   export sdk_version="10.0.22621.0"
 else
