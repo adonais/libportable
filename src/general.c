@@ -1300,9 +1300,14 @@ write_file(LPCWSTR appdata_path)
             free(out_path);
         }
     }
-    else
+    else if ((ret = write_ini_file(&handle)))
     {
-        ret = write_ini_file(&handle);
+    #if defined(DLL_INJECT) || defined(ESR115)
+        if (get_file_version() <= 131)
+        {
+            _wputenv(L"LIBPORTABLE_FIRST_RUN=1");
+        }
+    #endif
     }
     if (handle)
     {

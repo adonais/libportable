@@ -45,8 +45,8 @@ TETE_EXT_CLASS void undo_it(void);
 extern void undo_it(void);
 #endif
 
-TETE_EXT_CLASS int ctype_download_caller(int id, const char *url, const char *name,
-               const char *save, const char *refer, const char *pcookie, const char *pbuf);
+TETE_EXT_CLASS int ctype_message_caller(int msg, int vaule);
+TETE_EXT_CLASS int ctype_download_caller(int id, const char *url, const char *name, const char *save, const char *refer, const char *pcookie, const char *pbuf);
 
 #ifdef __cplusplus
 }

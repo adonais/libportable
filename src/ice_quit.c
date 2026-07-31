@@ -52,10 +52,115 @@ proc_tab_envent(const int ids, const char *key)
     on_tabs_reload();
 }
 
+static void
+proc_message(int msg, int vaule)
+{
+    switch (msg)
+    {
+        case PORTABLE_UP:
+        {
+            if (!vaule)
+            {
+                ini_write_string("General", "Update", "0", ini_portable_path);
+            }
+            else if (vaule > 0)
+            {
+                ini_write_string("General", "Update", "1", ini_portable_path);
+            }
+            break;
+        }
+        case PORTABLE_BOS_0:
+        {
+            uint32_t bossid = 0;
+            if ((bossid = get_bosskey_id()) > 0)
+            {
+                PostThreadMessage(bossid, WM_QUIT, 0, 0);
+                uninstall_bosskey();
+            }
+            if (!vaule)
+            {
+                ini_write_string("General", "Bosskey", "0", ini_portable_path);
+            }
+            else if (vaule > 0)
+            {
+                ini_write_string("General", "Bosskey", "1", ini_portable_path);
+                CloseHandle((HANDLE)_beginthreadex(NULL, 0, &bosskey_thread, NULL, 0, NULL));
+            }
+            break;
+        }
+        case PORTABLE_TAB_0:
+        {
+            un_uia();
+            if (!vaule)
+            {
+                ini_write_string("General", "OnTabs", "0", ini_portable_path);
+            }
+            else if (vaule > 0)
+            {
+                ini_write_string("General", "OnTabs", "1", ini_portable_path);
+                threads_on_tabs();
+            }
+            break;
+        }
+        case PORTABLE_TAB_1:
+        {
+            proc_tab_envent((const int)vaule, "mouse_time");
+            break;
+        }
+        case PORTABLE_TAB_2:
+        {
+            proc_tab_envent((const int)vaule, "double_click_close");
+            break;
+        }
+        case PORTABLE_TAB_3:
+        {
+            proc_tab_envent((const int)vaule, "double_click_new");
+            break;
+        }
+        case PORTABLE_TAB_4:
+        {
+            proc_tab_envent((const int)vaule, "mouse_hover_close");
+            break;
+        }
+        case PORTABLE_TAB_5:
+        {
+            proc_tab_envent((const int)vaule, "mouse_hover_new");
+            break;
+        }
+        case PORTABLE_TAB_6:
+        {
+            proc_tab_envent((const int)vaule, "right_click_close");
+            break;
+        }
+        case PORTABLE_TAB_7:
+        {
+            proc_tab_envent((const int)vaule, "right_click_recover");
+            break;
+        }
+        case PORTABLE_UBO:
+        {
+            if (!vaule)
+            {
+                ini_write_string("General", "EnableUBO", "0", ini_portable_path);
+                CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)0, 0, NULL));
+            }
+            else if (vaule > 0)
+            {
+                ini_write_string("General", "EnableUBO", "1", ini_portable_path);
+                CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)1, 0, NULL));
+            }
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+}
+
 static LRESULT WINAPI
 proc_function(int code, WPARAM wparam, LPARAM lparam)
 {
-    uint32_t bossid = 0;
     PCWPSTRUCT pcs = (PCWPSTRUCT)lparam;
     if (pcs)
     {
@@ -69,6 +174,16 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
             {
                 case WM_DESTROY:
                 {
+                    uint32_t bossid;
+                #if defined(DLL_INJECT) || defined(ESR115)
+                    if (_wgetenv(L"LIBPORTABLE_FIRST_RUN"))
+                    {
+                    #ifdef _LOGDEBUG
+                        logmsg("we ignore WM_DESTROY message\n");
+                    #endif
+                        break;
+                    }
+                #endif
                     if ((bossid = get_bosskey_id()) > 0)
                     {
                         PostThreadMessage(bossid, WM_QUIT, 0, 0);
@@ -87,105 +202,21 @@ proc_function(int code, WPARAM wparam, LPARAM lparam)
                     undo_it();
                     break;
                 }
-                case PORTABLE_UP:
-                {
-                    if (!pcs->wParam)
-                    {
-                        ini_write_string("General", "Update", "0", ini_portable_path);
-                    }
-                    else if (pcs->wParam > 0)
-                    {
-                        ini_write_string("General", "Update", "1", ini_portable_path);
-                    }
-                    break;
-                }
-                case PORTABLE_BOS_0:
-                {
-                    if ((bossid = get_bosskey_id()) > 0)
-                    {
-                        PostThreadMessage(bossid, WM_QUIT, 0, 0);
-                        uninstall_bosskey();
-                    }
-                    if (!pcs->wParam)
-                    {
-                        ini_write_string("General", "Bosskey", "0", ini_portable_path);
-                    }
-                    else if (pcs->wParam > 0)
-                    {
-                        ini_write_string("General", "Bosskey", "1", ini_portable_path);
-                        CloseHandle((HANDLE)_beginthreadex(NULL, 0, &bosskey_thread, NULL, 0, NULL));
-                    }
-                    break;
-                }
-                case PORTABLE_TAB_0:
-                {
-                    un_uia();
-                    if (!pcs->wParam)
-                    {
-                        ini_write_string("General", "OnTabs", "0", ini_portable_path);
-                    }
-                    else if (pcs->wParam > 0)
-                    {
-                        ini_write_string("General", "OnTabs", "1", ini_portable_path);
-                        threads_on_tabs();
-                    }
-                    break;
-                }
-                case PORTABLE_TAB_1:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "mouse_time");
-                    break;
-                }
-                case PORTABLE_TAB_2:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "double_click_close");
-                    break;
-                }
-                case PORTABLE_TAB_3:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "double_click_new");
-                    break;
-                }
-                case PORTABLE_TAB_4:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "mouse_hover_close");
-                    break;
-                }
-                case PORTABLE_TAB_5:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "mouse_hover_new");
-                    break;
-                }
-                case PORTABLE_TAB_6:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "right_click_close");
-                    break;
-                }
-                case PORTABLE_TAB_7:
-                {
-                    proc_tab_envent((const int)pcs->wParam, "right_click_recover");
-                    break;
-                }
-                case PORTABLE_UBO:
-                {
-                    if (!pcs->wParam)
-                    {
-                        ini_write_string("General", "EnableUBO", "0", ini_portable_path);
-                        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)0, 0, NULL));
-                    }
-                    else if (pcs->wParam > 0)
-                    {
-                        ini_write_string("General", "EnableUBO", "1", ini_portable_path);
-                        CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)1, 0, NULL));
-                    }
-                    break;
-                }
                 default:
+                {
+                    proc_message(pcs->message, pcs->wParam);
                     break;
+                }
             }
         }
     }
     return CallNextHookEx(proc_hook, code, wparam, lparam);
+}
+
+int ctype_message_caller(int msg, int vaule)
+{
+    proc_message(msg, vaule);
+    return 0;
 }
 
 int ctype_download_caller(int id, const char *url, const char *name, const char *save, const char *refer, const char *cookie, const char *buf)
@@ -250,7 +281,7 @@ int ctype_download_caller(int id, const char *url, const char *name, const char 
 void WINAPI
 init_exequit(void)
 {
-    if (e_browser > MOZ_UNKOWN && get_file_version() > 131 && is_browser())
+    if (e_browser > MOZ_UNKOWN && is_browser())
     {
         proc_hook = SetWindowsHookExW(WH_CALLWNDPROC, proc_function, dll_module, GetCurrentThreadId());
         if (proc_hook == NULL)
