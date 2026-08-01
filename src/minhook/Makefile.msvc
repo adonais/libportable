@@ -37,11 +37,11 @@ CFLAGS   = $(CFLAGS) /MD /GS- /GR-
 CFLAGS   = $(CFLAGS) /MD /GS- /GR- /utf-8 /D "USE_UTF8" /D "VC12_CRT"
 !endif
 
-!if "$(PLATFORM)"=="X64" || "$(TARGET_CPU)"=="x64" || "$(VSCMD_ARG_HOST_ARCH)"=="x64"
+!IF "$(Platform)"=="x64" || "$(TARGET_CPU)"=="x64" || ("$(VSCMD_ARG_HOST_ARCH)"=="x64" && "$(VSCMD_ARG_TGT_ARCH)"=="x64")
 PLATFORM = x64
 BITS	 = 64
 CFLAGS   = $(CFLAGS) /D "WIN64" /D "_WIN64"
-!else
+!ELSEIF "$(PLATFORM)"=="x86" || "$(TARGET_CPU)"=="x86" || "$(VSCMD_ARG_TGT_ARCH)"=="x86"
 PLATFORM = x86
 BITS	 = 32
 CFLAGS   = $(CFLAGS) /D "WIN32" /D "_WIN32"
