@@ -139,15 +139,45 @@ proc_message(int msg, int vaule)
         }
         case PORTABLE_UBO:
         {
+            char *pfast = NULL;
+            uintptr_t param = 0;
+            ini_read_string("update", "faster", &pfast, ini_portable_path, true);
+            if (vaule > 0)
+            {
+                if (pfast)
+                {
+                    param |= 0x3;
+                }
+                else
+                {
+                    param |= 0x1; 
+                }
+                ini_write_string("General", "EnableUBO", "1", ini_portable_path);
+            }
+            else
+            {
+                if (pfast)
+                {
+                    param |= 0x2;
+                }
+                ini_write_string("General", "EnableUBO", "0", ini_portable_path);
+            }
+            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)param, 0, NULL));
+            if (pfast)
+            {
+                free(pfast);
+            }
+            break;
+        }
+        case PORTABLE_CHR:
+        {
             if (!vaule)
             {
-                ini_write_string("General", "EnableUBO", "0", ini_portable_path);
-                CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)0, 0, NULL));
+                ini_write_string("update", "faster", NULL, ini_portable_path);
             }
             else if (vaule > 0)
             {
-                ini_write_string("General", "EnableUBO", "1", ini_portable_path);
-                CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)1, 0, NULL));
+                ini_write_string("update", "faster", "https://gh-proxy.org/sourceforge", ini_portable_path);
             }
             break;
         }

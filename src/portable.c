@@ -605,8 +605,14 @@ window_hooks(void)
         }
         if (e_browser == MOZ_ICEWEASEL || e_browser == MOZ_FIREFOX)
         {
-            int ubo = inicache_read_int("General", "EnableUBO", &plist);
-            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)(uintptr_t)ubo, 0, NULL));
+            char *pfast = NULL;
+            uintptr_t ubo = (uintptr_t)inicache_read_int("General", "EnableUBO", &plist);
+            if (inicache_read_string("update", "faster", &pfast, &plist))
+            {
+                ubo |= 0x2;
+                free(pfast);
+            }
+            CloseHandle((HANDLE) _beginthreadex(NULL, 0, &fn_ubo, (void *)ubo, 0, NULL));
             if (e_browser == MOZ_ICEWEASEL && up > 0)
             {   // 调用Iceweasel的自动更新进程.
                 CloseHandle((HANDLE)_beginthreadex(NULL, 0, &update_thread, NULL, 0, NULL));
