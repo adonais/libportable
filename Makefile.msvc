@@ -45,7 +45,7 @@ PLATFORM  = x64
 BITS      = 64
 CFLAGS    = $(CFLAGS) /D "WIN64" /D "_WIN64"
 GEN_FLAGS = -m i386:x86-64
-!ELSEIF "$(PLATFORM)"=="x86" || "$(TARGET_CPU)"=="x86" || "$(VSCMD_ARG_TGT_ARCH)"=="x86"
+!ELSEIF "$(Platform)"=="x86" || "$(TARGET_CPU)"=="x86" || "$(VSCMD_ARG_TGT_ARCH)"=="x86"
 PLATFORM  = x86
 BITS      = 32
 CFLAGS    = $(CFLAGS) /D "WIN32" /D "_WIN32"
