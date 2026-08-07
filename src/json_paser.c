@@ -18,7 +18,7 @@
 #define UBO_URL     "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/latest.xpi?viasf=1"
 #define UPDATE_URL  "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/update.json?viasf=1"
 #define UBO_URL2    "https://gh-proxy.org/sourceforge/project/libportable/Iceweasel/ublock-origin/latest.xpi"
-#define UPDATE_URL2 "https://gh-proxy.org/sourceforge/project/libportable/Iceweasel/ublock-origin/update.json"
+#define UPDATE_URL2 "https://gh-proxy.org/sourceforge/project/libportable/Iceweasel/ublock-origin/update-gh.json"
 
 #ifdef __GNUC__
 #define GCC_VERSION ((__GNUC__ * 10000) + (__GNUC_MINOR__ * 1000) + (__GNUC_PATCHLEVEL__ * 100))
