@@ -154,14 +154,13 @@ send_click(int mouse)
     }
 }
 
-static IUIAutomationElement *
-find_next_child(IUIAutomationElement *pElement, long uia_id)
+static HRESULT
+find_next_child(IUIAutomationElement *pElement, long uia_id, IUIAutomationElement **pout)
 {
+    HRESULT hr = -1;
     IUIAutomationCondition *pCondition = NULL;
-    IUIAutomationElement *pFound = NULL;
     do
     {
-        HRESULT hr = -1;
         VARIANT var;
         var.vt = VT_I4;
         var.lVal = uia_id;
@@ -180,7 +179,7 @@ find_next_child(IUIAutomationElement *pElement, long uia_id)
         #endif
             break;
         }
-        hr = IUIAutomationElement_FindFirstBuildCache(pElement, TreeScope_Children, pCondition, cache_uia, &pFound);
+        hr = IUIAutomationElement_FindFirstBuildCache(pElement, TreeScope_Children, pCondition, cache_uia, pout);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -192,7 +191,7 @@ find_next_child(IUIAutomationElement *pElement, long uia_id)
     {
         IUIAutomationCondition_Release(pCondition);
     }
-    return pFound;
+    return hr;
 }
 
 static bool
@@ -231,7 +230,8 @@ get_hv_bars(IUIAutomationElement *ice_root, IUIAutomationElement **tab_bar, cons
             hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
             if (SUCCEEDED(hr))
             {
-                if ((*tab_bar = find_next_child(tmp, UIA_TabControlTypeId)) != NULL)
+                hr = find_next_child(tmp, UIA_TabControlTypeId, tab_bar);
+                if (SUCCEEDED(hr) && (*tab_bar != NULL))
                 {
                     ret = true;
                     break;
@@ -319,14 +319,24 @@ static HRESULT
 get_botton_flags(IUIAutomationElement *tab_bar, const POINT *pt, int *active, int dv)
 {
     /* 获取新建标签按钮 */
-    HRESULT hr = -1;
-    IUIAutomationElement *botton = find_next_child(tab_bar, UIA_ButtonControlTypeId);
-    if (botton != NULL)
+    IUIAutomationElement *botton = NULL;
+    HRESULT hr = find_next_child(tab_bar, UIA_ButtonControlTypeId, &botton);
+    if (SUCCEEDED(hr))
     {
-        RECT rc;
-        hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
-        *active = (SUCCEEDED(hr) && PtInRect(&rc, *pt)) ? dv : 0;
-        IUIAutomationElement_Release(botton);
+        if (botton)
+        {
+            RECT rc = {0};
+            hr = IUIAutomationElement_get_CurrentBoundingRectangle(botton, &rc);
+            *active = (SUCCEEDED(hr) && PtInRect(&rc, *pt)) ? dv : 0;
+            IUIAutomationElement_Release(botton);
+        }
+        else
+        {
+            *active = 0;
+        #ifdef _LOGDEBUG
+            logmsg(L"Maybe fixed tabs");
+        #endif
+        }
     }
     return hr;
 }
