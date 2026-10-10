@@ -12,7 +12,6 @@
 
 static HHOOK message_hook, mouse_hook;
 static IUIAutomation *g_uia;
-static IUIAutomationCacheRequest *cache_uia;
 static uint32_t mouse_time;
 static bool tab_event;
 static bool double_click;
@@ -164,7 +163,7 @@ find_next_child(IUIAutomationElement *pElement, long uia_id, IUIAutomationElemen
         VARIANT var;
         var.vt = VT_I4;
         var.lVal = uia_id;
-        if (!(pElement && g_uia && cache_uia))
+        if (!pElement || !g_uia)
         {
         #ifdef _LOGDEBUG
             logmsg("%s false, cause: pElement = 0x%\n", __FUNCTION__, pElement);
@@ -179,7 +178,7 @@ find_next_child(IUIAutomationElement *pElement, long uia_id, IUIAutomationElemen
         #endif
             break;
         }
-        hr = IUIAutomationElement_FindFirstBuildCache(pElement, TreeScope_Children, pCondition, cache_uia, pout);
+        hr = IUIAutomationElement_FindFirst(pElement, TreeScope_Children, pCondition, pout);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
@@ -200,7 +199,7 @@ get_hv_bars(IUIAutomationElement *ice_root, IUIAutomationElement **tab_bar, cons
     bool ret = false;
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
-    HRESULT hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, *pvar, &pCondition);
+    HRESULT hr = g_uia ? IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, *pvar, &pCondition) : -1;
     do
     {
         int c = 0;
@@ -208,8 +207,8 @@ get_hv_bars(IUIAutomationElement *ice_root, IUIAutomationElement **tab_bar, cons
         {
             break;
         }
-        hr = IUIAutomationElement_FindAllBuildCache(ice_root, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
-        if (FAILED(hr))
+        hr = IUIAutomationElement_FindAll(ice_root, TreeScope_Children, pCondition, &pFoundArray);
+        if (FAILED(hr) || !pFoundArray)
         {
         #ifdef _LOGDEBUG
             logmsg("%s_IUIAutomationElement_FindAll false, cause: %lu\n", __FUNCTION__, GetLastError());
@@ -228,9 +227,10 @@ get_hv_bars(IUIAutomationElement *ice_root, IUIAutomationElement **tab_bar, cons
         {
             IUIAutomationElement *tmp = NULL;
             hr = IUIAutomationElementArray_GetElement(pFoundArray, idx, &tmp);
-            if (SUCCEEDED(hr))
+            if (SUCCEEDED(hr) && tmp)
             {
                 hr = find_next_child(tmp, UIA_TabControlTypeId, tab_bar);
+                IUIAutomationElement_Release(tmp);
                 if (SUCCEEDED(hr) && (*tab_bar != NULL))
                 {
                     ret = true;
@@ -257,7 +257,7 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd, bool *pv)
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
     IUIAutomationElement *ice_root = NULL;
-    if (!(g_uia && cache_uia && hwnd))
+    if (!g_uia || !hwnd)
     {
         return hr;
     }
@@ -392,10 +392,10 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        if (!(g_uia && cache_uia))
+        if (!g_uia)
         {
         #ifdef _LOGDEBUG
-            logmsg("point exist null vaule!\n");
+            logmsg("g_uia is null pointer!\n");
         #endif
             break;
         }
@@ -419,11 +419,11 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        hr = IUIAutomationElement_FindAllBuildCache(tab_bar, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
+        hr = IUIAutomationElement_FindAll(tab_bar, TreeScope_Children, pCondition, &pFoundArray);
         if (FAILED(hr))
         {
         #ifdef _LOGDEBUG
-            logmsg("IUIAutomationElement_FindAllBuildCache false!\n");
+            logmsg("IUIAutomationElement_FindAll false!\n");
         #endif
             break;
         }
@@ -454,11 +454,11 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
                     break;
                 }
                 IUIAutomationElementArray_Release(pFoundArray);
-                hr = IUIAutomationElement_FindAllBuildCache(group, TreeScope_Children, pCondition, cache_uia, &pFoundArray);
+                hr = IUIAutomationElement_FindAll(group, TreeScope_Children, pCondition, &pFoundArray);
                 if (FAILED(hr))
                 {
                 #ifdef _LOGDEBUG
-                    logmsg("Zen IUIAutomationElement_FindAllBuildCache false!\n");
+                    logmsg("Zen IUIAutomationElement_FindAll false!\n");
                 #endif
                     break;
                 }
@@ -562,7 +562,7 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     return res;
 }
 
-static BOOL
+static bool
 mouse_on_vtab(const POINT *pt)
 {
     IUIAutomationElement *tab_bar = NULL;
@@ -579,10 +579,10 @@ mouse_on_vtab(const POINT *pt)
         #endif
             break;
         }
-        if (!(g_uia && cache_uia))
+        if (!g_uia)
         {
         #ifdef _LOGDEBUG
-            logmsg("point exist null vaule!\n");
+            logmsg("g_uia is null pointer!\n");
         #endif
             break;
         }
@@ -772,11 +772,6 @@ un_uia(void)
         UnhookWindowsHookEx(message_hook);
         message_hook = NULL;
     }
-    if (cache_uia)
-    {
-        IUIAutomationCacheRequest_Release(cache_uia);
-        cache_uia = NULL;
-    }
     if (g_uia)
     {
         IUIAutomation_Release(g_uia);
@@ -834,13 +829,9 @@ init_uia(void)
     if (on_tabs_reload())
     {
         CoInitialize(NULL);
-        hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **) &g_uia);
-        if (SUCCEEDED(hr) && g_uia)
-        {
-            hr = IUIAutomation_CreateCacheRequest(g_uia, &cache_uia);
-        }
+        hr = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **)&g_uia);
     }
-    return SUCCEEDED(hr);
+    return SUCCEEDED(hr) && (g_uia != NULL);
 }
 
 static unsigned WINAPI
@@ -863,30 +854,30 @@ threads_on_tabs(void)
     if (e_browser > MOZ_UNKOWN && is_browser())
     {
         DWORD ver = get_os_version();
-        if (ver <= 601 && !init_uia())
+        if (ver > 601)
+        {
+            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &threads_on_win10, NULL, 0, NULL));
+        }
+        else if (!init_uia())
         {
         #ifdef _LOGDEBUG
             logmsg("win7 uia error!\n");
         #endif
             return;
         }
-        mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, GetCurrentThreadId());
-        if (mouse_hook == NULL)
+        if ((mouse_hook = SetWindowsHookExW(WH_MOUSE, mouse_function, dll_module, GetCurrentThreadId())) == NULL)
         {
         #ifdef _LOGDEBUG
             logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
         #endif
         }
-        message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, GetCurrentThreadId());
-        if (message_hook == NULL)
+        else if ((message_hook = SetWindowsHookExW(WH_GETMESSAGE, message_function, dll_module, GetCurrentThreadId())) == NULL)
         {
         #ifdef _LOGDEBUG
             logmsg("SetWindowsHookEx false, error = %lu!\n", GetLastError());
         #endif
-        }
-        if (ver > 601)
-        {
-            CloseHandle((HANDLE)_beginthreadex(NULL, 0, &threads_on_win10, NULL, 0, NULL));
+            UnhookWindowsHookEx(mouse_hook);
+            mouse_hook = NULL;
         }
     }
 }
