@@ -31,12 +31,12 @@ Microsoft Visual Studio/Windows .
 
 **Compiled from firefox's source code,patches example:**   
 ```
-diff --git a/mozglue/misc/WindowsDllMain.cpp b/mozglue/misc/WindowsDllMain.cpp
---- a/mozglue/misc/WindowsDllMain.cpp
-+++ b/mozglue/misc/WindowsDllMain.cpp
-@@ -6,6 +6,16 @@
+diff --git a/mozglue/misc/GetKnownFolderPath.cpp b/mozglue/misc/GetKnownFolderPath.cpp
+--- a/mozglue/misc/GetKnownFolderPath.cpp
++++ b/mozglue/misc/GetKnownFolderPath.cpp
+@@ -4,6 +4,16 @@
  
- #include <libloaderapi.h>
+ #include "GetKnownFolderPath.h"
  
 +#if defined(_MSC_VER) && defined(TT_MEMUTIL)
 +#if defined(_M_IX86)
@@ -48,7 +48,7 @@ diff --git a/mozglue/misc/WindowsDllMain.cpp b/mozglue/misc/WindowsDllMain.cpp
 +#endif
 +#endif /* _MSC_VER && TT_MEMUTIL */
 +
- BOOL WINAPI DllMain(HINSTANCE aInstDll, DWORD aReason, LPVOID) {
-   if (aReason == DLL_PROCESS_ATTACH) {
-     ::DisableThreadLibraryCalls(aInstDll);
+ namespace mozilla {
+ 
+ UniquePtr<wchar_t, LoadedCoTaskMemFreeDeleter> GetKnownFolderPath(
 ```
