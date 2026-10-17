@@ -1,0 +1,30 @@
+#include <windows.h>
+#include "version.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION RELEASE_VER_MAIN,RELEASE_VER_SUB,RELEASE_VER_FIX,0
+ PRODUCTVERSION RELEASE_VER_MAIN,RELEASE_VER_SUB,RELEASE_VER_FIX,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "FileDescription", "Portable DLL for Edge by adonais"
+            VALUE "FileVersion", RELEASE_VER_STR
+            VALUE "InternalName", "msedge++.dll"
+            VALUE "LegalCopyright", "GPL-3.0 License"
+            VALUE "OriginalFilename", "msedge++.dll"
+            VALUE "ProductName", "msedge++"
+            VALUE "ProductVersion", RELEASE_VER_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
