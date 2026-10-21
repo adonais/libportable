@@ -15,8 +15,8 @@
 #endif
 
 #define UBO_EXTEN   "uBlock0@raymondhill.net"
-#define UBO_URL     "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/latest.xpi?viasf=1"
-#define UPDATE_URL  "https://master.dl.sourceforge.net/project/libportable/Iceweasel/ublock-origin/update.json?viasf=1"
+#define UBO_URL     "https://github.com/yxl0756/ublock-origin/releases/latest/download/latest.xpi"
+#define UPDATE_URL  "https://github.com/yxl0756/ublock-origin/releases/latest/download/update.json"
 #define UBO_URL2    "https://gh-proxy.org/sourceforge/project/libportable/Iceweasel/ublock-origin/latest.xpi"
 #define UPDATE_URL2 "https://gh-proxy.org/sourceforge/project/libportable/Iceweasel/ublock-origin/update-gh.json"
 
