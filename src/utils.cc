@@ -474,15 +474,15 @@ bool
 get_try_path(const wchar_t *dir)
 {
     HANDLE pfile = INVALID_HANDLE_VALUE;
+    if (!PathFileExistsW(dir) && !CreateDirectoryW(dir, NULL)) {
+        DebugLog(L"Can not create cache directory!");
+        return false;
+    }
     wchar_t dist_path[1024] = {0};
     wchar_t temp[LEN_NAME + 1] =  {0};
     _snwprintf(dist_path, 1024, L"%s\\%s", dir, get_rand_str(temp, LEN_NAME));
     pfile = CreateFileW(dist_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS,
                        FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
-    if (pfile == INVALID_HANDLE_VALUE)
-    {
-        return false;
-    }
     CloseHandle(pfile);
     return (pfile != INVALID_HANDLE_VALUE);
 }
