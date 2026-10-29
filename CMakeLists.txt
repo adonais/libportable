@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.29)
 
-set(
-  CMAKE_MSVC_RUNTIME_LIBRARY
-  "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-)
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+else()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
+
 set(CMAKE_C_FLAGS_MINSIZEREL "/O1 /Ob2 /DNDEBUG")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Ob2 /DNDEBUG")
 
@@ -23,10 +25,6 @@ endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-if (MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>")
-endif()
 
 if(CMAKE_VS_PLATFORM_NAME)
   string(TOLOWER "${CMAKE_VS_PLATFORM_NAME}" CHROME_PLUS_ARCH)
