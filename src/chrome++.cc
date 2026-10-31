@@ -5,7 +5,6 @@
 
 #include "detours.h"
 
-#include "com_initializer.h"
 #include "appid.h"
 #include "config.h"
 #include "green.h"

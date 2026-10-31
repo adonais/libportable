@@ -328,15 +328,6 @@ get_tab_bars(IUIAutomationElement **tab_bar, HWND hwnd, bool *pv)
     {
         return hr;
     }
-    if (!IsWindow(hwnd))
-    {
-    #ifdef _DEBUG
-        WCHAR classname[MAX_PATH] = {0};
-        GetClassName(hwnd, classname, MAX_PATH - 1);
-        DebugLog(L"get_tab_bars, {} not window", classname);
-    #endif
-        return hr;
-    }
     do
     {
         VARIANT var = {};
@@ -389,9 +380,13 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         int idx;
         int c = 0;
         bool pv = false;
+        HRESULT hr = -1;
         HWND hwnd = WindowFromPoint(*pt);
-        HRESULT hr = get_tab_bars(&tab_bar, hwnd, &pv);
-        if (FAILED(hr) || !tab_bar || !g_uia)
+        if (!hwnd || !IsWindow(hwnd) || !IsChromeWindow(hwnd) || !g_uia)
+        {
+            break;
+        }
+        if (FAILED(hr = get_tab_bars(&tab_bar, hwnd, &pv)) || !tab_bar)
         {
             break;
         }
