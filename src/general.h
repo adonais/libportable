@@ -80,6 +80,7 @@ typedef enum
 extern "C" {
 #endif 
 
+extern int e_browser_ver;
 extern m_family e_browser;
 extern char ini_portable_path[MAX_PATH + 1];
 extern WCHAR xre_profile_path[MAX_BUFF];
@@ -95,7 +96,6 @@ extern void     __cdecl logmsg(const char * format, ...);
 extern void     WINAPI  init_logs(void);
 #endif  /* _LOGDEBUG */
 
-extern int      WINAPI get_file_version(void);
 extern LPWSTR   WINAPI wstr_replace(LPWSTR in, size_t in_size, LPCWSTR pattern, LPCWSTR by);
 extern bool     WINAPI wget_process_directory(LPWSTR lpstrName, DWORD len);
 extern bool     WINAPI wcreate_dir(LPCWSTR dir);
@@ -104,12 +104,12 @@ extern bool     WINAPI exists_dir(const char *path, int mode);
 extern bool     WINAPI exists_file(const char *path, int mode);
 extern bool     WINAPI create_dir(const char *dir);
 extern bool     WINAPI path_to_absolute(LPWSTR lpfile, int str_len);
-extern HWND     WINAPI get_moz_hwnd(LPWNDINFO pInfo);
+extern HWND     WINAPI get_moz_hwnd(void);
 extern bool     WINAPI is_gui(LPCWSTR lpFileName);
 extern bool     WINAPI get_process_directory(char *name, uint32_t len);
 extern bool     WINAPI is_specialdll(uintptr_t callerAddress,LPCWSTR dll_file);
 extern bool     WINAPI is_flash_plugins(uintptr_t caller);
-extern m_family WINAPI is_ff_official(void);
+extern m_family WINAPI is_ff_official(int *pver);
 extern bool     WINAPI write_file(LPCWSTR appdt);
 extern void     WINAPI rewrite_json(LPCWSTR appdt);
 extern bool     WINAPI check_arg(LPCWSTR warg, LPCWSTR sub1, LPCWSTR sub2);
@@ -125,6 +125,7 @@ extern bool     WINAPI browser_times_compare(LPCWSTR appdt, int sec);
 extern bool     ini_path_init(void);
 extern errno_t  wp_strncat(char *dst, const char *src, size_t number);
 extern errno_t  wp_wcsncat(wchar_t *dst, const wchar_t *src, size_t number);
+extern bool     is_mozclass(HWND hwnd, const WCHAR *exclass);
 
 #ifdef __cplusplus
 }

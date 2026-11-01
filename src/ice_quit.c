@@ -27,9 +27,7 @@ extern void wait_observer(void);
 static unsigned WINAPI
 proc_thread(void *lparam)
 {
-    WNDINFO  ff_info = {0};
-    ff_info.hPid = GetCurrentProcessId();
-    proc_hwnd = get_moz_hwnd(&ff_info);
+    proc_hwnd = get_moz_hwnd();
     return 0;
 }
 

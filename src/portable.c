@@ -516,16 +516,13 @@ observer_thread(void *lparam)
     }
     if (!count)
     {
-        HWND moz_hwnd = NULL;
-        WNDINFO ice_info = {0};
-        ice_info.hPid = GetCurrentProcessId();
-        moz_hwnd = get_moz_hwnd(&ice_info);
-    #ifdef _LOGDEBUG
-        logmsg("SendMessage(%p) execute\n", moz_hwnd);
-    #endif
-        SendMessageW(moz_hwnd, PORTABLE_HOOK, (intptr_t)moz_hwnd, 0);
-        CloseHandle(pthead_observer);
-        pthead_observer = NULL;
+        HWND moz_hwnd = get_moz_hwnd();
+        if (moz_hwnd)
+        {
+            SendMessageW(moz_hwnd, PORTABLE_HOOK, (intptr_t)moz_hwnd, 0);
+            CloseHandle(pthead_observer);
+            pthead_observer = NULL;
+        }
     }
 #ifdef _LOGDEBUG
     logmsg("observer_thread[%lu] return\n", GetCurrentThreadId());
@@ -669,7 +666,7 @@ init_hook_data(uint32_t mask)
             }
         #if defined(DLL_INJECT) || defined(ESR115)
           #if !defined(ESR115)
-            if (get_file_version() < 151)
+            if (e_browser_ver < 151)
           #endif
             {
                 rewrite_json(appdt);
@@ -753,7 +750,7 @@ do_it(void)
     if (!_wgetenv(L"LIBPORTABLE_WONT_EANBLED"))
     {
         uint32_t mask = 0;
-        e_browser = is_ff_official();
+        e_browser = is_ff_official(&e_browser_ver);
         if (initialize_memset() && !child_proces_if(&mask) && init_hook_data(mask))
         {
             if (e_browser > MOZ_UNKOWN && !no_gui_boot())

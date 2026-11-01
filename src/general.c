@@ -47,6 +47,7 @@ WCHAR xre_profile_path[MAX_BUFF] = {0};
 WCHAR xre_profile_local_path[MAX_BUFF] = {0};
 LoadLibraryExPtr sLoadLibraryExStub = NULL;
 m_family e_browser = MOZ_UNKOWN;
+int e_browser_ver = 0;
 
 errno_t wp_strncat(char *dst, const char *src, size_t number)
 {
@@ -282,18 +283,6 @@ get_product_name(LPCWSTR filepath, LPWSTR out_string, size_t len, int *pver, con
         FreeLibrary(hver);
     }
     return ret;
-}
-
-int WINAPI
-get_file_version(void)
-{
-    int ver = 0;
-    WCHAR filepath[MAX_PATH] = {0};
-    if (GetModuleFileNameW(NULL, filepath, MAX_PATH) > 0)
-    {
-        get_product_name(filepath, NULL, 0, &ver, false);
-    }
-    return ver;
 }
 
 static WCHAR *
@@ -652,46 +641,43 @@ path_to_absolute(LPWSTR path, int len)
     return false;
 }
 
-/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * 等待主窗口并获取句柄,增加线程退出倒计时8s
- */
-HWND WINAPI
-get_moz_hwnd(LPWNDINFO pinfo)
+bool
+is_mozclass(HWND hwnd, const WCHAR *exclass)
 {
-    HWND hwnd = NULL;
-    bool found = false;
+    WCHAR m_temp[VALUE_LEN + 1] = {0};
+    const int len = GetClassNameW(hwnd, m_temp, VALUE_LEN);
+    if (!len)
+    {
+        return false;
+    }
+    if (exclass)
+    {
+        return (_wcsicmp(m_temp, L"MozillaWindowClass") == 0 || _wcsicmp(m_temp, exclass) == 0);
+    }
+    return (_wcsicmp(m_temp, L"MozillaWindowClass") == 0);
+}
+
+
+HWND WINAPI
+get_moz_hwnd(void)
+{
+    int   i = 40;
+    HWND  hwnd = NULL;
     DWORD process_id = 0;
     const WCHAR *classname = L"MozillaWindowClass";
-    int i = 40;
-    if ((hwnd = FindWindowW(classname, NULL)) != NULL)
+    while (--i)
     {
-        GetWindowThreadProcessId(hwnd, &process_id);
-        if (process_id == pinfo->hPid)
-        {
-            pinfo->hFF = hwnd;
-            found = true;
-        }
-    }
-    while (!found && i--)
-    {
-        process_id = 0;
         if ((hwnd = FindWindowExW(NULL, hwnd, classname, NULL)) != NULL)
         {
             GetWindowThreadProcessId(hwnd, &process_id);
         }
-        if (process_id > 0 && process_id == pinfo->hPid)
+        if (process_id == GetCurrentProcessId())
         {
-            pinfo->hFF = hwnd;
-            found = true;
-            break;
+            return hwnd;
         }
         SleepEx(200, FALSE);
     }
-    if (!found)
-    {
-        hwnd = NULL;
-    }
-    return hwnd;
+    return NULL;
 }
 
 bool WINAPI
@@ -774,7 +760,7 @@ get_process_directory(char *name, uint32_t len)
  * 对比文件产品信息，是否为mozilla家族产品
  */
 m_family WINAPI
-is_ff_official(void)
+is_ff_official(int *pver)
 {
     int i = 0;
     m_family var = MOZ_UNKOWN;
@@ -791,7 +777,7 @@ is_ff_official(void)
     WCHAR process_name[MAX_PATH + 1];
     WCHAR product_name[NAMES_LEN + 1] = { 0 };
     if (GetModuleFileNameW(NULL, process_name, MAX_PATH) > 0 &&
-        get_product_name(process_name, product_name, NAMES_LEN, NULL, false))
+        get_product_name(process_name, product_name, NAMES_LEN, pver, false))
     {
         for (; moz_array[i]; ++i)
         {
@@ -827,9 +813,12 @@ is_ff_official(void)
             var = MOZ_NIGHTLY;
             break;
         default:
-            var = MOZ_UNKOWN;
             break;
         }
+    }
+    if (var == MOZ_UNKOWN && pver)
+    {
+        *pver = 0;
     }
     return var;
 }
@@ -1030,7 +1019,7 @@ get_default_path(const ini_cache *ini, char **out_path, bool *relative)
                 break;
             }
             ini_safe_free(m_section);
-            if (is_ff_official() == MOZ_DEV)
+            if (e_browser == MOZ_DEV)
             {
                 if (inicache_search_string("Name=dev-edition-default", &m_section, (ini_cache *)ini) &&
                     inicache_read_string(m_section, "Path", out_path, (ini_cache *)ini))
@@ -1152,7 +1141,7 @@ static bool
 write_section_header(ini_cache *ini, const int num)
 {
     char data[VALUE_LEN + 1] = {0};
-    if (is_ff_official() == MOZ_DEV)
+    if (e_browser == MOZ_DEV)
     {
         _snprintf(data, VALUE_LEN, "[Profile%d]\r\nName=dev-edition-default\r\nIsRelative=1\r\nPath=../../../\r\n\r\n", num);
     }
@@ -1171,7 +1160,7 @@ write_section_header(ini_cache *ini, const int num)
 static bool
 search_default_section(ini_cache *ini, char **pvalue)
 {
-    if (is_ff_official() == MOZ_DEV)
+    if (e_browser == MOZ_DEV)
     {
         return inicache_search_string("Name=dev-edition-default", pvalue, ini);
     }
@@ -1317,7 +1306,7 @@ write_file(LPCWSTR appdata_path)
     else if ((ret = write_ini_file(&handle)))
     {
     #if defined(DLL_INJECT) || defined(ESR115)
-        if (get_file_version() <= 131)
+        if (e_browser_ver <= 131)
         {
             _wputenv(L"LIBPORTABLE_FIRST_RUN=1");
         }

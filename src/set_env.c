@@ -112,7 +112,7 @@ setenv_tt(void)
             {
                 WCHAR env_appdt[MAX_BUFF] =  {0};
                 WCHAR env_localdt[MAX_BUFF] =  {0};
-                if (get_file_version() > 131)
+                if (e_browser_ver > 131)
                 {
                     if (_wgetenv(L"XRE_PROFILE_PATH") == NULL && *xre_profile_path)
                     {

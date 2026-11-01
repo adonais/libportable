@@ -7,25 +7,16 @@ static int g_atom = 0;
 static uint32_t bosskey_id = 0;
 
 bool
-init_bosskey(LPWNDINFO pinfo)
+init_bosskey(const LPWNDINFO pinfo)
 {
     WCHAR atom[8 + 1] = {0};
-    if (!get_moz_hwnd(pinfo))
+    if (!get_moz_hwnd())
     {
         return false;
     }
     _ui64tow(pinfo->hPid, atom, 10);
     pinfo->atom_str = GlobalAddAtomW(atom) - 0xC000;
     return RegisterHotKey(NULL, pinfo->atom_str, pinfo->key_mod, pinfo->key_vk);
-}
-
-bool
-is_mozclass(HWND hwnd)
-{
-    WCHAR m_temp[VALUE_LEN + 1] = {0};
-    GetClassNameW(hwnd, m_temp, VALUE_LEN);
-    return (_wcsnicmp(m_temp, L"MozillaWindowClass", VALUE_LEN) == 0 ||
-            _wcsnicmp(m_temp, L"MozillaDialogClass", VALUE_LEN) == 0) ;
 }
 
 int CALLBACK
@@ -36,14 +27,14 @@ find_chwnd(HWND hwnd, LPARAM lParam)
     GetWindowThreadProcessId(hwnd, &dwPid);
     if ((dwPid == pinfo->hPid) && dwPid && IsWindowVisible(hwnd))
     {
-        if (is_mozclass(hwnd))
+        if (is_mozclass(hwnd, L"MozillaDialogClass"))
         {
             ShowWindow(hwnd, SW_HIDE);
         }
     }
     else if ((dwPid == pinfo->hPid) && dwPid && !IsWindowVisible(hwnd))
     {
-        if (is_mozclass(hwnd))
+        if (is_mozclass(hwnd, L"MozillaDialogClass"))
         {
             SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, 3);
             ShowWindow(hwnd, SW_SHOW);
