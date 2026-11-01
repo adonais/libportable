@@ -102,7 +102,7 @@ LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB
 !else
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /ignore:4078 /MACHINE:$(PLATFORM) /DEFAULTLIB:MSVCRT
 !endif
-CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib $(CRTFLAGS)
+CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib ole32.lib oleaut32.lib $(CRTFLAGS)
 OUT	     = $(DISTDIR)\portable$(BITS).dll
 TETE     = $(DISTDIR)\tmemutil.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res

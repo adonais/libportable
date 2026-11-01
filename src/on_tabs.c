@@ -21,6 +21,7 @@ static bool right_click;
 static bool left_new;
 static bool button_new;
 static bool right_double;
+static bool click_mousewheel;
 
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
 #define ON_CLOSED_FLAGS 998
@@ -31,6 +32,9 @@ static bool right_double;
 #ifndef GET_Y_LPARAM
 #define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
 #endif
+
+#define MOUSEEVENTF_WHEEL_DOWN 0x2800
+#define MOUSEEVENTF_WHEEL_UP   0x2801
 
 static void
 send_key_click(int mouse)
@@ -53,6 +57,64 @@ send_key_click(int mouse)
         input[1].mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
     #endif
         SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
+    }
+    else if (mouse == MOUSEEVENTF_WHEEL_DOWN || mouse == MOUSEEVENTF_WHEEL_UP)
+    {
+        if (mouse == MOUSEEVENTF_WHEEL_DOWN)
+        {
+            //SendCtrlTab();
+        #if defined(__GNUC__) || defined(__clang__)
+            INPUT input[] =
+            {
+                { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, 0, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_TAB, 0, 0, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_TAB, 0, KEYEVENTF_KEYUP, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, KEYEVENTF_KEYUP, 0, 0 } } }
+            };
+        #else
+            INPUT input[] =
+            {
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } }
+            };
+            input[0].ki.wVk = input[3].ki.wVk = VK_RCONTROL;
+            input[1].ki.wVk = input[2].ki.wVk = VK_TAB;
+            input[2].ki.dwFlags = input[3].ki.dwFlags = KEYEVENTF_KEYUP;
+        #endif
+            SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
+        }
+        else
+        {
+            //SendCtrlShiftTab();
+        #if defined(__GNUC__) || defined(__clang__)
+            INPUT input[] =
+            {
+                { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, 0, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_RSHIFT, 0, 0, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_TAB, 0, 0, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_RCONTROL, 0, KEYEVENTF_KEYUP, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_RSHIFT, 0, KEYEVENTF_KEYUP, 0, 0 } } },
+                { INPUT_KEYBOARD, {.ki = { VK_TAB, 0, KEYEVENTF_KEYUP, 0, 0 } } }
+            };
+        #else
+            INPUT input[] =
+            {
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } },
+                { INPUT_KEYBOARD, {0, } }
+            };
+            input[0].ki.wVk = input[3].ki.wVk = VK_RCONTROL;
+            input[1].ki.wVk = input[4].ki.wVk = VK_RSHIFT;
+            input[2].ki.wVk = input[5].ki.wVk = VK_TAB;
+            input[3].ki.dwFlags = input[4].ki.dwFlags = input[5].ki.dwFlags = KEYEVENTF_KEYUP;
+        #endif
+            SendInput(sizeof(input) / sizeof(INPUT), input, sizeof(INPUT));
+        }
     }
     else if (mouse == WM_NCLBUTTONDBLCLK)
     {
@@ -334,45 +396,116 @@ get_botton_flags(IUIAutomationElement *tab_bar, const POINT *pt, int *active, in
         {
             *active = 0;
         #ifdef _LOGDEBUG
-            logmsg(L"Maybe fixed tabs");
+            logmsg("Maybe fixed tabs");
         #endif
         }
     }
     return hr;
 }
 
-static HRESULT
-get_available_rectangle(IUIAutomationElementArray *pFoundArray, const int c, IUIAutomationElement **pfound)
+static bool
+has_first_child(IUIAutomationElement* pElement)
 {
-    HRESULT hr;
-    IUIAutomationElement *pElement = NULL;
-    *pfound = NULL;
-    for (int i = 1; i < c; ++i)
+    bool ret = false;
+    HRESULT hr = -1;
+    BSTR bstrName = NULL;
+    IUIAutomationTreeWalker* pControlViewWalker = NULL;
+    if (!g_uia || !pElement)
     {
-        hr = IUIAutomationElementArray_GetElement(pFoundArray, i, &pElement);
-        if (SUCCEEDED(hr) && pElement)
+        return false;
+    }
+    hr = IUIAutomation_get_ControlViewWalker(g_uia, &pControlViewWalker);
+    if (SUCCEEDED(hr) && pControlViewWalker)
+    {
+        IUIAutomationElement* tmp = NULL;
+        hr = IUIAutomationTreeWalker_GetFirstChildElement(pControlViewWalker, pElement, &tmp);
+        if (SUCCEEDED(hr) && tmp)
         {
-            RECT rc = {0};
-            hr = IUIAutomationElement_get_CurrentBoundingRectangle(pElement, &rc);
-            if (SUCCEEDED(hr))
+            hr = IUIAutomationElement_get_CurrentName(tmp, &bstrName);
+            if (SUCCEEDED(hr) && bstrName && *bstrName != 0)
             {
-                *pfound = pElement;
+                ret = true;
             }
-            else
+            IUIAutomationElement_Release(tmp);
+        }
+    }
+    if (bstrName)
+    {
+        SysFreeString(bstrName);
+    }
+    if (pControlViewWalker) {
+        IUIAutomationTreeWalker_Release(pControlViewWalker);
+    }
+    return ret;
+}
+
+static bool
+mouse_available_rectangle(const POINT pt)
+{
+    HRESULT hr = -1;
+    bool tab = false, mid = false;
+    BSTR bstrClassName = NULL;
+    BSTR bstrAutomationId = NULL;
+    IUIAutomationElement* pElement = NULL;
+    hr = IUIAutomation_ElementFromPoint(g_uia, pt, &pElement);
+    if (SUCCEEDED(hr) && pElement)
+    {
+        if (e_browser_ver < 145)
+        {
+            CONTROLTYPEID controlTypeId = 0;
+            hr = IUIAutomationElement_get_CurrentControlType(pElement, &controlTypeId);
+            if (SUCCEEDED(hr) && (controlTypeId == UIA_TabControlTypeId || controlTypeId == UIA_TabItemControlTypeId))
             {
-                IUIAutomationElement_Release(pElement);
+                if (has_first_child(pElement))
+                {
+                    tab = true;
+                }
+            }
+        }
+        else
+        {
+            hr = IUIAutomationElement_get_CurrentClassName(pElement, &bstrClassName);
+            if (SUCCEEDED(hr) && bstrClassName)
+            {
+                if (!wcsncmp(bstrClassName, L"tabbrowser-tab", 14))
+                {
+                    tab = true;
+                }
+                if (mouse_close && !wcscmp(bstrClassName, L"tab-close-button close-icon"))
+                {
+                    tab = true;
+                }
+                if (button_new && !wcscmp(bstrClassName, L"toolbarbutton-1"))
+                {
+                    tab = true;
+                }
+            }
+            hr = IUIAutomationElement_get_CurrentAutomationId(pElement, &bstrAutomationId);
+            if (SUCCEEDED(hr) && bstrAutomationId && !wcsncmp(bstrAutomationId, L"tabbrowser-tab", 14))
+            {
+                mid = true;
             }
         }
     }
-    return hr;
+    if (pElement)
+    {
+        IUIAutomationElement_Release(pElement);
+    }
+    if (bstrClassName)
+    {
+        SysFreeString(bstrClassName);
+    }
+    if (bstrAutomationId)
+    {
+        SysFreeString(bstrAutomationId);
+    }
+    return (tab || mid);
 }
 
 /* 得到标签页的事件指针, 当标签没激活时把active参数设为标签序号 */
 static bool
 mouse_on_tab(RECT *pr, const POINT *pt, int *active)
 {
-    HRESULT hr;
-    VARIANT var;
     IUIAutomationCondition *pCondition = NULL;
     IUIAutomationElementArray *pFoundArray = NULL;
     IUIAutomationElement *tab_bar = NULL;
@@ -381,9 +514,20 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     do
     {
         int idx;
+        HRESULT hr;
+        VARIANT var;
+        HWND hwnd;
         int c = 0;
-        HWND hwnd = WindowFromPoint(*pt);
         var.vt = VT_I4;
+        var.lVal = UIA_TabItemControlTypeId;
+        hwnd = pt ? WindowFromPoint(*pt) : NULL;
+        if (!hwnd || !IsWindow(hwnd) || !is_mozclass(hwnd, NULL) || !g_uia || (e_browser_ver > 144 && !mouse_available_rectangle(*pt)))
+        {
+        #ifdef _LOGDEBUG
+            logmsg("Not in TabBar\n");
+        #endif
+            return false;
+        }
         hr = get_tab_bars(&tab_bar, hwnd, NULL);
         if (FAILED(hr) || !tab_bar)
         {
@@ -392,24 +536,9 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
         #endif
             break;
         }
-        if (!g_uia)
+        if (button_new && active != NULL)
         {
-        #ifdef _LOGDEBUG
-            logmsg("g_uia is null pointer!\n");
-        #endif
-            break;
-        }
-        if (e_browser == MOZ_ZEN)
-        {
-            var.lVal = UIA_GroupControlTypeId;
-        }
-        else
-        {
-            var.lVal = UIA_TabItemControlTypeId;
-            if (button_new && active != NULL)
-            {
-                get_botton_flags(tab_bar, pt, active, ON_BUTTON_FLAGS);
-            }
+            get_botton_flags(tab_bar, pt, active, ON_BUTTON_FLAGS);
         }
         hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
         if (FAILED(hr))
@@ -434,43 +563,6 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
             logmsg("%s_IUIAutomationElementArray_get_Length false, c = %d!\n", __FUNCTION__, c);
         #endif
             break;
-        }
-        if (e_browser == MOZ_ZEN && c > 1)
-        {
-            hr = get_available_rectangle(pFoundArray, c, &group);
-            var.lVal = UIA_TabItemControlTypeId;
-            if (SUCCEEDED(hr) && group)
-            {
-            #ifdef _LOGDEBUG
-                logmsg("Zen browser!\n");
-            #endif
-                IUIAutomationCondition_Release(pCondition);
-                hr = IUIAutomation_CreatePropertyCondition(g_uia, UIA_ControlTypePropertyId, var, &pCondition);
-                if (FAILED(hr))
-                {
-                #ifdef _LOGDEBUG
-                    logmsg("Zen CreatePropertyCondition false!\n");
-                #endif
-                    break;
-                }
-                IUIAutomationElementArray_Release(pFoundArray);
-                hr = IUIAutomationElement_FindAll(group, TreeScope_Children, pCondition, &pFoundArray);
-                if (FAILED(hr))
-                {
-                #ifdef _LOGDEBUG
-                    logmsg("Zen IUIAutomationElement_FindAll false!\n");
-                #endif
-                    break;
-                }
-                hr = IUIAutomationElementArray_get_Length(pFoundArray, &c);
-                if (FAILED(hr) || c == 0 || c > VALUE_LEN)
-                {
-                #ifdef _LOGDEBUG
-                    logmsg("Zen IUIAutomationElementArray_get_Length false, c = %d!\n", c);
-                #endif
-                    break;
-                }
-            }
         }
         for (idx = 0; idx < c; ++idx)
         {
@@ -562,27 +654,31 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     return res;
 }
 
-static bool
+/**
+ * 鼠标指针在是否垂直标签栏上
+ * 在垂直标签上, 返回 1
+ * 不在垂直标签上, 返回 0
+ * 不处于标签栏, 返回 -1
+ */
+static int
 mouse_on_vtab(const POINT *pt)
 {
     IUIAutomationElement *tab_bar = NULL;
-    bool ret = false;
+    int ret = -1;
     do
     {
         bool v = false;
-        HWND hwnd = WindowFromPoint(*pt);
-        HRESULT hr = get_tab_bars(&tab_bar, hwnd, &v);
+        HRESULT hr;
+        HWND hwnd = pt ? WindowFromPoint(*pt) : NULL;
+        if (!hwnd || !IsWindow(hwnd) || !is_mozclass(hwnd, NULL) || !g_uia || (e_browser_ver > 144 && !mouse_available_rectangle(*pt)))
+        {
+            return ret;
+        }
+        hr = get_tab_bars(&tab_bar, hwnd, &v);
         if (FAILED(hr) || !tab_bar)
         {
         #ifdef _LOGDEBUG
             logmsg("get_tab_bars false, tab_bar = 0x%x, hr = %ld!\n", tab_bar, hr);
-        #endif
-            break;
-        }
-        if (!g_uia)
-        {
-        #ifdef _LOGDEBUG
-            logmsg("g_uia is null pointer!\n");
         #endif
             break;
         }
@@ -592,9 +688,11 @@ mouse_on_vtab(const POINT *pt)
             hr = IUIAutomationElement_get_CurrentBoundingRectangle(tab_bar, &rc);
             if (SUCCEEDED(hr) && PtInRect(&rc, *pt))
             {
-                ret = true;
+                ret = 1;
+                break;
             }
         }
+        ret = 0;
     } while (0);
     if (tab_bar)
     {
@@ -659,6 +757,7 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
+        static bool wheel_tab_with_rbutton = false;
         PMOUSEHOOKSTRUCT pmouse = (PMOUSEHOOKSTRUCT) lParam;
         if (GetWindowThreadProcessId(pmouse->hwnd, NULL) != GetCurrentThreadId())
         {
@@ -675,7 +774,32 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
                 MouseEvent.dwHoverTime = mouse_time;
                 TrackMouseEvent(&MouseEvent);
                 break;
-            } 
+            }
+            case WM_MOUSEWHEEL:
+            {
+                if (click_mousewheel)
+                {
+                    wheel_tab_with_rbutton = KEY_DOWN(VK_RBUTTON);
+                    if (wheel_tab_with_rbutton && !mouse_available_rectangle(pmouse->pt))
+                    {
+                        const MOUSEHOOKSTRUCTEX * pwheel = (const MOUSEHOOKSTRUCTEX *)(lParam);
+                        const int delta = GET_WHEEL_DELTA_WPARAM(pwheel->mouseData);
+                        if (delta > 0)
+                        {
+                            send_key_click(MOUSEEVENTF_WHEEL_UP);
+                            PostMessage(pwheel->hwnd, WM_RBUTTONUP, 0, lParam);
+                            return 1;
+                        }
+                        else if (delta < 0)
+                        {
+                            send_key_click(MOUSEEVENTF_WHEEL_DOWN);
+                            PostMessage(pwheel->hwnd, WM_RBUTTONUP, 0, lParam);
+                            return 1;
+                        }
+                    }
+                }
+                break;
+            }
             case WM_NCLBUTTONDBLCLK:
             {
                 if (!left_new || KEY_DOWN(VK_SHIFT))
@@ -716,7 +840,21 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
             }
             case WM_RBUTTONUP:
             {
-                if (mouse_on_vtab(&pmouse->pt))
+                int ret = 0;
+                if (wheel_tab_with_rbutton)
+                {
+                    wheel_tab_with_rbutton = false;
+                    return 1;
+                }
+                if (e_browser_ver > 130)
+                {
+                    ret = mouse_on_vtab(&pmouse->pt);
+                }
+                if (ret == -1)
+                {
+                    break;
+                }
+                if (ret)
                 {
                     if (mouse_on_tab(NULL, &pmouse->pt, NULL))
                     {
@@ -814,8 +952,9 @@ on_tabs_reload(void)
     mouse_close = inicache_read_int("tabs", "mouse_hover_close", &plist) > 0;
     button_new = inicache_read_int("tabs", "mouse_hover_new", &plist) > 0;
     right_double = inicache_read_int("tabs", "right_click_recover", &plist) > 0;
+    click_mousewheel = inicache_read_int("tabs", "right_click_mousewheel", &plist) > 0;
     iniparser_destroy_cache(&plist);
-    if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new || right_double))
+    if (!(tab_event || double_click || mouse_close || right_click || left_new || button_new || right_double || click_mousewheel))
     {
         return false;
     }
@@ -837,9 +976,7 @@ init_uia(void)
 static unsigned WINAPI
 threads_on_win10(void *lparam)
 {
-    WNDINFO  ff_info = {0};
-    ff_info.hPid = GetCurrentProcessId();
-    if (!(get_moz_hwnd(&ff_info) && init_uia()))
+    if (!get_moz_hwnd() || !init_uia())
     {
     #ifdef _LOGDEBUG
         logmsg("win10 uia error!\n");
@@ -851,7 +988,7 @@ threads_on_win10(void *lparam)
 void WINAPI
 threads_on_tabs(void)
 {
-    if (e_browser > MOZ_UNKOWN && is_browser())
+    if (e_browser > MOZ_UNKOWN && e_browser != MOZ_ZEN && is_browser())
     {
         DWORD ver = get_os_version();
         if (ver > 601)
