@@ -130,6 +130,11 @@ proc_message(int msg, intptr_t vaule)
             proc_tab_envent((const int)vaule, "right_click_recover");
             break;
         }
+        case PORTABLE_TAB_8:
+        {
+            proc_tab_envent((const int)vaule, "right_click_mousewheel");
+            break;
+        }
         case PORTABLE_UBO:
         {
             char *pfast = NULL;
