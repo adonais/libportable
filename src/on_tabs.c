@@ -701,6 +701,21 @@ mouse_on_vtab(const POINT *pt)
     return ret;
 }
 
+static inline bool
+handle_mouse_wheel(const MOUSEHOOKSTRUCTEX *pwheel)
+{
+    const int delta = GET_WHEEL_DELTA_WPARAM(pwheel->mouseData);
+    if (delta > 0)
+    {
+        send_key_click(MOUSEEVENTF_WHEEL_UP);
+    }
+    else if (delta < 0)
+    {
+        send_key_click(MOUSEEVENTF_WHEEL_DOWN);
+    }
+    return delta != 0;
+}
+
 static LRESULT CALLBACK
 message_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -782,18 +797,9 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
                     wheel_tab_with_rbutton = KEY_DOWN(VK_RBUTTON);
                     if (wheel_tab_with_rbutton && !mouse_available_rectangle(pmouse->pt))
                     {
-                        const MOUSEHOOKSTRUCTEX * pwheel = (const MOUSEHOOKSTRUCTEX *)(lParam);
-                        const int delta = GET_WHEEL_DELTA_WPARAM(pwheel->mouseData);
-                        if (delta > 0)
+                        if (handle_mouse_wheel((const MOUSEHOOKSTRUCTEX *)lParam))
                         {
-                            send_key_click(MOUSEEVENTF_WHEEL_UP);
-                            PostMessage(pwheel->hwnd, WM_RBUTTONUP, 0, lParam);
-                            return 1;
-                        }
-                        else if (delta < 0)
-                        {
-                            send_key_click(MOUSEEVENTF_WHEEL_DOWN);
-                            PostMessage(pwheel->hwnd, WM_RBUTTONUP, 0, lParam);
+                            PostMessage(pmouse->hwnd, WM_RBUTTONUP, 0, lParam);
                             return 1;
                         }
                     }
