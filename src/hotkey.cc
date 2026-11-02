@@ -9,9 +9,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
-#include <cwctype>
-#include <iterator>
-#include <memory>
+#include <cwchar>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -32,8 +30,6 @@ using HotkeyAction = void (*)();
 bool is_hide = false;
 std::vector<HWND> hwnd_list;
 std::unordered_map<std::wstring, bool> original_mute_states;
-
-#define MOD_NOREPEAT 0x4000
 
 BOOL CALLBACK SearchChromeWindow(HWND hwnd, LPARAM lparam) {
   if (IsWindowVisible(hwnd) && IsChromeWindow(hwnd)) {
@@ -212,10 +208,6 @@ void HideAndShow() {
   is_hide = !is_hide;
 }
 
-void OnHotkey(HotkeyAction action) {
-  action();
-}
-
 void Hotkey(std::wstring_view keys, HotkeyAction action) {
   if (keys.empty()) {
     return;
@@ -226,9 +218,9 @@ void Hotkey(std::wstring_view keys, HotkeyAction action) {
       RegisterHotKey(nullptr, 0, LOWORD(flag), HIWORD(flag));
 
       MSG msg;
-      while (GetMessage(&msg, nullptr, 0, 0) > 0) {
+      while (GetMessage(&msg, nullptr, 0, 0)) {
         if (msg.message == WM_HOTKEY) {
-          OnHotkey(action);
+          action();
         }
         TranslateMessage(&msg);
         DispatchMessage(&msg);

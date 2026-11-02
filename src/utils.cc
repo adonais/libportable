@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstdarg>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cwctype>
@@ -201,14 +201,14 @@ std::span<uint8_t> SearchMemory(std::span<uint8_t> src,
   return {};
 }
 
-std::wstring GetIniString(std::wstring_view section,
-                          std::wstring_view key,
-                          std::wstring_view default_value) {
+std::wstring GetIniString(const wchar_t* section,
+                          const wchar_t* key,
+                          const wchar_t* default_value) {
   std::vector<TCHAR> buffer(100);
   DWORD bytesread = 0;
   do {
     bytesread = ::GetPrivateProfileStringW(
-        section.data(), key.data(), default_value.data(), buffer.data(),
+        section, key, default_value, buffer.data(),
         static_cast<DWORD>(buffer.size()), GetIniPath().c_str());
     if (bytesread >= buffer.size() - 1) {
       buffer.resize(buffer.size() * 2);
@@ -218,6 +218,11 @@ std::wstring GetIniString(std::wstring_view section,
   } while (true);
 
   return std::wstring(buffer.data());
+}
+
+int GetIniInt(const wchar_t* section, const wchar_t* key, int default_value) {
+  return static_cast<int>(::GetPrivateProfileIntW(section, key, default_value,
+                                                  GetIniPath().c_str()));
 }
 
 std::wstring CanonicalizePath(const std::wstring& path) {
@@ -230,6 +235,26 @@ std::wstring GetAbsolutePath(const std::wstring& path) {
   wchar_t buffer[MAX_PATH];
   ::GetFullPathNameW(path.c_str(), MAX_PATH, buffer, nullptr);
   return buffer;
+}
+
+std::wstring GetDirectoryId(const std::wstring& path) {
+  const HANDLE directory = ::CreateFileW(
+      path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+      nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (directory == INVALID_HANDLE_VALUE) {
+    return L"";
+  }
+  // The file index and the volume serial number identify a file on a computer:
+  // https://learn.microsoft.com/en-us/windows/win32/api/fileapi/ns-fileapi-by_handle_file_information
+  BY_HANDLE_FILE_INFORMATION info{};
+  const BOOL succeeded = ::GetFileInformationByHandle(directory, &info);
+  ::CloseHandle(directory);
+  if (!succeeded) {
+    return L"";
+  }
+  return std::to_wstring(info.dwVolumeSerialNumber) + L"-" +
+         std::to_wstring(info.nFileIndexHigh) + L"-" +
+         std::to_wstring(info.nFileIndexLow);
 }
 
 std::wstring ExpandEnvironmentPath(const std::wstring& path) {
@@ -271,7 +296,7 @@ void ExecuteCommand(int id, HWND hwnd) {
   ::PostMessageW(hwnd, WM_SYSCOMMAND, id, 0);
 }
 
-void LaunchCommands(const std::wstring& get_commands) {
+void LaunchCommands(const std::wstring& get_commands, DWORD wait_ms) {
   auto commands = StringSplit(
       get_commands,
       L';');  // Quotes should not be used as they can cause errors with paths
@@ -280,20 +305,41 @@ void LaunchCommands(const std::wstring& get_commands) {
   if (commands.empty()) {
     return;
   }
+  const std::wstring comspec = ExpandEnvironmentPath(L"%ComSpec%");
+  std::vector<HANDLE> processes;
   for (const auto& command : commands) {
+    if (command.empty()) {
+      continue;
+    }
     std::wstring expanded_path = ExpandEnvironmentPath(command);
     ReplaceStringInPlace(expanded_path, L"%app%", GetAppDir());
 
-    // Using `start` launches the command in a new window asynchronously,
-    // avoiding blocking Chrome's main thread. For more details:
+    // `cmd` waits for the program it runs, so waiting for `cmd` while Chrome
+    // runs blocks Chrome and hid IDM's floating bar. See:
     // https://github.com/Bush2021/chrome_plus/issues/130#issuecomment-2925782726
-    // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start
-    //  `cmd /c` ensures the command window exits after execution, preventing
-    //  the "Not enough memory resources are available to process this command"
-    //  error even when all commands run successfully.
-    std::wstring cmd =
-        LR"(start "chrome++ cmd" cmd /c ")" + expanded_path + LR"(")";
-    _wsystem(cmd.c_str());
+    // `CREATE_NO_WINDOW` hides the console that `cmd` and console programs
+    // share, and GUI programs keep their windows. A command that needs a
+    // console opens one with `start "" <command>`. See:
+    // https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
+    // `/s` stays out: it strips the quotes around a lone path with spaces,
+    // which GetPrivateProfileString has already taken from the INI value. See:
+    // https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd
+    std::wstring command_line = LR"(cmd /d /c ")" + expanded_path + LR"(")";
+    STARTUPINFOW startup_info{.cb = sizeof(STARTUPINFOW)};
+    PROCESS_INFORMATION process_info{};
+    if (::CreateProcessW(comspec.c_str(), command_line.data(), nullptr, nullptr,
+                         FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
+                         &startup_info, &process_info)) {
+      ::CloseHandle(process_info.hThread);
+      processes.emplace_back(process_info.hProcess);
+    }
+  }
+  if (!processes.empty()) {
+    ::WaitForMultipleObjects(static_cast<DWORD>(processes.size()),
+                             processes.data(), TRUE, wait_ms);
+  }
+  for (const HANDLE process : processes) {
+    ::CloseHandle(process);
   }
 }
 

@@ -16,7 +16,7 @@ DETOURS_SOURCE_BROWSING = 0
 
 #######################/#######################################################
 ##
-CFLAGS=/nologo /W4 /WX /we4777 /we4800 /Zi /MD /Gy /Gm- /Zl /Od /DDETOUR_DEBUG=$(DETOURS_DEBUG)
+CFLAGS=/nologo /W4 /WX /we4777 /we4800 /Zi /Gy /Gm- /Zl /Od /DDETOUR_DEBUG=$(DETOURS_DEBUG)
 
 !IF $(DETOURS_SOURCE_BROWSING)==1
 CFLAGS=$(CFLAGS) /FR

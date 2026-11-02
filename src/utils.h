@@ -19,8 +19,8 @@ consteval uint32_t GetMagicCode() {
 
 // Chrome command IDs
 // https://source.chromium.org/chromium/chromium/src/+/main:chrome/app/chrome_command_ids.h?q=chrome_command_ids.h&ss=chromium%2Fchromium%2Fsrc
-#define IDC_SELECT_NEXT_TAB 34016
-#define IDC_SELECT_PREVIOUS_TAB 34017
+inline constexpr int IDC_SELECT_NEXT_TAB = 34016;
+inline constexpr int IDC_SELECT_PREVIOUS_TAB = 34017;
 
 // Global constants - use functions to avoid static initialization order issues
 const std::wstring& GetAppDir();
@@ -56,15 +56,20 @@ std::span<uint8_t> SearchMemory(std::span<uint8_t> src,
                                 std::span<const uint8_t> sub);
 
 // Parse the INI file
-std::wstring GetIniString(std::wstring_view section,
-                          std::wstring_view key,
-                          std::wstring_view default_value);
+std::wstring GetIniString(const wchar_t* section,
+                          const wchar_t* key,
+                          const wchar_t* default_value);
+int GetIniInt(const wchar_t* section, const wchar_t* key, int default_value);
 
 // Canonicalize the path
 std::wstring CanonicalizePath(const std::wstring& path);
 
 // Get the absolute path
 std::wstring GetAbsolutePath(const std::wstring& path);
+
+// Returns an ID shared by every path to a directory, empty when it can't be
+// opened.
+std::wstring GetDirectoryId(const std::wstring& path);
 
 // Expand environment variables in the path
 std::wstring ExpandEnvironmentPath(const std::wstring& path);
@@ -100,7 +105,7 @@ inline void DebugLog(std::wstring_view, auto&&...) {}
 // Window and message processing functions
 HWND GetTopWnd(HWND hwnd);
 void ExecuteCommand(int id, HWND hwnd = 0);
-void LaunchCommands(const std::wstring& get_commands);
+void LaunchCommands(const std::wstring& get_commands, DWORD wait_ms = 0);
 [[nodiscard]] bool IsChromeWindow(HWND hwnd);
 
 // Parse hotkey string like "Ctrl+Shift+A" into MAKELPARAM(modifiers, vk)

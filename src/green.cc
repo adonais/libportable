@@ -13,20 +13,13 @@
 
 namespace {
 
-// Static function pointers for original functions
-static auto RawUpdateProcThreadAttribute = UpdateProcThreadAttribute;
-static auto RawCryptProtectData = CryptProtectData;
-static auto RawCryptUnprotectData = CryptUnprotectData;
-static auto RawLogonUserW = LogonUserW;
-static auto RawIsOS = IsOS;
-static auto RawNetUserGetInfo = NetUserGetInfo;
-static auto RawGetVolumeInformationW = GetVolumeInformationW;
-
-// Enumeration for process creation mitigation policy
-enum ProcessCreationMitigationPolicy : DWORD64 {
-  BlockNonMicrosoftBinariesAlwaysOn = 0x00000001ui64 << 44,
-  Win32kSystemCallDisableAlwaysOn = 0x00000001ui64 << 28
-};
+auto RawUpdateProcThreadAttribute = UpdateProcThreadAttribute;
+auto RawCryptProtectData = CryptProtectData;
+auto RawCryptUnprotectData = CryptUnprotectData;
+auto RawLogonUserW = LogonUserW;
+auto RawIsOS = IsOS;
+auto RawNetUserGetInfo = NetUserGetInfo;
+auto RawGetVolumeInformationW = GetVolumeInformationW;
 
 BOOL WINAPI FakeGetComputerName(_Out_ LPTSTR lpBuffer,
                                 _Inout_ LPDWORD lpnSize) {
@@ -79,7 +72,7 @@ BOOL WINAPI MyUpdateProcThreadAttribute(
     // https://source.chromium.org/chromium/chromium/src/+/main:sandbox/win/src/process_mitigations.cc;l=362;drc=4c2fec5f6699ffeefd93137d2bf8c03504c6664c
     PDWORD64 policy_value_1 = &(static_cast<PDWORD64>(lpValue))[0];
     *policy_value_1 &= ~static_cast<DWORD64>(
-        ProcessCreationMitigationPolicy::BlockNonMicrosoftBinariesAlwaysOn);
+        PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON);
   }
   return RawUpdateProcThreadAttribute(lpAttributeList, dwFlags, Attribute,
                                       lpValue, cbSize, lpPreviousValue,
@@ -165,32 +158,24 @@ void MakeGreen() {
   DetourUpdateThread(GetCurrentThread());
 
   // kernel32.dll
-  DetourAttach(reinterpret_cast<LPVOID*>(&RawGetComputerNameW),
-               reinterpret_cast<void*>(FakeGetComputerName));
-  DetourAttach(reinterpret_cast<LPVOID*>(&RawGetVolumeInformationW),
-               reinterpret_cast<void*>(FakeGetVolumeInformation));
-  DetourAttach(reinterpret_cast<LPVOID*>(&RawUpdateProcThreadAttribute),
-               reinterpret_cast<void*>(MyUpdateProcThreadAttribute));
+  DetourAttach(&RawGetComputerNameW, FakeGetComputerName);
+  DetourAttach(&RawGetVolumeInformationW, FakeGetVolumeInformation);
+  DetourAttach(&RawUpdateProcThreadAttribute, MyUpdateProcThreadAttribute);
 
   // components/os_crypt/os_crypt_win.cc
   // crypt32.dll
-  DetourAttach(reinterpret_cast<LPVOID*>(&RawCryptProtectData),
-               reinterpret_cast<void*>(MyCryptProtectData));
-  DetourAttach(reinterpret_cast<LPVOID*>(&RawCryptUnprotectData),
-               reinterpret_cast<void*>(MyCryptUnprotectData));
+  DetourAttach(&RawCryptProtectData, MyCryptProtectData);
+  DetourAttach(&RawCryptUnprotectData, MyCryptUnprotectData);
 
   if (config.IsShowPassword()) {
     // advapi32.dll
-    DetourAttach(reinterpret_cast<LPVOID*>(&RawLogonUserW),
-                 reinterpret_cast<void*>(MyLogonUserW));
+    DetourAttach(&RawLogonUserW, MyLogonUserW);
 
     // shlwapi.dll
-    DetourAttach(reinterpret_cast<LPVOID*>(&RawIsOS),
-                 reinterpret_cast<void*>(MyIsOS));
+    DetourAttach(&RawIsOS, MyIsOS);
 
     // netapi32.dll
-    DetourAttach(reinterpret_cast<LPVOID*>(&RawNetUserGetInfo),
-                 reinterpret_cast<void*>(MyNetUserGetInfo));
+    DetourAttach(&RawNetUserGetInfo, MyNetUserGetInfo);
   }
 
   auto status = DetourTransactionCommit();
