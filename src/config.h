@@ -27,6 +27,7 @@ class Config {
   bool IsHoverTab() const { return hover_tab_ > 0; }
   bool IsRightClickClose() const { return right_click_close_; }
   int GetHoverTabDelay() const { return hover_tab_; }
+  bool IsWheelTabWhenPressRightButton() const {return wheel_tab_when_press_rbutton_;}
 
  private:
   Config();
@@ -51,6 +52,7 @@ class Config {
   // tabs
   int hover_tab_;
   bool right_click_close_;
+  bool wheel_tab_when_press_rbutton_;
 };
 
 extern const Config& config;

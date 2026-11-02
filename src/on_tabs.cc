@@ -16,6 +16,7 @@ static bool fn_chrome = false;
 static bool tab_event = false;
 static bool right_click = false;
 static bool left_click = false;
+static bool right_wheel = false;
 static IUIAutomation *g_uia = NULL;
 static HHOOK message_hook = NULL, mouse_hook = NULL;
 
@@ -512,6 +513,21 @@ mouse_on_tab(RECT *pr, const POINT *pt, int *active)
     return res;
 }
 
+static inline bool
+handle_mouse_wheel(const MOUSEHOOKSTRUCTEX *pwheel, const HWND hwnd)
+{
+    const int delta = GET_WHEEL_DELTA_WPARAM(pwheel->mouseData);
+    if (delta > 0)
+    {
+        ExecuteCommand(IDC_SELECT_PREVIOUS_TAB,hwnd);
+    }
+    else if (delta < 0)
+    {
+        ExecuteCommand(IDC_SELECT_NEXT_TAB, hwnd);
+    }
+    return delta != 0;
+}
+
 static LRESULT CALLBACK
 message_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -552,6 +568,7 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
+        static bool wheel_tab_with_rbutton = false;
         PMOUSEHOOKSTRUCT pmouse = (PMOUSEHOOKSTRUCT) lParam;
         if (GetWindowThreadProcessId(pmouse->hwnd, NULL) != GetCurrentThreadId())
         {
@@ -572,8 +589,26 @@ mouse_function(int nCode, WPARAM wParam, LPARAM lParam)
                 }
                 break;
             }
+            case WM_MOUSEWHEEL:
+            {
+                if (right_wheel)
+                {
+                    wheel_tab_with_rbutton = KEY_DOWN(VK_RBUTTON);
+                    if (wheel_tab_with_rbutton && handle_mouse_wheel(reinterpret_cast<const MOUSEHOOKSTRUCTEX*>(lParam), pmouse->hwnd))
+                    {
+                        PostMessage(pmouse->hwnd, WM_RBUTTONUP, 0, lParam);
+                        return 1;
+                    }
+                }
+                break;
+            }
             case WM_RBUTTONUP:
             {
+                if (wheel_tab_with_rbutton)
+                {
+                    wheel_tab_with_rbutton = false;
+                    return 1;
+                }
                 if (!right_click || KEY_DOWN(VK_SHIFT))
                 {
                     break;
@@ -634,7 +669,8 @@ void threads_on_tabs(void)
     bool failed = false;
     tab_event = (mouse_time = config.GetHoverTabDelay()) > 0;
     right_click = config.IsRightClickClose();
-    if ((tab_event || right_click) && init_uia())
+    right_wheel = config.IsWheelTabWhenPressRightButton();
+    if ((tab_event || right_click || right_wheel) && init_uia())
     {
         const std::wstring& ini = GetIniPath();
         fn_chrome = !(ini.ends_with(L"msedge++.ini") || ini.ends_with(L"msedge++(example).ini"));

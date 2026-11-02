@@ -30,8 +30,8 @@ void Config::LoadConfig() {
                                            GetIniPath().c_str()) != 0;
   // tabs
   hover_tab_ = ::GetPrivateProfileIntW(L"tabs", L"hover_tab", 0, GetIniPath().c_str());
-  right_click_close_ = ::GetPrivateProfileIntW(L"tabs", L"right_click_close", 0,
-                                               GetIniPath().c_str()) != 0;
+  right_click_close_ = ::GetPrivateProfileIntW(L"tabs", L"right_click_close", 0, GetIniPath().c_str()) != 0;
+  wheel_tab_when_press_rbutton_ = ::GetPrivateProfileIntW(L"tabs", L"right_click_mousewheel", 0, GetIniPath().c_str()) != 0;
 }
 
 std::optional<std::wstring> Config::LoadDirPath(const std::wstring& dir_type) {
