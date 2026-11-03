@@ -104,7 +104,7 @@ EXEC     = \
 
 OUT      = $(DISTDIR)/portable$(BITS).dll
 TETE     = $(DISTDIR)/tmemutil.dll
-DEPLIBS  = kernel32.lib user32.lib shlwapi.lib shell32.lib ole32.lib
+DEPLIBS  = kernel32.lib user32.lib shlwapi.lib shell32.lib ole32.lib oleaut32.lib
 LDFLAGS  += $(OUT1) -OPT:REF,ICF -guard:cf,nolongjmp -mllvm:-mcpu=nocona $(LIBPATH) $(DEPLIBS)
 
 ifeq ($(BITS),32)
