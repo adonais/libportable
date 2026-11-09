@@ -26,11 +26,16 @@ void Config::LoadConfig() {
   user_data_dir_ = LoadDirPath(L"data");
   disk_cache_dir_ = LoadDirPath(L"cache");
   boss_key_ = GetIniString(L"general", L"boss_key", L"");
-  show_password_ = GetIniInt(L"general", L"show_password", 1) != 0;
+  show_password_ = GetIniInt(L"general", L"show_password", 1) > 0;
+
   // tabs
   hover_tab_ = GetIniInt(L"tabs", L"hover_tab", 0);
-  right_click_close_ = GetIniInt(L"tabs", L"right_click_close", 0) != 0;
-  wheel_tab_when_press_rbutton_ = GetIniInt(L"tabs", L"right_click_mousewheel", 0) != 0;
+  right_click_close_ = GetIniInt(L"tabs", L"right_click_close", 0) > 0;
+  wheel_tab_when_press_rbutton_ = GetIniInt(L"tabs", L"right_click_mousewheel", 0) > 0;
+  // update
+  browser_updates_ = GetIniInt(L"general", L"update", 0) > 0;
+  ready_updates_ = GetIniInt(L"update", L"be_ready", 0) > 0;
+  last_check_ = GetIniI64(L"update", L"last_check", 0);
 }
 
 std::optional<std::wstring> Config::LoadDirPath(const std::wstring& dir_type) {

@@ -1,7 +1,6 @@
 #include "portable.h"
 
 #include <windows.h>
-
 #include <shellapi.h>
 
 #include <optional>
@@ -318,4 +317,24 @@ std::optional<std::wstring> GetSwitchValue(LPWSTR param,
     }
   }
   return std::nullopt;
+}
+
+void
+get_cache_path(LPWSTR param)
+{
+    std::wstring cache = GetSwitchValue(param, L"--disk-cache-dir").value_or(L"");
+    if (cache.empty()) {
+      cache = GetSwitchValue(param, L"--user-data-dir").value_or(L"");
+      if (cache.empty()) {
+        cache = ExpandEnvironmentPath(L"%LOCALAPPDATA%");
+        if (!cache.empty()) {
+          _snwprintf(cache_path, MAX_BUFFER, L"%s\\Microsoft\\Edge Internal\\User Data\\Default\\Cache", cache.c_str());
+        }
+      } else {
+        _snwprintf(cache_path, MAX_BUFFER, L"%s\\Default\\Cache", cache.c_str());
+      }
+    } else {
+      _snwprintf(cache_path, MAX_BUFFER, L"%s", cache.c_str());
+    }
+    DebugLog(L"cache_path =[{}]", cache_path);
 }

@@ -9,8 +9,11 @@
 #include <string_view>
 #include <vector>
 
+#define MAX_BUFFER 1024
+
 // Global variable declaration
 extern HMODULE hInstance;
+extern WCHAR cache_path[MAX_BUFFER];
 
 // Constants
 consteval uint32_t GetMagicCode() {
@@ -60,6 +63,7 @@ std::wstring GetIniString(const wchar_t* section,
                           const wchar_t* key,
                           const wchar_t* default_value);
 int GetIniInt(const wchar_t* section, const wchar_t* key, int default_value);
+int64_t GetIniI64(const wchar_t* section, const wchar_t* key, int64_t default_value);
 
 // Canonicalize the path
 std::wstring CanonicalizePath(const std::wstring& path);
@@ -114,6 +118,7 @@ void LaunchCommands(const std::wstring& get_commands, DWORD wait_ms = 0);
 // Returns: LOWORD = modifiers, HIWORD = virtual key code
 // no_repeat: if true, adds MOD_NOREPEAT flag (default for `RegisterHotKey`)
 UINT ParseHotkeys(std::wstring_view keys, bool no_repeat = true);
+bool wcreate_dir(LPCWSTR dir);
 bool get_try_path(const wchar_t *dir);
 
 #endif  // CHROME_PLUS_SRC_UTILS_H_

@@ -1,6 +1,7 @@
 #ifndef CHROME_PLUS_SRC_CONFIG_H_
 #define CHROME_PLUS_SRC_CONFIG_H_
 
+#include <ctime>
 #include <optional>
 #include <string>
 #include <utility>
@@ -29,6 +30,11 @@ class Config {
   int GetHoverTabDelay() const { return hover_tab_; }
   bool IsWheelTabWhenPressRightButton() const {return wheel_tab_when_press_rbutton_;}
 
+  // update
+  bool IsUpdates() const { return browser_updates_ > 0; }
+  bool IsReadyUpdates() const { return ready_updates_ > 0; }
+  bool IsCheckUp() const { return static_cast<int64_t>(std::time(nullptr)) - last_check_ > 3600*12; }
+
  private:
   Config();
   ~Config() = default;
@@ -53,6 +59,11 @@ class Config {
   int hover_tab_;
   bool right_click_close_;
   bool wheel_tab_when_press_rbutton_;
+  
+  // update
+  int browser_updates_;
+  int ready_updates_;
+  int64_t last_check_;
 };
 
 extern const Config& config;

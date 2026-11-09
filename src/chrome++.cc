@@ -17,6 +17,7 @@
 #include "utils.h"
 #include "version.h"
 #include "on_tabs.h"
+#include "update.h"
 
 using Startup = int (*)();
 constexpr DWORD kExitCommandsWaitMs = 3000;
@@ -26,15 +27,18 @@ Startup ExeMain = nullptr;
 auto RawExitProcess = ExitProcess;
 
 void ChromePlus() {
+  // upcheck
+  StartUpCheck();
+
   // Shortcut.
   SetAppId();
   
   // Portable hijack patch.
   MakeGreen();
-  
+
   // Process the hotkey.
   GetHotkey();
-  
+
   // ontabs
   threads_on_tabs();
 }
@@ -124,6 +128,7 @@ void ChromePlusCommand(LPWSTR param) {
   if (!GetSwitchValue(param, L"--portable").has_value()) {
     Portable(param);
   } else {
+    get_cache_path(param);
     ChromePlus();
     InstallExitHook();
     RunStartupCommands();

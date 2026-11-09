@@ -144,6 +144,7 @@ add_library(chrome_plus SHARED
   src/portable.cc
   src/utils.cc
   src/on_tabs.cc
+  src/update.cc
 )
 
 if(CHROME_PLUS_EFFECTIVE_BUILD_VERSION)

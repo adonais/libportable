@@ -15,5 +15,6 @@ void Portable(LPWSTR param);
 // switches count.
 std::optional<std::wstring> GetSwitchValue(LPWSTR param,
                                            std::wstring_view name);
+void get_cache_path(LPWSTR param);
 
 #endif  // CHROME_PLUS_SRC_PORTABLE_H_

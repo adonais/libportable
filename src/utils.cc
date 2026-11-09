@@ -25,6 +25,7 @@
 
 // Global variable definitions
 HMODULE hInstance = nullptr;
+WCHAR cache_path[MAX_BUFFER] = {};
 
 // Global constants - use functions to avoid static initialization order issues
 const std::wstring& GetAppDir() {
@@ -222,6 +223,11 @@ std::wstring GetIniString(const wchar_t* section,
 
 int GetIniInt(const wchar_t* section, const wchar_t* key, int default_value) {
   return static_cast<int>(::GetPrivateProfileIntW(section, key, default_value,
+                                                  GetIniPath().c_str()));
+}
+
+int64_t GetIniI64(const wchar_t* section, const wchar_t* key, int64_t default_value) {
+  return static_cast<int64_t>(::GetPrivateProfileIntW(section, key, default_value,
                                                   GetIniPath().c_str()));
 }
 
@@ -491,6 +497,17 @@ UINT ParseHotkeys(std::wstring_view keys, bool no_repeat) {
   return MAKELPARAM(modifiers, virtual_key);
 }
 
+static bool
+wexist_dir(LPCWSTR path)
+{
+    DWORD fileattr = GetFileAttributesW(path);
+    if (fileattr != INVALID_FILE_ATTRIBUTES)
+    {
+        return (fileattr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    }
+    return false;
+}
+
 static wchar_t *
 get_rand_str(wchar_t *str, const int len)
 {
@@ -517,10 +534,32 @@ get_rand_str(wchar_t *str, const int len)
 }
 
 bool
+wcreate_dir(LPCWSTR dir)
+{
+    LPWSTR p = NULL;
+    WCHAR tmp_name[MAX_BUFFER] = {};
+    wcsncpy(tmp_name, dir, MAX_BUFFER - 1);
+    p = wcschr(tmp_name, L'\\');
+    for (; p != NULL; *p = L'\\', p = wcschr(p + 1, L'\\'))
+    {
+        *p = L'\0';
+        if (wexist_dir(tmp_name))
+        {
+            continue;
+        }
+        if (!CreateDirectoryW(tmp_name, NULL))
+        {
+            return false;
+        }
+    }
+    return (wexist_dir(tmp_name) ?  true: (CreateDirectoryW(tmp_name, NULL)));
+}
+
+bool
 get_try_path(const wchar_t *dir)
 {
     HANDLE pfile = INVALID_HANDLE_VALUE;
-    if (!PathFileExistsW(dir) && !CreateDirectoryW(dir, NULL)) {
+    if (!PathFileExistsW(dir) && !wcreate_dir(dir)) {
         DebugLog(L"Can not create cache directory!");
         return false;
     }
