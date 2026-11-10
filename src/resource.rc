@@ -14,12 +14,12 @@ BEGIN
     BLOCK "080904E4"
     BEGIN
       VALUE "CompanyName", "ZH_CN NetWork\0"
-      VALUE "FileDescription", "umpv DLL for mpv player by adonais\0"
+      VALUE "FileDescription", "Mpv++ DLL for mpv player by adonais\0"
       VALUE "FileVersion", "1.0.0"
-      VALUE "InternalName", "umpv\0"
+      VALUE "InternalName", "mpv++\0"
       VALUE "LegalCopyright", "License: BSD 2\0"
-      VALUE "OriginalFilename", "umpv.dll\0"
-      VALUE "ProductName", "umpv.dll"
+      VALUE "OriginalFilename", "mpv++.dll\0"
+      VALUE "ProductName", "mpv++.dll"
       VALUE "ProductVersion", "1.0.0"
     END
   END

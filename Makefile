@@ -68,16 +68,16 @@ endif
 ifeq ($(LIBUMPV_STATIC),1)
 CFLAGS   += -DLIBUMPV_STATIC
 LD       =$(AR) rcs
-OUT      = $(DISTDIR)/umpv_s.lib
+OUT      = $(DISTDIR)/mpv++_s.lib
 LDFLAGS  =
 OBJS     = $(DEP)/*.o
 else
-OUT      = $(DISTDIR)/umpv.dll
+OUT      = $(DISTDIR)/mpv++.dll
 DEPLIBS  = -lminhook$(BITS)
 LDLIBS   = -lshlwapi -lshell32 -lcomctl32 -luser32 -lkernel32
 LDFLAGS  += -L$(DISTDIR) $(DEPLIBS) \
             -nostdlib --entry=$(DLL_MAIN_STDCALL_NAME) -Wl,--gc-sections -Wl,-s
-DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libumpv.dll.a
+DLLFLAGS += -fPIC -shared -Wl,--out-implib,$(DISTDIR)/libmpv++.dll.a
 RC       = $(CROSS_COMPILING)windres
 RCFLAGS  += --define UNICODE -J rc -O coff
 OBJECTS  += $(DEP)/resource.o

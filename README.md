@@ -1,4 +1,4 @@
-HOW TO BUILD umpv.dll
+HOW TO BUILD mpv++.dll
 =================
 
 ## System requirements
@@ -42,8 +42,8 @@ nmake -f Makefile.msvc
 
 ## Injecting mpv.exe's import table
 ```
-setdll32 /d:umpv32.dll mpv.exe       // 32 bits mpv player
-setdll64 /d:umpv64.dll mpv.exe       // 64 bits mpv player
+setdll32 /d:mpv++.dll mpv.exe       // 32 bits mpv player
+setdll64 /d:mpv++.dll mpv.exe       // 64 bits mpv player
 ```
 
 ## Another way, compiled with mpv's code, patch example:
@@ -73,8 +73,10 @@ index e7337c914d..9b74ed5a3c 100644
      bool has_console = terminal_try_attach();
 ```
 
-## Libumpv features: 
-Modify the mpv.conf configuration file, add the following entry 
+## Libmpv++ features: 
+Modify the mpv.conf configuration file, add the following entry  
+Note, start with the # character to avoid conflicts with mpv config syntax  
+For comments, you need two # characters.  
 
 ```
 [libumpv]

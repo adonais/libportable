@@ -53,7 +53,7 @@ LDFLAGS  = /NOLOGO /LTCG
 
 !if "$(LIBUMPV_STATIC)"=="1"
 LD       = lib.exe
-OUT	 = $(DISTDIR)\umpv_s.lib
+OUT	 = $(DISTDIR)\mpv++_s.lib
 CFLAGS   = $(CFLAGS) /D "LIBUMPV_STATIC"
 CRTFLAGS =
 OBJS     = $(DEP)\*.obj
@@ -61,7 +61,7 @@ OBJS     = $(DEP)\*.obj
 OBJDLL   = $(OBJDLL)
 LDFLAGS  =  $(LDFLAGS) /opt:ref /opt:icf /MACHINE:$(PLATFORM) /NODEFAULTLIB /SECTION:.shmpv,RWS
 CRTFLAGS = $(OUT1) kernel32.lib shell32.lib shlwapi.lib user32.lib $(CRTFLAGS)
-OUT	 = $(DISTDIR)\umpv.dll
+OUT	 = $(DISTDIR)\mpv++.dll
 OBJDLL   = $(OBJDLL)  $(DEP)\resource.res
 OBJS     = $(OBJDLL)
 !endif
