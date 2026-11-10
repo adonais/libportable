@@ -8,11 +8,7 @@
 #include "internal_crt.h"
 #include "MinHook.h"
 
-#define SECTOR_SIZE 2048
-#define TAG_7Z    "\x37\x7A\xBC\xAF\x27\x1C"
-#define DVD_17G   0x440000000
 #define PL_STR    (L"--playlist=\"%s\"")
-#define BD_STR    (L"bd:// --bluray-device=\"%s\"")
 #define IPC_STR   (L" --input-ipc-server=mpv++")
 #define IPC_NAME  (L"\\\\.\\pipe\\mpv++")
 #define IPC_CMD   (L"{\"command\": [\"loadfile\", \"%s\"]}\n")
@@ -128,112 +124,6 @@ mp_memstr(char *full_data, int full_data_len, const char *substr)
         }
     }
     return NULL;
-}
-
-static UINT64
-get_file_size(const HANDLE hfile)
-{  
-    UINT64 size = 0;
-    GetFileSizeEx(hfile, (LARGE_INTEGER *) &size);
-    return size;
-}
-
-static bool
-detect_media_dvd(const HANDLE fp, bool *udf)
-{
-    // DVD主描述符, 16扇区
-    const int dvd_primary_sector = 16;
-    unsigned char dvd_header[6];
-    api_fseek(fp, dvd_primary_sector * SECTOR_SIZE, 0);
-    if (api_fread(dvd_header, 1, sizeof(dvd_header), fp) == sizeof(dvd_header))
-    {
-        // 是否udf格式
-        if (dvd_header[0] == 0x0 && api_memcmp(dvd_header + 1, "BEA01", 5) == 0)
-        {
-            *udf = true;
-        }
-        // DVD标识: 首字节为0x01且后续5字节为"CD001"
-        else if (dvd_header[0] == 0x01 && api_memcmp(dvd_header + 1, "CD001", 5) == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
-detect_media_utf2(const HANDLE fp)
-{
-    // (位置: 17扇区)
-    const int sector = 17;
-    unsigned char vudf[6];
-    api_fseek(fp, sector * SECTOR_SIZE, 0);
-    if (api_fread(vudf, 1, sizeof(vudf), fp) == sizeof(vudf))
-    {
-        // NSR03, udf 2.x 版本
-        if (vudf[0] == 0x0 && api_memcmp(vudf + 1, "NSR03", 5) == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool
-mp_check_bdmv(const wchar_t *path)
-{
-    HANDLE f = NULL;
-    bool iso_bd = false;
-    while (path && path[0] && (f = api_wfopen(path, L"rb")) != NULL)
-    {
-        bool udf = false;
-        UINT64 s = get_file_size(f);
-        if (s <= 256 * SECTOR_SIZE + 16)
-        {   // 过小, 不是蓝光
-            break;
-        }
-        if (detect_media_dvd(f, &udf))
-        {
-            break;
-        }
-        if (s > (UINT64)DVD_17G)
-        {
-            iso_bd = true;
-        }
-        else if (udf && detect_media_utf2(f))
-        {
-            iso_bd = true;
-        }
-        break;
-    }
-    api_fclose(f);
-    return iso_bd;
-}
-
-static bool
-detect_type_7z(const wchar_t *path)
-{
-    HANDLE f = NULL;
-    bool ret = false;
-    if (path && path[0] && (f = api_wfopen(path, L"rb")) != NULL)
-    {
-        unsigned char header[6];
-        if (api_fread(header, 1, sizeof(header), f) == sizeof(header))
-        {
-            if (api_memcmp(header, TAG_7Z, 6) == 0)
-            {
-                ret = true;
-            }
-        }
-        api_fclose(f);
-    }
-    return ret;
-}
-
-static bool
-mp_fake_7z(const wchar_t *path)
-{
-    return (!detect_type_7z(path) && mp_check_bdmv(path));
 }
 
 // 转换直接在in内进行, 所以in_size要能容纳替换后的内容, in_size为数组长度
@@ -383,17 +273,17 @@ mp_path_replace(const WCHAR *format, const WCHAR *path, WCHAR *parg)
 //#endif
 
 static LPWSTR
-mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const WCHAR *playlist, const WCHAR *iso_path, const bool use_ipc, const bool use_bd)
+mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const WCHAR *playlist, const bool use_ipc)
 {
     DWORD size = 0;
     WCHAR *parg = NULL;
     if (*pline == 0)
     {
-        size = (MAX_PATH + 1) + (use_ipc ? (DWORD)api_wcslen(IPC_STR) : 0) + (use_bd ? 32 : 0) + (playlist ? 16 : 0);
+        size = (MAX_PATH + 1) + (use_ipc ? (DWORD)api_wcslen(IPC_STR) : 0) + (playlist ? 16 : 0);
     }
     else
     {
-        size = (DWORD)api_wcslen(pline) + 1 +  (use_ipc ? (DWORD)api_wcslen(IPC_STR) : 0) + (use_bd ? 32 : 0) + (playlist ? 16 : 0);
+        size = (DWORD)api_wcslen(pline) + 1 +  (use_ipc ? (DWORD)api_wcslen(IPC_STR) : 0) + (playlist ? 16 : 0);
     }
     if ((parg = (WCHAR *)api_malloc(sizeof(WCHAR) * (size + 1))) != NULL)
     {
@@ -412,7 +302,7 @@ mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const
             {
                 mp_wstr_replace(parg, size, L"--", IPC_STR);
             }
-            else if (playlist || use_bd)
+            else if (playlist)
             {
                 mp_wstr_replace(parg, size, L"--", L"");
             }
@@ -424,10 +314,6 @@ mp_update_command(const WCHAR **szlist, const WCHAR *pline, const int num, const
         if (playlist)
         {
             mp_path_replace(PL_STR, playlist, parg);
-        }
-        else if (use_bd && iso_path)
-        {
-            mp_path_replace(BD_STR, iso_path, parg);
         }
     }
     return parg;
@@ -473,7 +359,6 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
         bool mp_list = false;
         bool mp_file = false;
         bool use_ipc = (bool)single;
-        const WCHAR *iso_path = NULL;
         const WCHAR *list_path = NULL;
         for (int i = 1; i < *numargs; ++i)
         {
@@ -486,10 +371,9 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                 mp_url = false;
                 mp_pts = false;
                 mp_list = true;
-                iso_path = NULL;
                 list_path = szlist[i];
             }
-            if (!mp_list)
+            if (!mp_list && redirect)
             {
                 if (!mp_pts && mp_exist_url(szlist[i]))
                 {
@@ -512,26 +396,16 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                     {
                         list_path = szlist[i];
                     }
-                    else if ((p = api_wcsrchr(szlist[i], L'.')) != NULL && (api_wcsicmp(p, L".iso") == 0 || 
-                            (api_wcsicmp(p, L".7z") == 0 && mp_fake_7z(szlist[i]))))
-                    {
-                        iso_path = (const WCHAR *)szlist[i];
-                    }
                 }
             }
         }
         do
         {
-            bool use_bd = false;
             WCHAR *parg = NULL;
             DWORD cur_pid = GetCurrentProcessId();
             if (!(*numargs == 1 || mp_list || mp_url || mp_pts || mp_file))
             {
                 break;
-            }
-            if (iso_path)
-            {
-                use_bd = mp_check_bdmv(iso_path);
             }
             if (cur_pid > 0x4 && cur_pid != lib_pid && mp_url && list_path)
             {   /* 从pipe不能加载远程list文件, 但可以加载其他媒体文件 */
@@ -539,13 +413,13 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
             }
             if (lib_pid == cur_pid)
             {
-                if ((parg = mp_update_command((const WCHAR **)szlist, pline, *numargs, mp_exist_listplay(list_path) ? NULL: list_path, iso_path, use_ipc, use_bd)) != NULL)
+                if ((parg = mp_update_command((const WCHAR **)szlist, pline, *numargs, mp_exist_listplay(list_path) ? NULL: list_path, use_ipc)) != NULL)
                 {
                     LocalFree(szlist);
                     szlist = sCommandLineToArgvWstub(parg, numargs);
                 }
             }
-            else if (!mp_list && !mp_pts && !use_bd && use_ipc)
+            else if (!mp_list && !mp_pts && use_ipc)
             {
                 WCHAR pfile[MAX_BUFFER];
                 HANDLE hpipe = INVALID_HANDLE_VALUE;
@@ -576,7 +450,7 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                 mp_window_setting();
                 szlist[0] = NULL, *numargs = 0;
             }
-            else if ((mp_list || use_ipc || use_bd) && mpv_window_hwnd)
+            else if ((mp_list || use_ipc) && mpv_window_hwnd)
             {   /* 重写共享区的进程pid */
                 if (use_ipc && (lib_pid = cur_pid) > 0x4u)
                 {
@@ -589,7 +463,7 @@ mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
                     }
                     Sleep(1000);     // 等待ipc server关闭
                 }
-                if ((mp_list || use_bd) && (parg = mp_update_command((const WCHAR **)szlist, pline, *numargs, mp_exist_listplay(list_path) ? NULL: list_path, iso_path, use_ipc, use_bd)) != NULL)
+                if (mp_list && (parg = mp_update_command((const WCHAR **)szlist, pline, *numargs, mp_exist_listplay(list_path) ? NULL: list_path, use_ipc)) != NULL)
                 {
                     LocalFree(szlist);
                     szlist = sCommandLineToArgvWstub(parg, numargs);

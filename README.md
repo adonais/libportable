@@ -84,6 +84,6 @@ For comments, you need two # characters.
 #HotKey=02+192
 ## Single instance run of the mpv player
 #OneInstance=1
-## Redirection, can directly open bluray ISO and m3u and other list files.
+## Redirection, can directly open pls/ini and other list files.
 #ArgRedirect=1
 ```
