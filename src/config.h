@@ -22,7 +22,6 @@ class Config {
     return disk_cache_dir_;
   }
   const std::wstring& GetBossKey() const { return boss_key_; }
-  bool IsShowPassword() const { return show_password_; }
 
   // tabs
   bool IsHoverTab() const { return hover_tab_ > 0; }
@@ -53,7 +52,6 @@ class Config {
   std::optional<std::wstring> user_data_dir_;
   std::optional<std::wstring> disk_cache_dir_;
   std::wstring boss_key_;
-  bool show_password_;
 
   // tabs
   int hover_tab_;

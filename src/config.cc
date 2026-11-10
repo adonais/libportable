@@ -26,7 +26,6 @@ void Config::LoadConfig() {
   user_data_dir_ = LoadDirPath(L"data");
   disk_cache_dir_ = LoadDirPath(L"cache");
   boss_key_ = GetIniString(L"general", L"boss_key", L"");
-  show_password_ = GetIniInt(L"general", L"show_password", 1) > 0;
 
   // tabs
   hover_tab_ = GetIniInt(L"tabs", L"hover_tab", 0);
