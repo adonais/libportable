@@ -13,8 +13,8 @@
 #define DVD_17G   0x440000000
 #define PL_STR    (L"--playlist=\"%s\"")
 #define BD_STR    (L"bd:// --bluray-device=\"%s\"")
-#define IPC_STR   (L" --input-ipc-server=libumpv")
-#define IPC_NAME  (L"\\\\.\\pipe\\libumpv")
+#define IPC_STR   (L" --input-ipc-server=mpv++")
+#define IPC_NAME  (L"\\\\.\\pipe\\mpv++")
 #define IPC_CMD   (L"{\"command\": [\"loadfile\", \"%s\"]}\n")
 #define IPC_QUIT  ("{\"command\": [\"quit\"]}\n")
 #define IPC_PAUSE ("{\"command\": [\"set_property\", \"pause\", %s]}\n")
@@ -464,8 +464,8 @@ static LPWSTR *
 mp_CommandLineToArgvW(LPCWSTR pline, int *numargs)
 {
     LPWSTR *szlist = NULL;
-    const bool single = read_appint(L"libumpv", L"#OneInstance") > 0;
-    const bool redirect = read_appint(L"libumpv", L"#ArgRedirect") > 0;
+    const bool single = read_appint(L"mpv++", L"#OneInstance") > 0;
+    const bool redirect = read_appint(L"mpv++", L"#ArgRedirect") > 0;
     if ((szlist = sCommandLineToArgvWstub(pline, numargs)) != NULL && (single || redirect) && *numargs > 0 && *numargs < 4)
     {
         bool mp_pts = false;

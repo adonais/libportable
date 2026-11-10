@@ -79,7 +79,7 @@ Note, start with the # character to avoid conflicts with mpv config syntax
 For comments, you need two # characters.  
 
 ```
-[libumpv]
+[mpv++]
 ## Bosskey(mod key + virtual keyboard code), the example is CTRL+~
 #HotKey=02+192
 ## Single instance run of the mpv player

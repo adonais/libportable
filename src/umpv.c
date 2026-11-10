@@ -52,7 +52,7 @@ judg_args(void)
             if (GetEnvironmentVariableW(L"_started_from_console", buf, NAMES_LEN - 1) && (buf[0] == L'y' && buf[1] == L'e' && buf[2] == L's'))
             {
             #ifdef _LOGDEBUG
-                logmsg("[libumpv] started from console and no argments\n");
+                logmsg("[mpv++] started from console and no argments\n");
             #endif
                 LocalFree(argv);
                 return false;
@@ -70,7 +70,7 @@ judg_args(void)
                )
             {
             #ifdef _LOGDEBUG
-                logmsg("[libumpv] No file to play\n");
+                logmsg("[mpv++] No file to play\n");
             #endif
                 LocalFree(argv);
                 return false;
@@ -89,7 +89,7 @@ void WINAPI undo_it(void)
     uninit_exeception();
     MH_Uninitialize();
 #ifdef _LOGDEBUG
-    logmsg("[libumpv] all clean\n");
+    logmsg("[mpv++] all clean\n");
 #endif
     return;
 }
@@ -100,7 +100,7 @@ void WINAPI do_it(void)
     {
     #ifdef _LOGDEBUG   /* 初始化日志记录文件 */
         init_logs();
-        logmsg("[libumpv] init log:\n");
+        logmsg("[mpv++] init log:\n");
     #endif
         if (!init_parser(ini_path, MAX_PATH))
         {
@@ -114,7 +114,7 @@ void WINAPI do_it(void)
     if (!judg_args())
     {
     #ifdef _LOGDEBUG
-        logmsg("[libumpv] no need to load\n");
+        logmsg("[mpv++] no need to load\n");
     #endif
         return;
     }
@@ -129,7 +129,7 @@ void WINAPI do_it(void)
     if (!(init_crthook() && init_exeception()))
     {
     #ifdef _LOGDEBUG
-        logmsg("[libumpv] init_ctw failed...\n");
+        logmsg("[mpv++] init_ctw failed...\n");
     #endif
     }
 }
